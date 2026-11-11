@@ -63,17 +63,6 @@ func Each(db Querier, query string, scan func(*sql.Rows) error, args ...any) err
 	return rows.Err()
 }
 
-// Outcome is a work item's outcome from the states of its linked PRs: merged > rejected (all closed) > open.
-func Outcome(prStates map[string]bool) string {
-	switch {
-	case prStates["merged"]:
-		return "merged"
-	case prStates["closed"] && !prStates["open"]:
-		return "rejected"
-	}
-	return "open"
-}
-
 // Now returns the current time in the format used for every stored timestamp: fixed width, so text order is time order.
 func Now() string { return FormatTS(time.Now()) }
 

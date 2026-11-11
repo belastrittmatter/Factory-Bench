@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"factorybench/internal/contract"
+	"factorybench/internal/outcome"
 	"factorybench/internal/pricing"
 	"factorybench/internal/store"
 )
@@ -262,7 +263,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 				wi.ClosedBy = str(is.Issue.ClosedBy.Login)
 			}
 		}
-		wi.Outcome = ptr(store.Outcome(prStates[k]))
+		wi.Outcome = ptr(outcome.FromPRStates(prStates[k]))
 		if *wi.Outcome == "merged" {
 			wi.Survival = ptr("pending")
 		}
