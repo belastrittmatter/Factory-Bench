@@ -61,18 +61,14 @@ func main() {
 		fs.Var(&repos, "repo", "owner/name to poll (repeatable)")
 		fs.Parse(args)
 		db := open(*dbp)
+		rebuild := rebuilder(db)
 		if *poll > 0 {
 			if len(repos) == 0 {
 				log.Fatal("--poll needs at least one --repo")
 			}
-			go pollGitHub(db, repos, *poll, githubToken())
+			go pollGitHub(db, repos, *poll, githubToken(), rebuild)
 		}
-		http.Handle("/v1/events", intake.Handler(db, func() {
-			// shortcut: full rebuild after every batch; switch to incremental normalize when events grow large
-			if err := normalize.Run(db); err != nil {
-				log.Print("normalize: ", err)
-			}
-		}))
+		http.Handle("/v1/events", intake.Handler(db, rebuild))
 		log.Printf("listening on %s", *addr)
 		check((&http.Server{Addr: *addr, ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
 	case cmd == "emit":
@@ -133,9 +129,29 @@ func main() {
 	}
 }
 
-// pollGitHub reconciles repos every interval, forever, and rebuilds derived tables when something new arrived.
-// normalize.Run is one transaction and the DB has one connection, so it never interleaves with intake's rebuild.
-func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string) {
+// rebuilder runs normalize.Run in one background goroutine and returns a non-blocking trigger for it.
+// Triggers that arrive during a rebuild collapse into one more rebuild, so intake never waits for normalize
+// and a burst of batches costs at most two rebuilds.
+// shortcut: each rebuild is a full one; switch to incremental normalize when events grow large.
+func rebuilder(db *sql.DB) func() {
+	dirty := make(chan struct{}, 1)
+	go func() {
+		for range dirty {
+			if err := normalize.Run(db); err != nil {
+				log.Print("normalize: ", err)
+			}
+		}
+	}()
+	return func() {
+		select {
+		case dirty <- struct{}{}:
+		default: // a rebuild is already queued and will see this batch
+		}
+	}
+}
+
+// pollGitHub reconciles repos every interval, forever, and triggers a rebuild when something new arrived.
+func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string, rebuild func()) {
 	for {
 		added := 0
 		for _, r := range repos {
@@ -148,9 +164,7 @@ func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string) {
 			added += st.Added
 		}
 		if added > 0 {
-			if err := normalize.Run(db); err != nil {
-				log.Print("normalize: ", err)
-			}
+			rebuild()
 		}
 		time.Sleep(every)
 	}

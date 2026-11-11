@@ -198,7 +198,8 @@ Rules:
 - Usage and cost columns are nullable, never defaulted to 0. Unknown stays unknown and lowers coverage.
 - Factory-specific extras stay in `events.payload`. A field becomes a column only when it joins the contract for everyone.
 - Factory vs. human commits are told apart by commit author. Each factory registers its commit identity and, optionally, the GitHub login it acts as: `factorybench factory add <id> --commit-email <email> --github-login <login>` (e.g. `factory-bot@users.noreply.github.com`).
-- Polling: `factorybench serve --poll 3m --repo a/b --repo c/d` reconciles each repo in turn at startup and then every interval, and re-normalizes once if anything new was stored. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile`. Without `--poll` nothing is polled. Polling and intake both rebuild with `normalize.Run`, one transaction on the database's single connection, so they never interleave.
+- Polling: `factorybench serve --poll 3m --repo a/b --repo c/d` reconciles each repo in turn at startup and then every interval, and re-normalizes once if anything new was stored. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile`. Without `--poll` nothing is polled.
+- Rebuilds: intake and polling only mark the derived tables stale; one background goroutine runs `normalize.Run` (one transaction on the database's single connection), and triggers during a rebuild collapse into one more. A POST therefore never waits for normalization, and reports can lag a batch by one rebuild.
 
 ## 4. The event contract
 
