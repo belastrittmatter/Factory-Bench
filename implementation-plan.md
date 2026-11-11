@@ -184,7 +184,7 @@ CREATE TABLE pr_commits (                   -- from the latest pr.commits event 
 );
 ```
 
-FactoryBench's own prices are not a table: they live in `internal/pricing/prices/<YYYY-MM-DD>.json` (per model: `input`, `output`, `cache_read`, `cache_write` per million tokens), embedded in the binary. A new version is a new file named by its effective date, never an edit; file names must sort chronologically (so no `v2`/`v10`), estimates use the newest and record its name without `.json` (e.g. `2026-11-11`) in `usage.price_version`. A session whose model, or a token class it used, has no price stays `cost_usd = NULL`.
+FactoryBench's own prices are not a table: they live in `internal/pricing/prices/<YYYY-MM-DD>.json` (per model: `input`, `output`, `cache_read`, `cache_write` per million tokens), embedded in the binary. A new version is a new file named by its effective date, never an edit; file names must sort chronologically (so no `v2`/`v10`), a session is estimated with the newest table dated on or before its `ts` (the oldest table for sessions before it), so adding a table never changes the cost of past sessions; its name without `.json` (e.g. `2026-11-11`) is recorded in `usage.price_version`. A session whose model, or a token class it used, has no price stays `cost_usd = NULL`.
 
 Rules:
 - Intake writes only `events`. Everything else is derived. An event is never overwritten once accepted; the one exception to append-only is a re-send of a previously **rejected** id, which replaces the rejected row (and counts as accepted if it now validates). `events.payload` holds the whole raw event as received (contract) or the reconciler's wrapper around the raw API object (github).
