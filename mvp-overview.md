@@ -241,7 +241,7 @@ open one: factorybench report item <owner/repo#n>
 
 ### Factory scorecard
 
-`factorybench report factories [--by config]`: factories head to head (metrics as rows), then the gates that caught defects and CI suite health. Definitions are in [implementation-plan.md](implementation-plan.md) §2 Reports.
+`factorybench report factories [--by config]`: factories head to head (metrics as rows), then the gates that caught defects and CI suite health. Definitions are in [implementation-plan.md §2 Reports](implementation-plan.md#reports).
 
 ```text
 metric                       fa                             fb

@@ -14,7 +14,7 @@ import (
 )
 
 // Metrics for `report items` and `report factories`. Every number is built from units: one factory (or
-// factory+config) on one work item. Definitions are in implementation-plan.md §7 "Reports".
+// factory+config) on one work item. Definitions are in implementation-plan.md §2 "Reports".
 
 type mAtt struct {
 	factory, id, repo, role, config, state, started string

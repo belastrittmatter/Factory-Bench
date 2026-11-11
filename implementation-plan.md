@@ -60,7 +60,7 @@ Not collected yet: spec items covered by E2E tests (needs a product-repo CI conv
 
 ![Database schema](docs/diagrams/db-schema.svg)
 
-One schema for all factories. No table per factory. The migration is `internal/store/schema.sql`, applied once when `PRAGMA user_version` is 0. There is no production data yet, so schema changes edit that file in place (delete the DB and re-create it); a second migration step comes with the first real data.
+One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
 
 ```sql
 -- registered factories; the API token identifies the factory
@@ -115,6 +115,7 @@ CREATE TABLE attempts (
   ended_at          TEXT,
   human_wait_ms     INTEGER NOT NULL DEFAULT 0,
   pr_url            TEXT,
+  waiting_since     TEXT,                  -- start of the open human wait, NULL if none (live report)
   PRIMARY KEY (factory_id, attempt_id)
 );
 
@@ -340,22 +341,7 @@ What a factory's maintainers change. Nothing in how the factory works changes; t
 2. **Decide three mappings:** what one *attempt* is in this factory, a stable attempt ID, and the `factory_config_version` string (e.g. factory version + agent CLI version + config hash).
 3. **Call the emitter at about five points:** attempt start, after each agent session, PR created, human wait/resume, attempt end.
 
-Reference emitter in TypeScript:
-
-```ts
-// emit.ts
-const URL = process.env.FACTORYBENCH_URL, TOKEN = process.env.FACTORYBENCH_TOKEN;
-export function emit(type: string, attemptId: string, key: string, payload: object): void {
-  if (!URL) return;                                   // not configured: do nothing
-  const ev = { spec: 'factorybench/v1', id: `${attemptId}:${key}`, type,
-               ts: new Date().toISOString(), attempt_id: attemptId, payload };
-  fetch(`${URL}/v1/events`, { method: 'POST', body: JSON.stringify([ev]),
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' } })
-    .catch(() => spool(ev));                          // never fail the run; retry later
-}
-```
-
-Factories in other languages do the same with one HTTP POST, or call `factorybench emit`.
+The reference emitter (TypeScript, with timeout, spool and flush) is in [INSTALL.md §3](INSTALL.md#3-send-events). Factories in other languages do the same with one HTTP POST, or call `factorybench emit`.
 
 ### What maintainers don't do
 
