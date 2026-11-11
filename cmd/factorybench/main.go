@@ -4,6 +4,7 @@ package main
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -26,10 +27,10 @@ import (
 
 const usage = `usage:
   factorybench factory add <id> --commit-email <email> [--github-login <login>] [--db fb.db]
-  factorybench serve [--db fb.db] [--addr :8080] [--poll 3m --repo owner/name [--repo ...]]
+  factorybench serve [--db fb.db] [--addr :8080] [--poll 3m [--repo owner/name ...]]
   factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]
   factorybench emit --flush
-  factorybench reconcile --repo owner/name [--db fb.db]
+  factorybench reconcile [--repo owner/name ...] [--db fb.db]
   factorybench replay [--db fb.db]
   factorybench report live [--db fb.db]
   factorybench report item <owner/repo#issue> [--db fb.db]
@@ -56,16 +57,13 @@ func main() {
 	case cmd == "serve":
 		fs, dbp := dbFlags("serve")
 		addr := fs.String("addr", ":8080", "listen address")
-		poll := fs.Duration("poll", 0, "reconcile the --repo list from GitHub at this interval (0 = never)")
+		poll := fs.Duration("poll", 0, "reconcile from GitHub at this interval (0 = never): every repo a factory reported work on, plus --repo")
 		var repos repoList
-		fs.Var(&repos, "repo", "owner/name to poll (repeatable)")
+		fs.Var(&repos, "repo", "extra owner/name to poll (repeatable)")
 		fs.Parse(args)
 		db := open(*dbp)
 		rebuild := rebuilder(db)
 		if *poll > 0 {
-			if len(repos) == 0 {
-				log.Fatal("--poll needs at least one --repo")
-			}
 			go pollGitHub(db, repos, *poll, githubToken(), rebuild)
 		}
 		http.Handle("/v1/events", intake.Handler(db, rebuild))
@@ -75,16 +73,27 @@ func main() {
 		emit.Run(args, usage)
 	case cmd == "reconcile":
 		fs, dbp := dbFlags("reconcile")
-		repo := fs.String("repo", "", "owner/name")
+		var extra repoList
+		fs.Var(&extra, "repo", "owner/name to reconcile (repeatable); default every repo a factory reported work on")
 		fs.Parse(args)
-		if *repo == "" {
-			log.Fatal("--repo required")
-		}
 		db := open(*dbp)
-		st, err := github.Reconcile(db, *repo, githubToken())
-		check(err)
+		repos := []string(extra)
+		if len(repos) == 0 {
+			var err error
+			repos, err = github.Repos(db, nil)
+			check(err)
+		}
+		token := githubToken()
+		for _, r := range repos {
+			st, err := github.Reconcile(db, r, token)
+			if errors.Is(err, github.ErrNotFound) {
+				fmt.Printf("reconcile %s: not found or no access with this GitHub token, skipped\n", r)
+				continue
+			}
+			check(err)
+			fmt.Printf("reconcile %s: %d new events, %d duplicates\n", r, st.Added, st.Duplicates)
+		}
 		check(normalize.Run(db))
-		fmt.Printf("reconcile %s: %d new events, %d duplicates\n", *repo, st.Added, st.Duplicates)
 	case cmd == "replay":
 		fs, dbp := dbFlags("replay")
 		fs.Parse(args)
@@ -150,15 +159,28 @@ func rebuilder(db *sql.DB) func() {
 	}
 }
 
-// pollGitHub reconciles repos every interval, forever, and triggers a rebuild when something new arrived.
-func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string, rebuild func()) {
+// pollGitHub reconciles every known repo (see github.Repos) every interval, forever, and triggers a rebuild
+// when something new arrived. A repo the token can't see is logged once, then skipped quietly.
+func pollGitHub(db *sql.DB, extra []string, every time.Duration, token string, rebuild func()) {
+	missing := map[string]bool{}
 	for {
+		repos, err := github.Repos(db, extra)
+		if err != nil {
+			log.Print("poll: ", err)
+		}
 		added := 0
 		for _, r := range repos {
 			st, err := github.Reconcile(db, r, token)
-			if err != nil {
+			switch {
+			case errors.Is(err, github.ErrNotFound):
+				if !missing[r] {
+					log.Printf("poll %s: not found or no access with this GitHub token; skipping it until it appears", r)
+					missing[r] = true
+				}
+			case err != nil:
 				log.Printf("poll %s: %v", r, err)
-			} else {
+			default:
+				delete(missing, r)
 				log.Printf("poll %s: %d new events, %d duplicates", r, st.Added, st.Duplicates)
 			}
 			added += st.Added

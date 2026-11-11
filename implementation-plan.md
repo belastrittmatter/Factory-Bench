@@ -198,7 +198,7 @@ Rules:
 - Usage and cost columns are nullable, never defaulted to 0. Unknown stays unknown and lowers coverage.
 - Factory-specific extras stay in `events.payload`. A field becomes a column only when it joins the contract for everyone.
 - Factory vs. human commits are told apart by commit author. Each factory registers its commit identity and, optionally, the GitHub login it acts as: `factorybench factory add <id> --commit-email <email> --github-login <login>` (e.g. `factory-bot@users.noreply.github.com`).
-- Polling: `factorybench serve --poll 3m --repo a/b --repo c/d` reconciles each repo in turn at startup and then every interval, and re-normalizes once if anything new was stored. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile`. Without `--poll` nothing is polled.
+- Polling: `factorybench serve --poll 3m` reconciles, at startup and then every interval, every repo a factory sent an accepted `attempt.started` for, plus any `--repo a/b`. A factory working on a new repo needs no setup: it is polled from the next interval on. A repo the GitHub token can't see (404) is logged once and skipped. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile` (which takes the same repo list, or `--repo` to pick some). Without `--poll` nothing is polled.
 - Rebuilds: intake and polling only mark the derived tables stale; one background goroutine runs `normalize.Run` (one transaction on the database's single connection), and triggers during a rebuild collapse into one more. A POST therefore never waits for normalization, and reports can lag a batch by one rebuild.
 
 ## 4. The event contract
@@ -332,7 +332,7 @@ What a factory's maintainers change. Nothing in how the factory works changes; t
 ### One-time setup
 
 1. Register the factory in FactoryBench: get a `factory_id` and an API token, and register its commit author identity.
-2. Add the product repo to FactoryBench's watched repos (its read-only GitHub token needs access).
+2. Make sure FactoryBench's read-only GitHub token can read the factory's repos. They are polled automatically once the factory reports work on them.
 
 ### Code changes
 

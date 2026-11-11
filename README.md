@@ -17,7 +17,7 @@ go build -o factorybench ./cmd/factorybench          # Go 1.27+
 
 # operator: register a factory (prints its API token once), then run the server
 ./factorybench factory add my-factory --commit-email factory-bot@users.noreply.github.com --github-login factory-bot
-./factorybench serve --addr :8080 --poll 3m --repo owner/product-repo
+./factorybench serve --addr :8080 --poll 3m   # polls every repo a factory reports work on
 
 # factory: send events (always exits 0, spools on failure)
 export FACTORYBENCH_URL=http://localhost:8080 FACTORYBENCH_TOKEN=<token>
