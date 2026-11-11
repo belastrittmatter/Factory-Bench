@@ -95,7 +95,7 @@ CREATE TABLE prs (
 CREATE TABLE checks (
   repo          TEXT NOT NULL,
   pr_number     INTEGER NOT NULL,
-  name          TEXT NOT NULL,              -- e.g. build, test, bench-gate
+  name          TEXT NOT NULL,              -- e.g. build, test, lint
   head_sha      TEXT NOT NULL,
   conclusion    TEXT,                       -- success | failure | ...
   started_at    TEXT,

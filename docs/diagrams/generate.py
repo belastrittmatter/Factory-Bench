@@ -80,57 +80,51 @@ def svg(w, h, body, label):
 # ---------------------------------------------------------------- architecture
 def architecture():
     d = []
-    d.append(legend(16, [('p1', 'People'), ('p2', 'Factory'), ('p3', 'Product CI (bench)'),
+    d.append(legend(16, [('p1', 'People'), ('p2', 'Factory'), ('p3', 'Product CI'),
                          ('p4', 'FactoryBench'), (None, '── work / control'), (None, '- - - observation only')]))
     o = 30  # vertical offset below the legend
-    for x, y, w, h, t in [(0, 100, 210, 300, 'Factory · e.g. plan → build loop'), (250, 100, 220, 405, 'Product repo · GitHub + CI'),
-                          (510, 100, 210, 455, 'FactoryBench · passive')]:
+    for x, y, w, h, t in [(0, 100, 210, 300, 'Factory · e.g. plan → build loop'), (250, 100, 220, 255, 'Product repo · GitHub + CI'),
+                          (510, 100, 210, 400, 'FactoryBench · passive')]:
         d.append(f'<rect x="{x}" y="{y + o}" width="{w}" height="{h}" rx="10" class="zone"/><text x="{x + 10}" y="{y + 18 + o}" class="zt">{E(t)}</text>')
     B = lambda x, y, w, h, l, c: box(x, y + o, w, h, l, c)
     L = lambda pts, **k: line([(x, y + o) for x, y in pts], **k)
     T = lambda x, y, t, *a, **k: lab(x, y + o, t, *a, **k)
     d.append(B(15, 15, 180, 52, ['Factory maintainers', 'one factory each'], 'p1'))
     d.append(B(265, 15, 190, 52, ['Humans', 'file issues, approve plans,', 'review, merge'], 'p1'))
-    d.append(B(525, 15, 180, 52, ['FactoryBench operator', 'FactoryBench, bench/,', 'gate, nightly'], 'p1'))
+    d.append(B(525, 15, 180, 52, ['FactoryBench operator', 'runs FactoryBench'], 'p1'))
     d.append(L([(105, 67), (105, 98)])); d.append(T(111, 86, 'own', 'start'))
     d.append(L([(360, 67), (360, 133)])); d.append(T(354, 88, 'issues, approve, merge', 'end'))
     d.append(L([(615, 67), (615, 98)])); d.append(T(621, 86, 'owns', 'start'))
-    d.append(L([(540, 67), (540, 84), (440, 84), (440, 245)])); d.append(T(490, 79, 'owns bench/'))
     # factory
     d.append(B(15, 135, 180, 40, ['watch / run', 'claims labelled issues'], 'p2'))
-    d.append(B(15, 195, 180, 70, ['loop: red → plan → green', 'gate ladder: build, guard,', 'test, bench budget (fast)'], 'p2'))
-    d.append(B(60, 285, 135, 36, ['agy sessions'], 'p2'))
+    d.append(B(15, 195, 180, 70, ['loop: red → plan → green', 'gate ladder: build, guard,', 'test'], 'p2'))
+    d.append(B(60, 285, 135, 36, ['agent sessions'], 'p2'))
     d.append(B(15, 341, 180, 44, ['emitter', '~5 call sites, raw facts'], 'p2'))
     d.append(L([(105, 175), (105, 193)])); d.append(L([(128, 265), (128, 283)]))
     d.append(L([(35, 265), (35, 339)], dash=True))
     # product repo + CI
     d.append(B(265, 135, 150, 36, ['Issues + labels'], 'p0'))
     d.append(B(265, 191, 150, 36, ['Pull requests'], 'p0'))
-    d.append(B(265, 247, 190, 62, ['Bench gate (CI)', 'main vs PR, same runner,', '5 runs each, median, budget'], 'p3'))
-    d.append(B(300, 329, 155, 34, ['Check runs'], 'p0'))
-    d.append(B(300, 383, 155, 40, ['Nightly 2 h soak', 'fake traffic, leak check'], 'p3'))
-    d.append(B(265, 443, 190, 50, ['docs/health/ on main', 'bot commit, [skip ci]'], 'p0'))
+    d.append(B(265, 247, 150, 40, ['CI', 'build, test, lint'], 'p3'))
+    d.append(B(265, 307, 150, 34, ['Check runs'], 'p0'))
     d.append(L([(265, 153), (197, 153)])); d.append(T(231, 147, 'poll'))
     d.append(L([(197, 214), (263, 214)])); d.append(T(231, 208, 'push, PR'))
     d.append(L([(340, 227), (340, 245)]))
-    d.append(L([(380, 309), (380, 327)]))
-    d.append(L([(380, 423), (380, 441)]))
-    d.append(L([(280, 309), (280, 441)])); d.append(T(275, 380, 'on merge', rot=-90))
-    d.append(L([(415, 262), (462, 262), (462, 153), (417, 153)])); d.append(T(458, 210, 'fail → perf issue', rot=-90))
+    d.append(L([(340, 287), (340, 305)]))
     # FactoryBench
     d.append(B(525, 135, 180, 46, ['GitHub poller', 'API, every 2–5 min'], 'p4'))
     d.append(B(525, 211, 180, 34, ['raw events (kept)'], 'p4'))
     d.append(B(525, 265, 180, 40, ['normalize', 'pure, replayable'], 'p4'))
     d.append(B(525, 325, 180, 34, ['SQLite: items, attempts'], 'p4'))
     d.append(B(525, 379, 180, 50, ['reports', 'live · item · trends · survival'], 'p4'))
-    d.append(B(525, 505, 180, 36, ['POST /v1/events'], 'p4'))
+    d.append(B(525, 450, 180, 36, ['POST /v1/events'], 'p4'))
     d.append(L([(472, 158), (523, 158)], dash=True)); d.append(T(497, 150, 'API poll'))
     for a, b in [(181, 209), (245, 263), (305, 323), (359, 377)]:
         d.append(L([(615, a), (615, b)]))
-    d.append(L([(705, 523), (714, 523), (714, 228), (707, 228)]))
-    d.append(L([(105, 385), (105, 523), (523, 523)], dash=True))
-    d.append(T(300, 517, 'contract events (only factory → FactoryBench link)'))
-    return svg(722, 560 + o, ''.join(d), 'FactoryBench architecture: who handles what')
+    d.append(L([(705, 468), (714, 468), (714, 228), (707, 228)]))
+    d.append(L([(105, 385), (105, 468), (523, 468)], dash=True))
+    d.append(T(300, 462, 'contract events (only factory → FactoryBench link)'))
+    return svg(722, 505 + o, ''.join(d), 'FactoryBench architecture: who handles what')
 
 
 # ---------------------------------------------------------------- issue flow
@@ -185,8 +179,8 @@ def sequence(P, rows, label, W=722):
 
 
 def issue_flow():
-    P = [('Dev', 'Engineer', 'p1'), ('GH', 'GitHub', 'p0'), ('F', 'Factory loop', 'p2'), ('AGY', 'agy', 'p2'),
-         ('CI', 'Bench gate (CI)', 'p3'), ('FB', 'FactoryBench', 'p4')]
+    P = [('Dev', 'Engineer', 'p1'), ('GH', 'GitHub', 'p0'), ('F', 'Factory loop', 'p2'), ('AGY', 'Agent', 'p2'),
+         ('CI', 'CI', 'p3'), ('FB', 'FactoryBench', 'p4')]
     rows = [
         ('m', 'Dev', 'GH', 'label issue agent:ready', False),
         ('m', 'F', 'GH', 'poll, claim (agent:working)', False),
@@ -201,22 +195,16 @@ def issue_flow():
         ('gs', 'loop', 'up to maxAttempts'),
         ('m', 'F', 'AGY', 'green phase', False),
         ('m', 'F', 'FB', 'usage · activity', True),
-        ('self', 'F', 'gates: build, guard, test, bench budget'),
+        ('self', 'F', 'gates: build, guard, test'),
         ('ge',),
         ('m', 'F', 'GH', 'push, PR ready (or draft + agent:needs-human)', False),
         ('m', 'F', 'FB', 'pr.linked · attempt.finished', True),
         ('m', 'GH', 'CI', 'PR updated', False),
-        ('self', 'CI', 'main vs PR, 5 runs each, medians'),
+        ('self', 'CI', 'build, test, lint'),
         ('m', 'CI', 'GH', 'check run: pass / fail', False),
         ('m', 'GH', 'FB', 'poll: check runs', True),
-        ('gs', 'alt', 'inside budget'),
         ('m', 'Dev', 'GH', 'review, merge', False),
-        ('m', 'GH', 'FB', 'poll: merged, commit authors', True),
-        ('m', 'CI', 'GH', 'bot commits docs/health to main [skip ci]', False),
-        ('gm', 'breaks budget'),
-        ('m', 'CI', 'GH', 'comment "idle mem 312 MB > 250 MB (main 205)" + perf issue', False),
-        ('m', 'GH', 'FB', 'new work item, linked as corrective', True),
-        ('ge',),
+        ('m', 'GH', 'FB', 'poll: reviews, merged, commit authors', True),
         ('note', 'FB', 'day 14: reconciler → survival'),
     ]
     return sequence(P, rows, 'One issue through a plan → build factory, and what FactoryBench sees')

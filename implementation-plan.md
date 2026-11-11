@@ -1,6 +1,6 @@
 # FactoryBench — Implementation plan
 
-Companion to [mvp-overview.md](mvp-overview.md), which owns the design (concepts, architecture, metrics, reports, app health, acceptance criteria). This file covers how to build it.
+Companion to [mvp-overview.md](mvp-overview.md), which owns the design (concepts, architecture, metrics, reports, acceptance criteria). This file covers how to build it.
 
 ## 1. Language and stack
 
@@ -159,7 +159,7 @@ CREATE TABLE prs (
 CREATE TABLE checks (
   repo          TEXT NOT NULL,
   pr_number     INTEGER NOT NULL,
-  name          TEXT NOT NULL,              -- e.g. build, test, bench-gate
+  name          TEXT NOT NULL,              -- e.g. build, test, lint
   head_sha      TEXT NOT NULL,
   conclusion    TEXT,                       -- success | failure | ...
   started_at    TEXT,
@@ -375,34 +375,12 @@ They don't change their gates, budget, ledger, or PR flow; don't calculate cost 
 5. **Aggregation.** Retries and child attempts into work-item cost; coverage metrics; versioned price table.
 6. **Longitudinal report** with configuration markers, cohorted by work-item start date.
 7. **Survival updater** (14-day revert and corrective-change check; evidence stored, outcome stays `pending` until the window closes).
-8. Dashboard only if reports are insufficient. Optional later: OTLP-to-contract adapter, `resource` events, app health numbers from `history.jsonl`.
+8. Dashboard only if reports are insufficient. Optional later: OTLP-to-contract adapter, `resource` events.
 
-The bench gate, nightly soak, and `docs/health/` are built in the product repo in parallel by the FactoryBench operator; FactoryBench only depends on their check runs.
-
-## 8. Hosting
-
-FactoryBench is one binary plus one SQLite file. The FactoryBench host and the machines running factories share a Tailscale tailnet.
-
-| Phase | Where it runs |
-|---|---|
-| Building it (delivery steps 1–3) | The operator's machine, on the tailnet |
-| From the first real end-to-end issue | A small always-on machine on the tailnet: a ~€5/month cloud VM or a spare mini PC |
-| Only if GitHub data must arrive within seconds | Add webhooks, exposing only `/github` publicly via Tailscale Funnel |
-
-- **Factory → FactoryBench:** over the tailnet, `FACTORYBENCH_URL=https://factorybench.<tailnet>.ts.net`. `tailscale serve` provides HTTPS. Each factory keeps its own API token, which sets its `factory_id`.
-- **GitHub → FactoryBench:** polling with a fine-grained read-only token; no inbound internet access needed. A few repos at a 2–5 minute interval stay far below the 5,000 requests/hour limit.
-- **Factories in GitHub Actions** (not used yet) join the tailnet with Tailscale's official GitHub Action and an ephemeral auth key.
-- **Backups:** Litestream to object storage, or a nightly `sqlite3 .backup`. Only `events` is essential; everything else rebuilds with `replay`.
-- **Moving hosts:** copy the SQLite file and repoint the tailnet name. Factories change nothing.
-- **Downtime:** emitters spool and retry, so no events are lost; the live view is stale until the server is back.
-- **Check first:** whether Tailscale is allowed on the factory machines and where this data may be hosted. Events contain repo names, issue numbers, labels, and model usage, but no code or prompts.
-
-## 9. Risks
+## 8. Risks
 
 - Every factory must adopt the contract. Keep it small and stable; version it (`spec`) and never require fields a factory cannot know.
 - The first integration needs buy-in from that factory's maintainers.
 - Revert and corrective-change attribution is ambiguous. Store evidence with the verdict; keep it out of the core path until step 7.
 - Tool output formats are not stable contracts. Drift is the factory's problem, but it shows up in FactoryBench as falling telemetry coverage.
 - Cost is estimated for any tool that reports only tokens; price tables must be versioned and never edited in place.
-- Bench results on shared CI runners are noisy; expect false failures unless thresholds are per-metric or runs are increased.
-- Writing `docs/health/` to main needs branch-protection access that only a repo admin can grant.
