@@ -158,11 +158,11 @@ export async function flushSpool(): Promise<void> {
 ```
 "modelUsage":{"claude-sonnet-5-5":{"inputTokens":1200,"outputTokens":800,"cacheReadInputTokens":45000,"cacheCreationInputTokens":6000,"costUSD":0.0412},
               "claude-haiku-5-5":{"inputTokens":300,"outputTokens":90,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"costUSD":0.00075}}, "duration_ms":95000
-→ usage:1 {"model":"claude-haiku-5-5","input":300,"output":90,"cache_read":0,"cache_write":0,"reported_cost_usd":0.00075,"duration_ms":95000}
+→ usage:1 {"model":"claude-haiku-5-5","input":300,"output":90,"cache_read":0,"cache_write":0,"reported_cost_usd":0.00075}
 → usage:2 {"model":"claude-sonnet-5-5","input":1200,"output":800,"cache_read":45000,"cache_write":6000,"reported_cost_usd":0.0412}
 ```
 
-`thinkingTokens` → `reasoning`, `costUSD` → `reported_cost_usd`; the run's `duration_ms` goes on the first event only. `is_error: true` → `attempt.finished {"status":"failed","reason":<subtype>}`; no `result` line at all → no usage, `failed`.
+`thinkingTokens` → `reasoning`, `costUSD` → `reported_cost_usd`; the run's `duration_ms` is sent only when the run used one model (with several it can't be split per model, so it's omitted). A model entry without `inputTokens`/`outputTokens` gets no event. `is_error: true` → `attempt.finished {"status":"failed","reason":<subtype>}`; no `result` line at all → no usage, `failed`.
 
 ## 6. Verify
 

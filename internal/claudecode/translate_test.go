@@ -50,8 +50,8 @@ func valid(t *testing.T, typ string, p map[string]any) {
 	}
 }
 
-// Two models in modelUsage give two payloads, sorted by model, with duration only on the first;
-// without modelUsage the top-level usage and total_cost_usd are used.
+// Two models in modelUsage give two payloads, sorted by model, and no duration (it can't be split);
+// without modelUsage the top-level usage and total_cost_usd are used. Missing model or token counts give no payload, never zeros.
 func TestTranslateModelUsage(t *testing.T) {
 	two := `{"type":"result","duration_ms":10,"total_cost_usd":0.5,"usage":{"input_tokens":1,"output_tokens":2},` +
 		`"modelUsage":{"claude-sonnet-5-5":{"inputTokens":5,"outputTokens":6,"costUSD":0.4},` +
@@ -59,9 +59,13 @@ func TestTranslateModelUsage(t *testing.T) {
 	fallback := `{"type":"system","subtype":"init","model":"m"}` + "\n" +
 		`{"type":"result","duration_ms":10,"total_cost_usd":0.5,"usage":{"input_tokens":1,"output_tokens":2,"cache_read_input_tokens":0}}`
 	for in, want := range map[string]string{
-		two: `[{"duration_ms":10,"input":3,"model":"claude-haiku-5-5","output":4,"reasoning":7,"reported_cost_usd":0.1},` +
+		two: `[{"input":3,"model":"claude-haiku-5-5","output":4,"reasoning":7,"reported_cost_usd":0.1},` +
 			`{"input":5,"model":"claude-sonnet-5-5","output":6,"reported_cost_usd":0.4}]`,
 		fallback: `[{"cache_read":0,"duration_ms":10,"input":1,"model":"m","output":2,"reported_cost_usd":0.5}]`,
+		// no init line: the model is unknown
+		`{"type":"result","duration_ms":10,"usage":{"input_tokens":1,"output_tokens":2}}`: `null`,
+		// a model entry without token counts is dropped, the complete one stays (and gets the duration)
+		`{"type":"result","duration_ms":10,"modelUsage":{"a":{"costUSD":0.1},"b":{"inputTokens":1,"outputTokens":2}}}`: `[{"duration_ms":10,"input":1,"model":"b","output":2}]`,
 	} {
 		got, err := Translate(strings.NewReader(in))
 		if err != nil {
