@@ -1,0 +1,190 @@
+// Command factorybench is the FactoryBench binary; this file only dispatches subcommands.
+package main
+
+import (
+	"database/sql"
+	"encoding/json"
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+	"os"
+	"os/exec"
+	"regexp"
+	"strconv"
+	"strings"
+	"time"
+
+	"factorybench/internal/claudecode"
+	"factorybench/internal/emit"
+	"factorybench/internal/github"
+	"factorybench/internal/intake"
+	"factorybench/internal/normalize"
+	"factorybench/internal/report"
+	"factorybench/internal/store"
+)
+
+const usage = `usage:
+  factorybench factory add <id> --commit-email <email> [--github-login <login>] [--db fb.db]
+  factorybench serve [--db fb.db] [--addr :8080] [--poll 3m --repo owner/name [--repo ...]]
+  factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]
+  factorybench emit --flush
+  factorybench reconcile --repo owner/name [--db fb.db]
+  factorybench replay [--db fb.db]
+  factorybench report live [--db fb.db]
+  factorybench report item <owner/repo#issue> [--db fb.db]
+  factorybench report items [--factory f] [--outcome merged|rejected|open] [--db fb.db]
+  factorybench report factories [--by config] [--db fb.db]
+  factorybench claude-translate <stream.jsonl>   (test harness: Claude Code stream -> contract payloads)`
+
+func main() {
+	log.SetFlags(0)
+	if len(os.Args) < 2 {
+		log.Fatal(usage)
+	}
+	cmd, args := os.Args[1], os.Args[2:]
+	switch {
+	case cmd == "factory" && len(args) >= 2 && args[0] == "add":
+		fs, db := dbFlags("factory add")
+		email := fs.String("commit-email", "", "commit author email of the factory")
+		login := fs.String("github-login", "", "GitHub login the factory acts as (closes issues, reviews, commits)")
+		fs.Parse(args[2:])
+		token, err := store.AddFactory(open(*db), args[1], *email, *login)
+		check(err)
+		fmt.Println(token)
+		fmt.Fprintln(os.Stderr, "token shown once; only its hash is stored")
+	case cmd == "serve":
+		fs, dbp := dbFlags("serve")
+		addr := fs.String("addr", ":8080", "listen address")
+		poll := fs.Duration("poll", 0, "reconcile the --repo list from GitHub at this interval (0 = never)")
+		var repos repoList
+		fs.Var(&repos, "repo", "owner/name to poll (repeatable)")
+		fs.Parse(args)
+		db := open(*dbp)
+		if *poll > 0 {
+			if len(repos) == 0 {
+				log.Fatal("--poll needs at least one --repo")
+			}
+			go pollGitHub(db, repos, *poll, githubToken())
+		}
+		http.Handle("/v1/events", intake.Handler(db, func() {
+			// shortcut: full rebuild after every batch; switch to incremental normalize when events grow large
+			if err := normalize.Run(db); err != nil {
+				log.Print("normalize: ", err)
+			}
+		}))
+		log.Printf("listening on %s", *addr)
+		check((&http.Server{Addr: *addr, ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
+	case cmd == "emit":
+		emit.Run(args, usage)
+	case cmd == "reconcile":
+		fs, dbp := dbFlags("reconcile")
+		repo := fs.String("repo", "", "owner/name")
+		fs.Parse(args)
+		if *repo == "" {
+			log.Fatal("--repo required")
+		}
+		db := open(*dbp)
+		st, err := github.Reconcile(db, *repo, githubToken())
+		check(err)
+		check(normalize.Run(db))
+		fmt.Printf("reconcile %s: %d new events, %d duplicates\n", *repo, st.Added, st.Duplicates)
+	case cmd == "replay":
+		fs, dbp := dbFlags("replay")
+		fs.Parse(args)
+		check(normalize.Run(open(*dbp)))
+		fmt.Println("derived tables rebuilt from events")
+	case cmd == "report" && len(args) >= 1 && args[0] == "live":
+		fs, dbp := dbFlags("report live")
+		fs.Parse(args[1:])
+		check(report.Live(open(*dbp), os.Stdout, time.Now()))
+	case cmd == "report" && len(args) >= 1 && args[0] == "items":
+		fs, dbp := dbFlags("report items")
+		factory := fs.String("factory", "", "only this factory")
+		outcome := fs.String("outcome", "", "only this outcome (merged, rejected, open)")
+		fs.Parse(args[1:])
+		check(report.Items(open(*dbp), os.Stdout, *factory, *outcome, time.Now()))
+	case cmd == "report" && len(args) >= 1 && args[0] == "factories":
+		fs, dbp := dbFlags("report factories")
+		by := fs.String("by", "", `"config" for one column per factory + config version`)
+		fs.Parse(args[1:])
+		if *by != "" && *by != "config" {
+			log.Fatal("--by only supports config")
+		}
+		check(report.Factories(open(*dbp), os.Stdout, *by == "config", time.Now()))
+	case cmd == "report" && len(args) >= 2 && args[0] == "item":
+		fs, dbp := dbFlags("report item")
+		fs.Parse(args[2:])
+		m := regexp.MustCompile(`^([\w.-]+/[\w.-]+)#(\d+)$`).FindStringSubmatch(args[1])
+		if m == nil {
+			log.Fatal("work item must look like owner/repo#123")
+		}
+		n, err := strconv.ParseInt(m[2], 10, 64)
+		check(err)
+		check(report.Item(open(*dbp), os.Stdout, m[1], n, time.Now()))
+	case cmd == "claude-translate" && len(args) == 1:
+		f, err := os.Open(args[0])
+		check(err)
+		res, err := claudecode.Translate(f)
+		check(err)
+		check(json.NewEncoder(os.Stdout).Encode(res))
+	default:
+		log.Fatal(usage)
+	}
+}
+
+// pollGitHub reconciles repos every interval, forever, and rebuilds derived tables when something new arrived.
+// normalize.Run is one transaction and the DB has one connection, so it never interleaves with intake's rebuild.
+func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string) {
+	for {
+		added := 0
+		for _, r := range repos {
+			st, err := github.Reconcile(db, r, token)
+			if err != nil {
+				log.Printf("poll %s: %v", r, err)
+			}
+			log.Printf("poll %s: %d new events, %d duplicates", r, st.Added, st.Duplicates)
+			added += st.Added
+		}
+		if added > 0 {
+			if err := normalize.Run(db); err != nil {
+				log.Print("normalize: ", err)
+			}
+		}
+		time.Sleep(every)
+	}
+}
+
+// repoList is a repeatable --repo flag.
+type repoList []string
+
+func (r *repoList) String() string     { return strings.Join(*r, ",") }
+func (r *repoList) Set(v string) error { *r = append(*r, v); return nil }
+
+func dbFlags(name string) (*flag.FlagSet, *string) {
+	fs := flag.NewFlagSet(name, flag.ExitOnError)
+	return fs, fs.String("db", "fb.db", "SQLite database path")
+}
+
+func open(path string) *sql.DB {
+	db, err := store.Open(path)
+	check(err)
+	return db
+}
+
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
+func githubToken() string {
+	if t := os.Getenv("GITHUB_TOKEN"); t != "" {
+		return t
+	}
+	out, err := exec.Command("gh", "auth", "token").Output()
+	if err != nil {
+		log.Print("no GITHUB_TOKEN and `gh auth token` failed; calling the API unauthenticated")
+	}
+	return strings.TrimSpace(string(out))
+}

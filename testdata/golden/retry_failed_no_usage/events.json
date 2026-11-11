@@ -1,0 +1,134 @@
+{
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "build",
+            "labels": [
+              "agent:ready",
+              "bug"
+            ]
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "gemini-3-pro",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 5000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "status": "failed",
+            "reason": "gate test failed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a2:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:10:00Z",
+          "attempt_id": "a2",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a2:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:11:00Z",
+          "attempt_id": "a2",
+          "payload": {
+            "status": "failed",
+            "reason": "crash"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a3:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:15:00Z",
+          "attempt_id": "a3",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a3:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:20:00Z",
+          "attempt_id": "a3",
+          "payload": {
+            "model": "unpriced-model",
+            "input": 10,
+            "output": 10
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a3:usage:2",
+          "type": "usage",
+          "ts": "2026-11-11T10:21:00Z",
+          "attempt_id": "a3",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 100,
+            "output": 50,
+            "reported_cost_usd": 0.5
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a3:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:22:00Z",
+          "attempt_id": "a3",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "factories": {
+    "fa": ""
+  },
+  "report": [
+    "acme/app#1"
+  ]
+}

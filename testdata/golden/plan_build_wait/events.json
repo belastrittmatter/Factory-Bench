@@ -1,0 +1,124 @@
+{
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T09:00:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "plan"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T09:02:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 2000,
+            "output": 500,
+            "cache_read": 10000,
+            "cache_write": 3000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T09:03:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/7",
+            "branch": "agent/issue-1"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:waiting",
+          "type": "human.waiting",
+          "ts": "2026-11-11T09:03:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "reason": "plan_review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T09:04:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T09:12:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:resumed",
+          "type": "human.resumed",
+          "ts": "2026-11-11T09:12:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "reason": "plan_approved"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T09:18:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 3000,
+            "output": 900,
+            "reasoning": 200,
+            "duration_ms": 300000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T09:20:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "factories": {
+    "fa": ""
+  },
+  "report": [
+    "acme/app#1"
+  ]
+}

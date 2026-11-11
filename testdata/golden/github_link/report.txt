@@ -1,0 +1,56 @@
+acme/app#1 "Crash on empty input" [bug]   outcome merged · survival pending
+  11-11 10:00  fa      attempt a1 started (full)                                                     config fake@1.0
+  11-11 10:05          session a1 claude-haiku-5-5: 100 in / ? cache read / ? cache write / 100 out  $0.01 reported
+  11-11 10:06          PR linked https://github.com/acme/app/pull/7                                  
+  11-11 10:07          attempt a1 completed                                                          7m0s, $0.01 reported
+  11-11 10:09  github  check lint on PR #7: failure                                                  
+  11-11 10:10          check test on PR #7: success                                                  
+  11-11 10:11          check bench-gate on PR #7: failure                                            
+  11-11 10:13          check lint on PR #7: success                                                  
+  11-11 10:15          review by alice: CHANGES_REQUESTED                                            
+  11-11 10:28          review by alice: APPROVED                                                     
+  11-11 10:30          PR acme/app#7 merged                                                          2 factory / 1 human commits
+  totals  fa  1 attempts (1 completed) · 1 sessions · tokens 100 in / 100 out / ? cache · 7m0s active / 7m0s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 1/1 attempts
+
+$ report items
+item        title                 factory  outcome  attempts  tokens  cost   active  elapsed  human  PR         escaped
+acme/app#1  Crash on empty input  fa       merged   1         200     $0.01  7m0s    7m0s     2      #7 merged  2
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     1
+tokens / issue               200
+time / issue                 7m0s active / 7m0s elapsed
+cost total                   $0.01 reported
+cost / issue                 $0.01
+cost / merged issue          $0.01 (1 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       100% (1/1)
+first-pass plan approval     n/a
+first-pass PR approval       0% (0/1)
+review rounds / PR           1.0 (1/1)
+human interventions / issue  2.0 (2/1)
+escaped defects              2 on 1/1 PRs
+usage coverage               100% (1/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source  gate        failed / runs
+  fa       CI      bench-gate  100% (1/1)
+  fa       CI      lint        50% (1/2)
+  fa       CI      test        0% (0/1)
+
+CI suite
+  factory  check       median runtime  flake rate (sha pairs)
+  fa       bench-gate  2m0s            0% (0/1)
+  fa       lint        1m0s            100% (1/1)
+  fa       test        2m0s            0% (0/1)
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

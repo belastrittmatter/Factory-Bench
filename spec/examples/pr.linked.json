@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:pr",
+  "type": "pr.linked",
+  "ts": "2026-11-11T09:19:00Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "pr_url": "https://github.com/acme/chat-bridge/pull/57", "branch": "agent/issue-412" }
+}

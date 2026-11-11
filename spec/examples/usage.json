@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:usage:1",
+  "type": "usage",
+  "ts": "2026-11-11T09:16:41Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "model": "gemini-3-pro", "input": 48210, "output": 3120, "cache_read": 31000, "reasoning": 900, "duration_ms": 151000, "phase": "implement" }
+}

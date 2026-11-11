@@ -1,0 +1,48 @@
+acme/app#1 [bug]   outcome open · survival n/a
+  11-11 10:00  fa  attempt a1 started (build)                                                    config fake@1.0
+  11-11 10:05      session a1 gemini-3-pro: 1.0k in / 5.0k cache read / ? cache write / 200 out  $0.01 est. (prices 2026-11-11)
+  11-11 10:06      attempt a1 failed                                                             6m0s, $0.01 est.
+  11-11 10:10      attempt a2 started (build, parent a1, inferred)                               config fake@1.0
+  11-11 10:11      attempt a2 failed                                                             1m0s, cost unknown (no usage)
+  11-11 10:15      attempt a3 started (build, parent a2, inferred)                               config fake@1.0
+  11-11 10:20      session a3 unpriced-model: 10 in / ? cache read / ? cache write / 10 out      unknown (1 session(s) unpriced)
+  11-11 10:21      session a3 claude-haiku-5-5: 100 in / ? cache read / ? cache write / 50 out   $0.50 reported
+  11-11 10:22      attempt a3 completed                                                          7m0s, $0.50 reported + unknown (1 session(s) unpriced)
+  totals  fa  3 attempts (1 completed, 2 failed) · 3 sessions · tokens 1.1k in / 260 out / 5.0k cache · 22m0s active / 22m0s elapsed · 0 human waits (0s) · $0.51 (reported $0.50 + est. $0.01) + unknown (1 session(s) unpriced) +? · usage coverage 2/3 attempts
+
+$ report items
+item        title  factory  outcome  attempts      tokens   cost      active  elapsed  human  PR  escaped
+acme/app#1         fa       open     3 (2 failed)  6.4k +?  $0.51 +?  22m0s   22m0s    0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     3 (2 failed)
+sessions                     3
+tokens / issue               6.4k +? (1 attempt(s) without usage)
+time / issue                 22m0s active / 22m0s elapsed
+cost total                   $0.51 (reported $0.50 + est. $0.01) +? (1 attempt(s) without usage)
+cost / issue                 $0.51 +?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+usage coverage               67% (2/3) attempts
+unpriced sessions            1
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

@@ -1,0 +1,54 @@
+acme/app#5 [perf]   outcome open · survival n/a
+  11-11 10:00  fa  attempt b1 started (build)                                                        config fake@1.0
+  11-11 10:04      session b1 claude-haiku-5-5: 2.0k in / 1.0k cache read / ? cache write / 500 out  <$0.01 est. (prices 2026-11-11)
+  11-11 10:05      gate build passed                                                                 
+  11-11 10:06      gate test failed: 2 failing tests                                                 
+  11-11 10:07      session b1 claude-haiku-5-5: 800 in / 1.0k cache read / ? cache write / 100 out   <$0.01 est. (prices 2026-11-11)
+  11-11 10:08      attempt b1 failed                                                                 8m0s, $0.01 est.
+  11-11 10:10      attempt b2 started (build, parent b1, inferred)                                   config fake@1.0
+  11-11 10:14      session b2 claude-haiku-5-5: 1.5k in / 1.0k cache read / ? cache write / 400 out  <$0.01 est. (prices 2026-11-11)
+  11-11 10:15      gate build passed                                                                 
+  11-11 10:16      gate test passed                                                                  
+  11-11 10:18      session b2 claude-haiku-5-5: 600 in / 1.0k cache read / ? cache write / 80 out    <$0.01 est. (prices 2026-11-11)
+  11-11 10:19      session b2 claude-haiku-5-5: 100 in / 1.0k cache read / ? cache write / 10 out    <$0.01 est. (prices 2026-11-11)
+  11-11 10:20      attempt b2 completed                                                              10m0s, <$0.01 est.
+  totals  fa  2 attempts (1 completed, 1 failed) · 5 sessions · tokens 5.0k in / 1.1k out / 5.0k cache · 20m0s active / 20m0s elapsed · 0 human waits (0s) · $0.01 est. · usage coverage 2/2 attempts
+
+$ report items
+item        title  factory  outcome  attempts      tokens  cost   active  elapsed  human  PR  escaped
+acme/app#5         fa       open     2 (1 failed)  11.1k   $0.01  20m0s   20m0s    0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     2 (1 failed)
+sessions                     5
+tokens / issue               11.1k
+time / issue                 20m0s active / 20m0s elapsed
+cost total                   $0.01 est.
+cost / issue                 $0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+usage coverage               100% (2/2) attempts
+unpriced sessions            0
+rejected events              2
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source   gate   failed / runs
+  fa       factory  build  0% (0/2)
+  fa       factory  test   50% (1/2)
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

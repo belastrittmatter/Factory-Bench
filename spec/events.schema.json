@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://factorybench.internal/spec/events.schema.json",
+  "title": "FactoryBench event (factorybench/v1)",
+  "description": "One event. POST /v1/events takes an array of these. The factory is identified by its bearer token; a factory_id in the body is ignored.",
+  "type": "object",
+  "required": ["spec", "id", "type", "ts", "attempt_id", "payload"],
+  "properties": {
+    "spec": { "const": "factorybench/v1" },
+    "id": { "type": "string", "minLength": 1, "description": "Unique per factory, stable across retries (idempotency key)." },
+    "type": { "enum": ["attempt.started", "usage", "activity", "human.waiting", "human.resumed", "human.steering", "pr.linked", "attempt.finished", "gate"] },
+    "ts": { "type": "string", "format": "date-time", "description": "When it happened, RFC 3339 UTC." },
+    "attempt_id": { "type": "string", "minLength": 1 },
+    "payload": { "type": "object" }
+  },
+  "$defs": {
+    "count": { "type": "integer", "minimum": 0 },
+    "attempt.started": {
+      "type": "object",
+      "required": ["work_item", "factory_config_version"],
+      "properties": {
+        "work_item": {
+          "type": "object", "required": ["repo", "issue"],
+          "properties": { "repo": { "type": "string", "pattern": "^[\\w.-]+/[\\w.-]+$" }, "issue": { "type": "integer", "minimum": 1 } }
+        },
+        "factory_config_version": { "type": "string", "minLength": 1 },
+        "parent_attempt_id": { "type": "string" },
+        "base_commit": { "type": "string" },
+        "labels": { "type": "array", "items": { "type": "string" } },
+        "role": { "type": "string" }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "description": "One agent session, as a delta. input is non-cached input only; cache_read/cache_write are separate; reasoning is a subset of output.",
+      "required": ["model", "input", "output"],
+      "properties": {
+        "model": { "type": "string", "minLength": 1 },
+        "input": { "$ref": "#/$defs/count" },
+        "output": { "$ref": "#/$defs/count" },
+        "cache_read": { "$ref": "#/$defs/count" },
+        "cache_write": { "$ref": "#/$defs/count" },
+        "reasoning": { "$ref": "#/$defs/count" },
+        "reported_cost_usd": { "type": "number", "minimum": 0, "description": "Only if the provider reported it." },
+        "duration_ms": { "$ref": "#/$defs/count" },
+        "phase": { "enum": ["implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." }
+      }
+    },
+    "activity": { "type": "object", "properties": { "tool": { "type": "string" }, "summary": { "type": "string" } } },
+    "human.waiting": { "type": "object", "properties": { "reason": { "type": "string" } } },
+    "human.resumed": { "type": "object", "properties": { "reason": { "type": "string" } } },
+    "human.steering": { "type": "object", "properties": { "source": { "enum": ["comment", "chat", "label"] } } },
+    "pr.linked": {
+      "type": "object", "required": ["pr_url"],
+      "properties": { "pr_url": { "type": "string", "minLength": 1 }, "branch": { "type": "string" } }
+    },
+    "attempt.finished": {
+      "type": "object", "required": ["status"],
+      "properties": { "status": { "enum": ["completed", "failed", "cancelled"] }, "reason": { "type": "string" } }
+    },
+    "gate": {
+      "type": "object", "required": ["name", "passed"],
+      "description": "One factory-internal gate result, e.g. build, guard, or test.",
+      "properties": { "name": { "type": "string", "minLength": 1 }, "passed": { "type": "boolean" }, "reason": { "type": "string" } }
+    }
+  },
+  "allOf": [
+    { "if": { "properties": { "type": { "const": "attempt.started" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/attempt.started" } } } },
+    { "if": { "properties": { "type": { "const": "usage" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/usage" } } } },
+    { "if": { "properties": { "type": { "const": "activity" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/activity" } } } },
+    { "if": { "properties": { "type": { "const": "human.waiting" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/human.waiting" } } } },
+    { "if": { "properties": { "type": { "const": "human.resumed" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/human.resumed" } } } },
+    { "if": { "properties": { "type": { "const": "human.steering" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/human.steering" } } } },
+    { "if": { "properties": { "type": { "const": "pr.linked" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/pr.linked" } } } },
+    { "if": { "properties": { "type": { "const": "attempt.finished" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/attempt.finished" } } } },
+    { "if": { "properties": { "type": { "const": "gate" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/gate" } } } }
+  ]
+}

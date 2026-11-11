@@ -1,0 +1,838 @@
+{
+  "factories": {
+    "fa": {
+      "commit_email": "fa-bot@example.com",
+      "github_login": "fa-bot"
+    },
+    "fb": {
+      "commit_email": "fb-bot@example.com",
+      "github_login": "fb-bot"
+    }
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 10
+            },
+            "factory_config_version": "fa@1",
+            "role": "plan"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:u1",
+          "type": "usage",
+          "ts": "2026-11-11T10:02:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 300,
+            "reported_cost_usd": 0.012
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:waiting",
+          "type": "human.waiting",
+          "ts": "2026-11-11T10:03:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "reason": "plan_review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:04:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:steer",
+          "type": "human.steering",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "source": "comment"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:10:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 10
+            },
+            "factory_config_version": "fa@1",
+            "role": "build",
+            "parent_attempt_id": "p1"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:resumed",
+          "type": "human.resumed",
+          "ts": "2026-11-11T10:10:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "reason": "plan_approved"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:u1",
+          "type": "usage",
+          "ts": "2026-11-11T10:15:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 3000,
+            "output": 500,
+            "cache_read": 2000,
+            "reported_cost_usd": 0.03,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:gate:1",
+          "type": "gate",
+          "ts": "2026-11-11T10:17:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "name": "test",
+            "passed": false,
+            "reason": "1 failing test"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:u2",
+          "type": "usage",
+          "ts": "2026-11-11T10:18:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 100,
+            "reported_cost_usd": 0.01,
+            "phase": "verify"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:gate:2",
+          "type": "gate",
+          "ts": "2026-11-11T10:19:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "name": "test",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T10:20:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/20"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:21:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:bad",
+          "type": "usage",
+          "ts": "2026-11-11T10:22:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "input": 1,
+            "output": 1
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p3:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T11:00:00Z",
+          "attempt_id": "p3",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 11
+            },
+            "factory_config_version": "fa@2",
+            "role": "plan"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p3:u1",
+          "type": "usage",
+          "ts": "2026-11-11T11:01:00Z",
+          "attempt_id": "p3",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 500,
+            "output": 100,
+            "reported_cost_usd": 0.005
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p3:waiting",
+          "type": "human.waiting",
+          "ts": "2026-11-11T11:02:00Z",
+          "attempt_id": "p3",
+          "payload": {
+            "reason": "plan_review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p3:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T11:03:00Z",
+          "attempt_id": "p3",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b3:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T11:10:00Z",
+          "attempt_id": "b3",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 11
+            },
+            "factory_config_version": "fa@2",
+            "role": "build",
+            "parent_attempt_id": "p3"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b3:resumed",
+          "type": "human.resumed",
+          "ts": "2026-11-11T11:10:00Z",
+          "attempt_id": "b3",
+          "payload": {
+            "reason": "plan_approved"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b3:u1",
+          "type": "usage",
+          "ts": "2026-11-11T11:12:00Z",
+          "attempt_id": "b3",
+          "payload": {
+            "model": "mystery-model",
+            "input": 900,
+            "output": 200,
+            "phase": "review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b3:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T11:14:00Z",
+          "attempt_id": "b3",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/22"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b3:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T11:15:00Z",
+          "attempt_id": "b3",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "factory": "fb",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 10
+            },
+            "factory_config_version": "fb@2",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "status": "failed",
+            "reason": "agent crashed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 10
+            },
+            "factory_config_version": "fb@2",
+            "role": "build",
+            "parent_attempt_id": "c1"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:u1",
+          "type": "usage",
+          "ts": "2026-11-11T10:09:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 2000,
+            "output": 400,
+            "reported_cost_usd": 0.02,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:gate:1",
+          "type": "gate",
+          "ts": "2026-11-11T10:10:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "name": "build",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:u2",
+          "type": "usage",
+          "ts": "2026-11-11T10:11:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 600,
+            "output": 100,
+            "reported_cost_usd": 0.006,
+            "phase": "review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T10:12:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/21"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:13:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "github": [
+    {
+      "type": "pr",
+      "id": "pr:20:10:20",
+      "ts": "2026-11-11T10:20:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 20,
+          "html_url": "https://github.com/acme/app/pull/20",
+          "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-11-11T10:20:00Z",
+          "head": {
+            "ref": "agent/pr-20",
+            "sha": "s1"
+          }
+        }
+      }
+    },
+    {
+      "type": "pr",
+      "id": "pr:21:10:12",
+      "ts": "2026-11-11T10:12:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 21,
+          "html_url": "https://github.com/acme/app/pull/21",
+          "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-11-11T10:12:00Z",
+          "head": {
+            "ref": "agent/pr-21",
+            "sha": "t1"
+          }
+        }
+      }
+    },
+    {
+      "type": "pr",
+      "id": "pr:22:11:14",
+      "ts": "2026-11-11T11:14:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 22,
+          "html_url": "https://github.com/acme/app/pull/22",
+          "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-11-11T11:14:00Z",
+          "head": {
+            "ref": "agent/pr-22",
+            "sha": "s3"
+          }
+        }
+      }
+    },
+    {
+      "type": "pr.commits",
+      "id": "commits:21:10:12",
+      "ts": "2026-11-11T10:12:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 21,
+        "commits": [
+          {
+            "sha": "f1",
+            "commit": {
+              "author": {
+                "email": "fb-bot@example.com",
+                "date": "2026-11-11T10:11:00Z"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:6:completed",
+      "ts": "2026-11-11T10:20:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 21,
+        "check_run": {
+          "id": 6,
+          "name": "test",
+          "head_sha": "t1",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-11-11T10:14:00Z",
+          "completed_at": "2026-11-11T10:20:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:1:completed",
+      "ts": "2026-11-11T10:30:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 1,
+          "name": "test",
+          "head_sha": "s1",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-11-11T10:25:00Z",
+          "completed_at": "2026-11-11T10:30:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:2:completed",
+      "ts": "2026-11-11T10:35:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 2,
+          "name": "test",
+          "head_sha": "s1",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-11-11T10:31:00Z",
+          "completed_at": "2026-11-11T10:35:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:3:completed",
+      "ts": "2026-11-11T10:50:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 3,
+          "name": "test",
+          "head_sha": "s2",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-11-11T10:46:00Z",
+          "completed_at": "2026-11-11T10:50:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:4:in_progress",
+      "ts": "2026-11-11T10:46:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 4,
+          "name": "lint",
+          "head_sha": "s2",
+          "status": "in_progress",
+          "conclusion": null,
+          "started_at": "2026-11-11T10:46:00Z",
+          "completed_at": null
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:7:completed",
+      "ts": "2026-11-11T10:47:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 7,
+          "name": "test",
+          "head_sha": "s4",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-11-11T10:47:00Z",
+          "completed_at": "2026-11-11T10:46:59Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:8:completed",
+      "ts": "2026-11-11T10:47:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 20,
+        "check_run": {
+          "id": 8,
+          "name": "docs",
+          "head_sha": "s2",
+          "status": "completed",
+          "conclusion": "skipped",
+          "started_at": "2026-11-11T10:47:00Z",
+          "completed_at": "2026-11-11T10:46:59Z"
+        }
+      }
+    },
+    {
+      "type": "pr.commits",
+      "id": "commits:20:10:50",
+      "ts": "2026-11-11T10:50:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 20,
+        "commits": [
+          {
+            "sha": "a1",
+            "commit": {
+              "author": {
+                "email": "fa-bot@example.com",
+                "date": "2026-11-11T10:19:00Z"
+              }
+            }
+          },
+          {
+            "sha": "h1",
+            "commit": {
+              "author": {
+                "email": "bob@example.com",
+                "date": "2026-11-11T10:45:00Z"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr.reviews",
+      "id": "reviews:21:10:50",
+      "ts": "2026-11-11T10:50:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 21,
+        "reviews": [
+          {
+            "user": {
+              "login": "carol"
+            },
+            "state": "CHANGES_REQUESTED",
+            "submitted_at": "2026-11-11T10:30:00Z"
+          },
+          {
+            "user": {
+              "login": "carol"
+            },
+            "state": "CHANGES_REQUESTED",
+            "submitted_at": "2026-11-11T10:50:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr",
+      "id": "pr:21:11:00",
+      "ts": "2026-11-11T11:00:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 21,
+          "html_url": "https://github.com/acme/app/pull/21",
+          "state": "closed",
+          "merged_at": null,
+          "updated_at": "2026-11-11T11:00:00Z",
+          "head": {
+            "ref": "agent/pr-21",
+            "sha": "t1"
+          }
+        }
+      }
+    },
+    {
+      "type": "pr.commits",
+      "id": "commits:22:11:14",
+      "ts": "2026-11-11T11:14:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 22,
+        "commits": [
+          {
+            "sha": "a2",
+            "commit": {
+              "author": {
+                "email": "fa-bot@example.com",
+                "date": "2026-11-11T11:13:00Z"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:5:completed",
+      "ts": "2026-11-11T11:22:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 22,
+        "check_run": {
+          "id": 5,
+          "name": "test",
+          "head_sha": "s3",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-11-11T11:16:00Z",
+          "completed_at": "2026-11-11T11:22:00Z"
+        }
+      }
+    },
+    {
+      "type": "pr.reviews",
+      "id": "reviews:22:11:30",
+      "ts": "2026-11-11T11:30:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 22,
+        "reviews": [
+          {
+            "user": {
+              "login": "fa-bot"
+            },
+            "state": "APPROVED",
+            "submitted_at": "2026-11-11T11:20:00Z"
+          },
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "APPROVED",
+            "submitted_at": "2026-11-11T11:30:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr.reviews",
+      "id": "reviews:20:11:50",
+      "ts": "2026-11-11T11:50:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 20,
+        "reviews": [
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "CHANGES_REQUESTED",
+            "submitted_at": "2026-11-11T10:40:00Z"
+          },
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "APPROVED",
+            "submitted_at": "2026-11-11T11:50:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr",
+      "id": "pr:20:12:00",
+      "ts": "2026-11-11T12:00:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 20,
+          "html_url": "https://github.com/acme/app/pull/20",
+          "state": "closed",
+          "merged_at": "2026-11-11T12:00:00Z",
+          "updated_at": "2026-11-11T12:00:00Z",
+          "head": {
+            "ref": "agent/pr-20",
+            "sha": "s2"
+          }
+        }
+      }
+    },
+    {
+      "type": "issue",
+      "id": "issue:10:12:01",
+      "ts": "2026-11-11T12:01:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "issue": {
+          "number": 10,
+          "title": "Add retry with backoff to the upstream fetcher client",
+          "state": "closed",
+          "closed_at": "2026-11-11T12:01:00Z",
+          "closed_by": {
+            "login": "fa-bot"
+          },
+          "updated_at": "2026-11-11T12:01:00Z",
+          "labels": [
+            {
+              "name": "agent:ready"
+            },
+            {
+              "name": "bug"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "type": "issue",
+      "id": "issue:11:11:00",
+      "ts": "2026-11-11T11:00:00Z",
+      "payload": {
+        "repo": "acme/app",
+        "issue": {
+          "number": 11,
+          "title": "Fix typo in docs",
+          "state": "open",
+          "closed_at": null,
+          "closed_by": null,
+          "updated_at": "2026-11-11T11:00:00Z",
+          "labels": [
+            {
+              "name": "agent:ready"
+            },
+            {
+              "name": "docs"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "report": [
+    "acme/app#10",
+    "acme/app#11"
+  ]
+}

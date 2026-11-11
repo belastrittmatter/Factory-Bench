@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:resumed:1",
+  "type": "human.resumed",
+  "ts": "2026-11-11T09:27:00Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "reason": "plan_approved" }
+}

@@ -1,0 +1,94 @@
+{
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 100
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 100
+          }
+        }
+      ]
+    },
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 100
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0"
+          }
+        }
+      ]
+    }
+  ],
+  "factories": {
+    "fa": ""
+  },
+  "report": [
+    "acme/app#1"
+  ]
+}

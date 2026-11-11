@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:activity:1",
+  "type": "activity",
+  "ts": "2026-11-11T09:15:02Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "tool": "run_command", "summary": "pnpm test" }
+}

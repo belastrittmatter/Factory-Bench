@@ -1,0 +1,307 @@
+{
+  "factories": {
+    "fa": {
+      "commit_email": "fa-bot@example.com",
+      "github_login": "FA-Bot"
+    }
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "full"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 100,
+            "output": 100,
+            "reported_cost_usd": 0.01
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/7"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:07:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "github": [
+    {
+      "type": "pr",
+      "id": "pr:7:2026-11-11T10:06:00Z",
+      "ts": "2026-11-11T10:06:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 7,
+          "html_url": "https://github.com/acme/app/pull/7",
+          "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-11-11T10:06:00Z",
+          "head": {
+            "ref": "agent/issue-1",
+            "sha": "abc123"
+          }
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:1:in_progress:",
+      "ts": "2026-11-11T10:08:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 7,
+        "check_run": {
+          "id": 1,
+          "name": "test",
+          "head_sha": "abc123",
+          "status": "in_progress",
+          "conclusion": null,
+          "completed_at": null,
+          "started_at": "2026-11-11T10:08:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:1:completed:2026-11-11T10:10:00Z",
+      "ts": "2026-11-11T10:10:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 7,
+        "check_run": {
+          "id": 1,
+          "name": "test",
+          "head_sha": "abc123",
+          "status": "completed",
+          "conclusion": "success",
+          "completed_at": "2026-11-11T10:10:00Z",
+          "started_at": "2026-11-11T10:08:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:2:completed:2026-11-11T10:11:00Z",
+      "ts": "2026-11-11T10:11:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 7,
+        "check_run": {
+          "id": 2,
+          "name": "bench-gate",
+          "head_sha": "abc123",
+          "status": "completed",
+          "conclusion": "failure",
+          "completed_at": "2026-11-11T10:11:00Z",
+          "started_at": "2026-11-11T10:09:00Z"
+        }
+      }
+    },
+    {
+      "type": "pr.commits",
+      "id": "commits:7:abc123",
+      "ts": "2026-11-11T10:30:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 7,
+        "head_sha": "abc123",
+        "commits": [
+          {
+            "commit": {
+              "author": {
+                "email": "FA-Bot@example.com",
+                "date": "2026-11-11T10:05:30Z"
+              }
+            },
+            "sha": "c1"
+          },
+          {
+            "commit": {
+              "author": {
+                "email": "human@example.com",
+                "date": "2026-11-11T10:20:00Z"
+              }
+            },
+            "sha": "c2"
+          },
+          {
+            "sha": "c3",
+            "commit": {
+              "author": {
+                "email": "noreply@github.com",
+                "date": "2026-11-11T10:25:00Z"
+              }
+            },
+            "author": {
+              "login": "fa-bot"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr",
+      "id": "pr:7:2026-11-11T10:30:00Z",
+      "ts": "2026-11-11T10:30:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 7,
+          "html_url": "https://github.com/acme/app/pull/7",
+          "state": "closed",
+          "merged_at": "2026-11-11T10:30:00Z",
+          "updated_at": "2026-11-11T10:30:00Z",
+          "head": {
+            "ref": "agent/issue-1",
+            "sha": "abc123"
+          }
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:3:completed:2026-11-11T10:09:00Z",
+      "ts": "2026-11-11T10:09:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 7,
+        "check_run": {
+          "id": 3,
+          "name": "lint",
+          "head_sha": "abc123",
+          "status": "completed",
+          "conclusion": "failure",
+          "started_at": "2026-11-11T10:08:00Z",
+          "completed_at": "2026-11-11T10:09:00Z"
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:4:completed:2026-11-11T10:13:00Z",
+      "ts": "2026-11-11T10:13:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 7,
+        "check_run": {
+          "id": 4,
+          "name": "lint",
+          "head_sha": "abc123",
+          "status": "completed",
+          "conclusion": "success",
+          "started_at": "2026-11-11T10:12:00Z",
+          "completed_at": "2026-11-11T10:13:00Z"
+        }
+      }
+    },
+    {
+      "type": "pr.reviews",
+      "id": "reviews:7:1:2026-11-11T10:15:00Z",
+      "ts": "2026-11-11T10:15:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 7,
+        "reviews": [
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "CHANGES_REQUESTED",
+            "submitted_at": "2026-11-11T10:15:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "type": "pr.reviews",
+      "id": "reviews:7:2:2026-11-11T10:28:00Z",
+      "ts": "2026-11-11T10:28:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 7,
+        "reviews": [
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "CHANGES_REQUESTED",
+            "submitted_at": "2026-11-11T10:15:00Z"
+          },
+          {
+            "user": {
+              "login": "alice"
+            },
+            "state": "APPROVED",
+            "submitted_at": "2026-11-11T10:28:00Z"
+          }
+        ]
+      }
+    },
+    {
+      "type": "issue",
+      "id": "issue:1:2026-11-11T10:31:00Z",
+      "ts": "2026-11-11T10:31:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "issue": {
+          "number": 1,
+          "title": "Crash on empty input",
+          "state": "closed",
+          "closed_at": "2026-11-11T10:31:00Z",
+          "closed_by": {
+            "login": "fa-bot"
+          },
+          "updated_at": "2026-11-11T10:31:00Z",
+          "labels": [
+            {
+              "name": "agent:ready"
+            },
+            {
+              "name": "bug"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "report": [
+    "acme/app#1"
+  ]
+}

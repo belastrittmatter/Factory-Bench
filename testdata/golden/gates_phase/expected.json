@@ -1,0 +1,199 @@
+{
+  "derived": {
+    "attempts": [
+      {
+        "attempt_id": "b1",
+        "config_version": "fake@1.0",
+        "ended_at": "2026-11-11T10:08:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 5,
+        "parent_attempt_id": null,
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "state": "failed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "b2",
+        "config_version": "fake@1.0",
+        "ended_at": "2026-11-11T10:20:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 5,
+        "parent_attempt_id": "b1",
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:10:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      }
+    ],
+    "checks": [],
+    "gates": [
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "name": "build",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T10:05:00.000Z"
+      },
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "name": "test",
+        "passed": 0,
+        "reason": "2 failing tests",
+        "ts": "2026-11-11T10:06:00.000Z"
+      },
+      {
+        "attempt_id": "b2",
+        "factory_id": "fa",
+        "name": "build",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T10:15:00.000Z"
+      },
+      {
+        "attempt_id": "b2",
+        "factory_id": "fa",
+        "name": "test",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T10:16:00.000Z"
+      }
+    ],
+    "pr_commits": [],
+    "prs": [],
+    "reviews": [],
+    "usage": [
+      {
+        "attempt_id": "b1",
+        "cache_read": 1000,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.0046,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 2000,
+        "model": "claude-haiku-5-5",
+        "output": 500,
+        "phase": "implement",
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "ts": "2026-11-11T10:04:00.000Z"
+      },
+      {
+        "attempt_id": "b1",
+        "cache_read": 1000,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.0014,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 800,
+        "model": "claude-haiku-5-5",
+        "output": 100,
+        "phase": "verify",
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "ts": "2026-11-11T10:07:00.000Z"
+      },
+      {
+        "attempt_id": "b2",
+        "cache_read": 1000,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.0036,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 1500,
+        "model": "claude-haiku-5-5",
+        "output": 400,
+        "phase": "implement",
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "ts": "2026-11-11T10:14:00.000Z"
+      },
+      {
+        "attempt_id": "b2",
+        "cache_read": 1000,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.0011,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 600,
+        "model": "claude-haiku-5-5",
+        "output": 80,
+        "phase": "review",
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "ts": "2026-11-11T10:18:00.000Z"
+      },
+      {
+        "attempt_id": "b2",
+        "cache_read": 1000,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.00025,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 100,
+        "model": "claude-haiku-5-5",
+        "output": 10,
+        "phase": null,
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "ts": "2026-11-11T10:19:00.000Z"
+      }
+    ],
+    "work_items": [
+      {
+        "closed_at": null,
+        "closed_by": null,
+        "corrects": null,
+        "first_seen": "2026-11-11T10:00:00.000Z",
+        "issue": 5,
+        "issue_state": null,
+        "outcome": "open",
+        "repo": "acme/app",
+        "survival": null,
+        "task_type": "perf",
+        "title": null
+      }
+    ]
+  },
+  "rejected_stored": [
+    {
+      "error": "payload.passed missing",
+      "factory": "fa",
+      "id": "b2:gate:bad"
+    },
+    {
+      "error": "payload.phase must be implement, verify, or review",
+      "factory": "fa",
+      "id": "b2:usage:bad"
+    }
+  ],
+  "responses": [
+    {
+      "accepted": 13,
+      "duplicates": 0,
+      "rejected": [
+        {
+          "id": "b2:gate:bad",
+          "error": "payload.passed missing"
+        },
+        {
+          "id": "b2:usage:bad",
+          "error": "payload.phase must be implement, verify, or review"
+        }
+      ]
+    }
+  ]
+}

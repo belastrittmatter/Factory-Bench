@@ -1,0 +1,50 @@
+acme/app#2   outcome open · survival n/a
+  11-11 09:00  fa      attempt p1 started (plan)                                                       config fake@1.0
+  11-11 09:02          session p1 claude-sonnet-5-5: 2.0k in / ? cache read / ? cache write / 500 out  $0.01 est. (prices 2026-11-11)
+  11-11 09:03          PR linked https://github.com/acme/app/pull/8                                    
+  11-11 09:03          waiting for human (plan_review)                                                 
+  11-11 09:04          attempt p1 finished, waiting for human                                          4m0s, $0.01 est.
+  11-11 09:30          waiting for human (plan_review)                                                 
+  11-12 00:00  github  PR acme/app#8 open (as of now)                                                  0 factory / 0 human commits
+  11-12 00:00          check test on PR #8: pending                                                    
+  totals  fa  1 attempts (1 waiting_for_human) · 1 sessions · tokens 2.0k in / 500 out / ? cache · 4m0s active / 4m0s elapsed · 0 human waits (0s) · $0.01 est. · usage coverage 1/1 attempts
+
+$ report items
+item        title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR       escaped
+acme/app#2         fa       open     1         2.5k    $0.01  4m0s    4m0s     2      #8 open  0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     1
+tokens / issue               2.5k
+time / issue                 4m0s active / 4m0s elapsed
+cost total                   $0.01 est.
+cost / issue                 $0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  2.0 (2/1)
+escaped defects              0 on 0/1 PRs
+usage coverage               100% (1/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source  gate  failed / runs
+  fa       CI      test  n/a
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  fa       test   n/a             n/a
+
+$ report live
+factory  issue       attempt  status             elapsed  active  human wait  tokens  cost   last event
+fa       acme/app#2  p1       waiting_for_human  15h0m0s  3m0s    14h57m0s    2.5k    $0.01  14h30m0s ago

@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:started",
+  "type": "attempt.started",
+  "ts": "2026-11-11T09:14:00Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "work_item": { "repo": "acme/chat-bridge", "issue": 412 }, "factory_config_version": "myfactory@0.1.0+agy@1.5.4+cfg:3e1a9c", "role": "plan", "labels": ["bug"], "base_commit": "9593822" }
+}

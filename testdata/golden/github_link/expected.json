@@ -1,0 +1,155 @@
+{
+  "derived": {
+    "attempts": [
+      {
+        "attempt_id": "a1",
+        "config_version": "fake@1.0",
+        "ended_at": "2026-11-11T10:07:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 1,
+        "parent_attempt_id": null,
+        "pr_url": "https://github.com/acme/app/pull/7",
+        "repo": "acme/app",
+        "role": "full",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      }
+    ],
+    "checks": [
+      {
+        "completed_at": "2026-11-11T10:11:00Z",
+        "conclusion": "failure",
+        "head_sha": "abc123",
+        "name": "bench-gate",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:09:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:09:00Z",
+        "conclusion": "failure",
+        "head_sha": "abc123",
+        "name": "lint",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:08:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:13:00Z",
+        "conclusion": "success",
+        "head_sha": "abc123",
+        "name": "lint",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:12:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:10:00Z",
+        "conclusion": "success",
+        "head_sha": "abc123",
+        "name": "test",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:08:00Z"
+      }
+    ],
+    "gates": [],
+    "pr_commits": [
+      {
+        "author_email": "fa-bot@example.com",
+        "committed_at": "2026-11-11T10:05:30Z",
+        "factory_id": "fa",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "sha": "c1"
+      },
+      {
+        "author_email": "human@example.com",
+        "committed_at": "2026-11-11T10:20:00Z",
+        "factory_id": null,
+        "pr_number": 7,
+        "repo": "acme/app",
+        "sha": "c2"
+      },
+      {
+        "author_email": "noreply@github.com",
+        "committed_at": "2026-11-11T10:25:00Z",
+        "factory_id": "fa",
+        "pr_number": 7,
+        "repo": "acme/app",
+        "sha": "c3"
+      }
+    ],
+    "prs": [
+      {
+        "branch": "agent/issue-1",
+        "factory_commits": 2,
+        "human_commits": 1,
+        "merged_at": "2026-11-11T10:30:00Z",
+        "number": 7,
+        "repo": "acme/app",
+        "state": "merged",
+        "url": "https://github.com/acme/app/pull/7"
+      }
+    ],
+    "reviews": [
+      {
+        "pr_number": 7,
+        "repo": "acme/app",
+        "reviewer": "alice",
+        "state": "APPROVED",
+        "submitted_at": "2026-11-11T10:28:00Z"
+      },
+      {
+        "pr_number": 7,
+        "repo": "acme/app",
+        "reviewer": "alice",
+        "state": "CHANGES_REQUESTED",
+        "submitted_at": "2026-11-11T10:15:00Z"
+      }
+    ],
+    "usage": [
+      {
+        "attempt_id": "a1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.01,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 100,
+        "model": "claude-haiku-5-5",
+        "output": 100,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:05:00.000Z"
+      }
+    ],
+    "work_items": [
+      {
+        "closed_at": "2026-11-11T10:31:00Z",
+        "closed_by": "fa-bot",
+        "corrects": null,
+        "first_seen": "2026-11-11T10:00:00.000Z",
+        "issue": 1,
+        "issue_state": "closed",
+        "outcome": "merged",
+        "repo": "acme/app",
+        "survival": "pending",
+        "task_type": "bug",
+        "title": "Crash on empty input"
+      }
+    ]
+  },
+  "rejected_stored": null,
+  "responses": [
+    {
+      "accepted": 4,
+      "duplicates": 0,
+      "rejected": []
+    }
+  ]
+}

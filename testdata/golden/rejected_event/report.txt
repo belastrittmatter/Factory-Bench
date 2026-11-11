@@ -1,0 +1,42 @@
+acme/app#1   outcome open · survival n/a
+  11-11 10:00  fa  attempt a1 started (build)                                                  config fake@1.0
+  11-11 10:04      session a1 claude-haiku-5-5: 10 in / ? cache read / ? cache write / 10 out  <$0.01 est. (prices 2026-11-11)
+  11-11 10:05      attempt a1 completed                                                        5m0s, <$0.01 est.
+  totals  fa  1 attempts (1 completed) · 1 sessions · tokens 10 in / 10 out / ? cache · 5m0s active / 5m0s elapsed · 0 human waits (0s) · <$0.01 est. · usage coverage 1/1 attempts
+
+$ report items
+item        title  factory  outcome  attempts  tokens  cost    active  elapsed  human  PR  escaped
+acme/app#1         fa       open     1         20      <$0.01  5m0s    5m0s     0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     1
+tokens / issue               20
+time / issue                 5m0s active / 5m0s elapsed
+cost total                   <$0.01 est.
+cost / issue                 <$0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+usage coverage               100% (1/1) attempts
+unpriced sessions            0
+rejected events              3
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

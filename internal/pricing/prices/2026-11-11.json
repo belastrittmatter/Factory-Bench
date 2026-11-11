@@ -1,0 +1,8 @@
+{
+  "_note": "PLACEHOLDER prices in USD per million tokens, for the MVP only. Never edit a published version: add a new file named by its effective date, YYYY-MM-DD.json (file names must sort chronologically; the newest is used and its name sans .json is the price version).",
+  "models": {
+    "claude-haiku-5-5":  { "input": 1.0,  "output": 5.0,  "cache_read": 0.10, "cache_write": 1.25 },
+    "claude-sonnet-5-5": { "input": 3.0,  "output": 15.0, "cache_read": 0.30, "cache_write": 3.75 },
+    "gemini-3-pro":      { "input": 2.0,  "output": 12.0, "cache_read": 0.20 }
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "factories": {
+    "fa": ""
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T09:00:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 2
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "plan"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T09:02:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 2000,
+            "output": 500
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-11T09:03:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "pr_url": "https://github.com/acme/app/pull/8"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:waiting",
+          "type": "human.waiting",
+          "ts": "2026-11-11T09:03:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "reason": "plan_review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:waiting:reminder",
+          "type": "human.waiting",
+          "ts": "2026-11-11T09:30:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "reason": "plan_review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T09:04:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "github": [
+    {
+      "type": "pr",
+      "id": "pr:8:2026-11-11T09:05:00Z",
+      "ts": "2026-11-11T09:05:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 8,
+          "html_url": "https://github.com/acme/app/pull/8",
+          "state": "open",
+          "merged_at": null,
+          "updated_at": "2026-11-11T09:05:00Z",
+          "head": {
+            "ref": "agent/issue-2",
+            "sha": "def456"
+          }
+        }
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "check:3:in_progress:",
+      "ts": "2026-11-11T09:06:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 8,
+        "check_run": {
+          "id": 3,
+          "name": "test",
+          "head_sha": "def456",
+          "status": "in_progress",
+          "conclusion": null,
+          "completed_at": null
+        }
+      }
+    }
+  ],
+  "report": [
+    "acme/app#2"
+  ]
+}

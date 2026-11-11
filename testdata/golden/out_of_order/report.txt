@@ -1,0 +1,43 @@
+acme/app#1   outcome open · survival n/a
+  11-11 10:00  fa  attempt a1 started (full)         config fake@1.0
+  11-11 10:02      waiting for human (question)      
+  11-11 10:05      resumed by human (plan_approved)  waited 3m0s
+  11-11 10:08      attempt a1 completed              8m0s, cost unknown (no usage)
+  totals  fa  1 attempts (1 completed) · 0 sessions · tokens ? in / ? out / ? cache · 5m0s active / 8m0s elapsed · 1 human waits (3m0s) · cost unknown (no usage) · usage coverage 0/1 attempts
+
+$ report items
+item        title  factory  outcome  attempts  tokens  cost  active  elapsed  human  PR  escaped
+acme/app#1         fa       open     1         ?       ?     5m0s    8m0s     1      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     0
+tokens / issue               ?
+time / issue                 5m0s active / 8m0s elapsed
+cost total                   ?
+cost / issue                 ?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  1.0 (1/1)
+escaped defects              n/a (no PRs)
+usage coverage               0% (0/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

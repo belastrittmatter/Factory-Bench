@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:gate:test:1",
+  "type": "gate",
+  "ts": "2026-11-11T09:18:05Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "name": "test", "passed": false, "reason": "3 failing tests in pkg/parser" }
+}

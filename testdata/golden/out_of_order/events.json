@@ -1,0 +1,65 @@
+{
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:08:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:resumed",
+          "type": "human.resumed",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "reason": "plan_approved"
+          }
+        }
+      ]
+    },
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:waiting",
+          "type": "human.waiting",
+          "ts": "2026-11-11T10:02:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "reason": "question"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "full"
+          }
+        }
+      ]
+    }
+  ],
+  "factories": {
+    "fa": ""
+  },
+  "report": [
+    "acme/app#1"
+  ]
+}

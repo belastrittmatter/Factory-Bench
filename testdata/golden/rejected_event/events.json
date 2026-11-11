@@ -1,0 +1,80 @@
+{
+  "factories": {
+    "fa": "",
+    "fb": ""
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 1
+            },
+            "factory_config_version": "fake@1.0",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:01:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "output": 10
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:x",
+          "type": "made.up",
+          "ts": "2026-11-11T10:02:00Z",
+          "attempt_id": "a1",
+          "payload": {}
+        },
+        {
+          "spec": "factorybench/v1",
+          "type": "activity",
+          "ts": "2026-11-11T10:03:00Z",
+          "attempt_id": "a1",
+          "payload": {}
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:usage:2",
+          "type": "usage",
+          "ts": "2026-11-11T10:04:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 10,
+            "output": 10
+          },
+          "factory_id": "fb"
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "a1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "a1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "report": [
+    "acme/app#1"
+  ]
+}

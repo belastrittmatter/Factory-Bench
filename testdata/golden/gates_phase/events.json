@@ -1,0 +1,213 @@
+{
+  "factories": {
+    "fa": "fa-bot@example.com"
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:00:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 5
+            },
+            "factory_config_version": "fake@1.0",
+            "labels": [
+              "agent:ready",
+              "perf"
+            ],
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:04:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 2000,
+            "output": 500,
+            "cache_read": 1000,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:gate:build",
+          "type": "gate",
+          "ts": "2026-11-11T10:05:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "name": "build",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:gate:test",
+          "type": "gate",
+          "ts": "2026-11-11T10:06:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "name": "test",
+            "passed": false,
+            "reason": "2 failing tests"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:usage:2",
+          "type": "usage",
+          "ts": "2026-11-11T10:07:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 800,
+            "output": 100,
+            "cache_read": 1000,
+            "phase": "verify"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:08:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "status": "failed",
+            "reason": "gate test failed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T10:10:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 5
+            },
+            "factory_config_version": "fake@1.0",
+            "labels": [
+              "agent:ready",
+              "perf"
+            ],
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T10:14:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1500,
+            "output": 400,
+            "cache_read": 1000,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:gate:build",
+          "type": "gate",
+          "ts": "2026-11-11T10:15:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "name": "build",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:gate:test",
+          "type": "gate",
+          "ts": "2026-11-11T10:16:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "name": "test",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:usage:2",
+          "type": "usage",
+          "ts": "2026-11-11T10:18:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 600,
+            "output": 80,
+            "cache_read": 1000,
+            "phase": "review"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:usage:3",
+          "type": "usage",
+          "ts": "2026-11-11T10:19:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 100,
+            "output": 10,
+            "cache_read": 1000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:gate:bad",
+          "type": "gate",
+          "ts": "2026-11-11T10:19:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "name": "guard"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:usage:bad",
+          "type": "usage",
+          "ts": "2026-11-11T10:19:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1,
+            "output": 1,
+            "cache_read": 1000,
+            "phase": "plan"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b2:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T10:20:00Z",
+          "attempt_id": "b2",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "github": [],
+  "report": [
+    "acme/app#5"
+  ]
+}

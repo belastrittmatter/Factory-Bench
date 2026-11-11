@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:steering:1",
+  "type": "human.steering",
+  "ts": "2026-11-11T09:25:00Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "source": "comment" }
+}

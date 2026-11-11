@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:finished",
+  "type": "attempt.finished",
+  "ts": "2026-11-11T09:19:30Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "status": "failed", "reason": "gate test failed after 3 attempts" }
+}

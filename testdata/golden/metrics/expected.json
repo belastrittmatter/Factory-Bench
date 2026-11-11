@@ -1,0 +1,472 @@
+{
+  "derived": {
+    "attempts": [
+      {
+        "attempt_id": "b1",
+        "config_version": "fa@1",
+        "ended_at": "2026-11-11T10:21:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 420000,
+        "issue": 10,
+        "parent_attempt_id": "p1",
+        "pr_url": "https://github.com/acme/app/pull/20",
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:10:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "b3",
+        "config_version": "fa@2",
+        "ended_at": "2026-11-11T11:15:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 480000,
+        "issue": 11,
+        "parent_attempt_id": "p3",
+        "pr_url": "https://github.com/acme/app/pull/22",
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T11:10:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "p1",
+        "config_version": "fa@1",
+        "ended_at": "2026-11-11T10:04:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 10,
+        "parent_attempt_id": null,
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "plan",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "p3",
+        "config_version": "fa@2",
+        "ended_at": "2026-11-11T11:03:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 11,
+        "parent_attempt_id": null,
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "plan",
+        "started_at": "2026-11-11T11:00:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "c1",
+        "config_version": "fb@2",
+        "ended_at": "2026-11-11T10:05:00.000Z",
+        "factory_id": "fb",
+        "human_wait_ms": 0,
+        "issue": 10,
+        "parent_attempt_id": null,
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "state": "failed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "c2",
+        "config_version": "fb@2",
+        "ended_at": "2026-11-11T10:13:00.000Z",
+        "factory_id": "fb",
+        "human_wait_ms": 0,
+        "issue": 10,
+        "parent_attempt_id": "c1",
+        "pr_url": "https://github.com/acme/app/pull/21",
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:06:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      }
+    ],
+    "checks": [
+      {
+        "completed_at": "2026-11-11T10:46:59Z",
+        "conclusion": "skipped",
+        "head_sha": "s2",
+        "name": "docs",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:47:00Z"
+      },
+      {
+        "completed_at": null,
+        "conclusion": null,
+        "head_sha": "s2",
+        "name": "lint",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:46:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:30:00Z",
+        "conclusion": "failure",
+        "head_sha": "s1",
+        "name": "test",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:25:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:35:00Z",
+        "conclusion": "success",
+        "head_sha": "s1",
+        "name": "test",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:31:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:50:00Z",
+        "conclusion": "success",
+        "head_sha": "s2",
+        "name": "test",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:46:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:46:59Z",
+        "conclusion": "skipped",
+        "head_sha": "s4",
+        "name": "test",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:47:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:20:00Z",
+        "conclusion": "failure",
+        "head_sha": "t1",
+        "name": "test",
+        "pr_number": 21,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:14:00Z"
+      },
+      {
+        "completed_at": "2026-11-11T11:22:00Z",
+        "conclusion": "success",
+        "head_sha": "s3",
+        "name": "test",
+        "pr_number": 22,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T11:16:00Z"
+      }
+    ],
+    "gates": [
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "name": "test",
+        "passed": 0,
+        "reason": "1 failing test",
+        "ts": "2026-11-11T10:17:00.000Z"
+      },
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "name": "test",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T10:19:00.000Z"
+      },
+      {
+        "attempt_id": "c2",
+        "factory_id": "fb",
+        "name": "build",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T10:10:00.000Z"
+      }
+    ],
+    "pr_commits": [
+      {
+        "author_email": "fa-bot@example.com",
+        "committed_at": "2026-11-11T10:19:00Z",
+        "factory_id": "fa",
+        "pr_number": 20,
+        "repo": "acme/app",
+        "sha": "a1"
+      },
+      {
+        "author_email": "bob@example.com",
+        "committed_at": "2026-11-11T10:45:00Z",
+        "factory_id": null,
+        "pr_number": 20,
+        "repo": "acme/app",
+        "sha": "h1"
+      },
+      {
+        "author_email": "fb-bot@example.com",
+        "committed_at": "2026-11-11T10:11:00Z",
+        "factory_id": "fb",
+        "pr_number": 21,
+        "repo": "acme/app",
+        "sha": "f1"
+      },
+      {
+        "author_email": "fa-bot@example.com",
+        "committed_at": "2026-11-11T11:13:00Z",
+        "factory_id": "fa",
+        "pr_number": 22,
+        "repo": "acme/app",
+        "sha": "a2"
+      }
+    ],
+    "prs": [
+      {
+        "branch": "agent/pr-20",
+        "factory_commits": 1,
+        "human_commits": 1,
+        "merged_at": "2026-11-11T12:00:00Z",
+        "number": 20,
+        "repo": "acme/app",
+        "state": "merged",
+        "url": "https://github.com/acme/app/pull/20"
+      },
+      {
+        "branch": "agent/pr-21",
+        "factory_commits": 1,
+        "human_commits": 0,
+        "merged_at": null,
+        "number": 21,
+        "repo": "acme/app",
+        "state": "closed",
+        "url": "https://github.com/acme/app/pull/21"
+      },
+      {
+        "branch": "agent/pr-22",
+        "factory_commits": 1,
+        "human_commits": 0,
+        "merged_at": null,
+        "number": 22,
+        "repo": "acme/app",
+        "state": "open",
+        "url": "https://github.com/acme/app/pull/22"
+      }
+    ],
+    "reviews": [
+      {
+        "pr_number": 20,
+        "repo": "acme/app",
+        "reviewer": "alice",
+        "state": "APPROVED",
+        "submitted_at": "2026-11-11T11:50:00Z"
+      },
+      {
+        "pr_number": 20,
+        "repo": "acme/app",
+        "reviewer": "alice",
+        "state": "CHANGES_REQUESTED",
+        "submitted_at": "2026-11-11T10:40:00Z"
+      },
+      {
+        "pr_number": 21,
+        "repo": "acme/app",
+        "reviewer": "carol",
+        "state": "CHANGES_REQUESTED",
+        "submitted_at": "2026-11-11T10:30:00Z"
+      },
+      {
+        "pr_number": 21,
+        "repo": "acme/app",
+        "reviewer": "carol",
+        "state": "CHANGES_REQUESTED",
+        "submitted_at": "2026-11-11T10:50:00Z"
+      },
+      {
+        "pr_number": 22,
+        "repo": "acme/app",
+        "reviewer": "alice",
+        "state": "APPROVED",
+        "submitted_at": "2026-11-11T11:30:00Z"
+      },
+      {
+        "pr_number": 22,
+        "repo": "acme/app",
+        "reviewer": "fa-bot",
+        "state": "APPROVED",
+        "submitted_at": "2026-11-11T11:20:00Z"
+      }
+    ],
+    "usage": [
+      {
+        "attempt_id": "b1",
+        "cache_read": 2000,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.03,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 3000,
+        "model": "claude-haiku-5-5",
+        "output": 500,
+        "phase": "implement",
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:15:00.000Z"
+      },
+      {
+        "attempt_id": "b1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.01,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 1000,
+        "model": "claude-haiku-5-5",
+        "output": 100,
+        "phase": "verify",
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:18:00.000Z"
+      },
+      {
+        "attempt_id": "b3",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": null,
+        "cost_usd": null,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 900,
+        "model": "mystery-model",
+        "output": 200,
+        "phase": "review",
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T11:12:00.000Z"
+      },
+      {
+        "attempt_id": "p1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.012,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 1000,
+        "model": "claude-haiku-5-5",
+        "output": 300,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:02:00.000Z"
+      },
+      {
+        "attempt_id": "p3",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.005,
+        "duration_ms": null,
+        "factory_id": "fa",
+        "input": 500,
+        "model": "claude-haiku-5-5",
+        "output": 100,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T11:01:00.000Z"
+      },
+      {
+        "attempt_id": "c2",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.02,
+        "duration_ms": null,
+        "factory_id": "fb",
+        "input": 2000,
+        "model": "claude-haiku-5-5",
+        "output": 400,
+        "phase": "implement",
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:09:00.000Z"
+      },
+      {
+        "attempt_id": "c2",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.006,
+        "duration_ms": null,
+        "factory_id": "fb",
+        "input": 600,
+        "model": "claude-haiku-5-5",
+        "output": 100,
+        "phase": "review",
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:11:00.000Z"
+      }
+    ],
+    "work_items": [
+      {
+        "closed_at": "2026-11-11T12:01:00Z",
+        "closed_by": "fa-bot",
+        "corrects": null,
+        "first_seen": "2026-11-11T10:00:00.000Z",
+        "issue": 10,
+        "issue_state": "closed",
+        "outcome": "merged",
+        "repo": "acme/app",
+        "survival": "pending",
+        "task_type": "bug",
+        "title": "Add retry with backoff to the upstream fetcher client"
+      },
+      {
+        "closed_at": null,
+        "closed_by": null,
+        "corrects": null,
+        "first_seen": "2026-11-11T11:00:00.000Z",
+        "issue": 11,
+        "issue_state": "open",
+        "outcome": "open",
+        "repo": "acme/app",
+        "survival": null,
+        "task_type": "docs",
+        "title": "Fix typo in docs"
+      }
+    ]
+  },
+  "rejected_stored": [
+    {
+      "error": "payload.model missing",
+      "factory": "fa",
+      "id": "b1:bad"
+    }
+  ],
+  "responses": [
+    {
+      "accepted": 22,
+      "duplicates": 0,
+      "rejected": [
+        {
+          "id": "b1:bad",
+          "error": "payload.model missing"
+        }
+      ]
+    },
+    {
+      "accepted": 8,
+      "duplicates": 0,
+      "rejected": []
+    }
+  ]
+}
