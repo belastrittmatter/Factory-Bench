@@ -142,8 +142,9 @@ func pollGitHub(db *sql.DB, repos []string, every time.Duration, token string) {
 			st, err := github.Reconcile(db, r, token)
 			if err != nil {
 				log.Printf("poll %s: %v", r, err)
+			} else {
+				log.Printf("poll %s: %d new events, %d duplicates", r, st.Added, st.Duplicates)
 			}
-			log.Printf("poll %s: %d new events, %d duplicates", r, st.Added, st.Duplicates)
 			added += st.Added
 		}
 		if added > 0 {
