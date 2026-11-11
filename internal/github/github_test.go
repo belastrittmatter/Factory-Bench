@@ -123,3 +123,28 @@ func TestReconcileKeepsSamePRNumberInTwoRepos(t *testing.T) {
 		}
 	}
 }
+
+// Repos are discovered from accepted attempt.started events (rejected ones don't count) and merged with extra.
+func TestRepos(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	bad := "bad payload"
+	for i, ev := range []struct {
+		repo string
+		rej  *string
+	}{{"o/b", nil}, {"o/a", nil}, {"o/b", nil}, {"x/rejected", &bad}} {
+		p := fmt.Sprintf(`{"attempt_id":"a%d","payload":{"work_item":{"repo":%q,"issue":1}}}`, i, ev.repo)
+		if _, err := store.InsertEvent(db, "contract", "f", fmt.Sprint(i), "attempt.started", "2026-11-11T09:00:00.000Z", p, ev.rej); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got, err := Repos(db, []string{"o/c", "o/a"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fmt.Sprint(got) != "[o/a o/b o/c]" {
+		t.Fatal(got)
+	}
+}

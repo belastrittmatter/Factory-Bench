@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -20,7 +22,8 @@ type Stats struct{ Added, Duplicates int }
 
 var client = &http.Client{Timeout: 30 * time.Second}
 
-var errNotFound = errors.New("not found")
+// ErrNotFound is returned (wrapped) when the API answers 404, e.g. a repo the token can't see.
+var ErrNotFound = errors.New("not found")
 
 // reconciler holds one Reconcile run: the repo, its API token, and what it stored so far.
 type reconciler struct {
@@ -44,6 +47,25 @@ func Reconcile(db *sql.DB, repo, token string) (Stats, error) {
 	return r.st, r.issues()
 }
 
+// Repos returns every repo a factory reported an accepted attempt.started for, plus extra, sorted and without duplicates.
+// Polling them means a factory's new repo is picked up as soon as it reports work on it.
+func Repos(db *sql.DB, extra []string) ([]string, error) {
+	seen := map[string]bool{}
+	for _, r := range extra {
+		seen[r] = true
+	}
+	err := store.Each(db, `SELECT DISTINCT json_extract(payload, '$.payload.work_item.repo') FROM events
+		WHERE source = 'contract' AND type = 'attempt.started' AND rejected IS NULL`, func(rows *sql.Rows) error {
+		var r sql.NullString
+		err := rows.Scan(&r)
+		if r.Valid {
+			seen[r.String] = true
+		}
+		return err
+	})
+	return slices.Sorted(maps.Keys(seen)), err
+}
+
 func (r *reconciler) get(path string, v any) error {
 	req, err := http.NewRequest("GET", api+path, nil)
 	if err != nil {
@@ -60,7 +82,7 @@ func (r *reconciler) get(path string, v any) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 404 {
-		return fmt.Errorf("GET %s: %w", path, errNotFound)
+		return fmt.Errorf("GET %s: %w", path, ErrNotFound)
 	}
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("GET %s: %s", path, resp.Status)
@@ -227,7 +249,7 @@ func (r *reconciler) issues() error {
 	}
 	for _, n := range issues {
 		var raw json.RawMessage
-		if err := r.get(fmt.Sprintf("/repos/%s/issues/%d", r.repo, n), &raw); errors.Is(err, errNotFound) {
+		if err := r.get(fmt.Sprintf("/repos/%s/issues/%d", r.repo, n), &raw); errors.Is(err, ErrNotFound) {
 			continue // e.g. a test factory's made-up issue number
 		} else if err != nil {
 			return err

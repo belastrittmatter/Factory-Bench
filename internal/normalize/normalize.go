@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"factorybench/internal/contract"
+	"factorybench/internal/outcome"
 	"factorybench/internal/pricing"
 	"factorybench/internal/store"
 )
@@ -210,8 +211,8 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 				CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS, Phase: str(p.Phase)}
 			if p.ReportedCostUSD != nil {
 				u.Cost, u.Provenance = p.ReportedCostUSD, ptr("reported")
-			} else if usd, ok := pricing.Estimate(p.Model, *p.Input, *p.Output, p.CacheRead, p.CacheWrite); ok {
-				u.Cost, u.Provenance, u.PriceVersion = &usd, ptr("estimated"), ptr(pricing.Version)
+			} else if usd, ver, ok := pricing.Estimate(e.TS, p.Model, *p.Input, *p.Output, p.CacheRead, p.CacheWrite); ok {
+				u.Cost, u.Provenance, u.PriceVersion = &usd, ptr("estimated"), ptr(ver)
 			}
 			d.Usage = append(d.Usage, u)
 		}
@@ -262,7 +263,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 				wi.ClosedBy = str(is.Issue.ClosedBy.Login)
 			}
 		}
-		wi.Outcome = ptr(store.Outcome(prStates[k]))
+		wi.Outcome = ptr(outcome.FromPRStates(prStates[k]))
 		if *wi.Outcome == "merged" {
 			wi.Survival = ptr("pending")
 		}

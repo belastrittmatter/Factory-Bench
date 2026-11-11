@@ -1,6 +1,6 @@
 # FactoryBench — Implementation plan
 
-Companion to [mvp-overview.md](mvp-overview.md), which owns the design (concepts, architecture, metrics, reports, app health, acceptance criteria). This file covers how to build it.
+Companion to [mvp-overview.md](mvp-overview.md), which owns the design (concepts, architecture, metrics, reports, acceptance criteria). This file covers how to build it.
 
 ## 1. Language and stack
 
@@ -60,7 +60,7 @@ Not collected yet: spec items covered by E2E tests (needs a product-repo CI conv
 
 ![Database schema](docs/diagrams/db-schema.svg)
 
-One schema for all factories. No table per factory. The migration is `internal/store/schema.sql`, applied once when `PRAGMA user_version` is 0. There is no production data yet, so schema changes edit that file in place (delete the DB and re-create it); a second migration step comes with the first real data.
+One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
 
 ```sql
 -- registered factories; the API token identifies the factory
@@ -115,6 +115,7 @@ CREATE TABLE attempts (
   ended_at          TEXT,
   human_wait_ms     INTEGER NOT NULL DEFAULT 0,
   pr_url            TEXT,
+  waiting_since     TEXT,                  -- start of the open human wait, NULL if none (live report)
   PRIMARY KEY (factory_id, attempt_id)
 );
 
@@ -159,7 +160,7 @@ CREATE TABLE prs (
 CREATE TABLE checks (
   repo          TEXT NOT NULL,
   pr_number     INTEGER NOT NULL,
-  name          TEXT NOT NULL,              -- e.g. build, test, bench-gate
+  name          TEXT NOT NULL,              -- e.g. build, test, lint
   head_sha      TEXT NOT NULL,
   conclusion    TEXT,                       -- success | failure | ...
   started_at    TEXT,
@@ -184,7 +185,7 @@ CREATE TABLE pr_commits (                   -- from the latest pr.commits event 
 );
 ```
 
-FactoryBench's own prices are not a table: they live in `internal/pricing/prices/<YYYY-MM-DD>.json` (per model: `input`, `output`, `cache_read`, `cache_write` per million tokens), embedded in the binary. A new version is a new file named by its effective date, never an edit; file names must sort chronologically (so no `v2`/`v10`), estimates use the newest and record its name without `.json` (e.g. `2026-11-11`) in `usage.price_version`. A session whose model, or a token class it used, has no price stays `cost_usd = NULL`.
+FactoryBench's own prices are not a table: they live in `internal/pricing/prices/<YYYY-MM-DD>.json` (per model: `input`, `output`, `cache_read`, `cache_write` per million tokens), embedded in the binary. A new version is a new file named by its effective date, never an edit; file names must sort chronologically (so no `v2`/`v10`), a session is estimated with the newest table dated on or before its `ts` (the oldest table for sessions before it), so adding a table never changes the cost of past sessions; its name without `.json` (e.g. `2026-11-11`) is recorded in `usage.price_version`. A session whose model, or a token class it used, has no price stays `cost_usd = NULL`.
 
 Rules:
 - Intake writes only `events`. Everything else is derived. An event is never overwritten once accepted; the one exception to append-only is a re-send of a previously **rejected** id, which replaces the rejected row (and counts as accepted if it now validates). `events.payload` holds the whole raw event as received (contract) or the reconciler's wrapper around the raw API object (github).
@@ -198,7 +199,8 @@ Rules:
 - Usage and cost columns are nullable, never defaulted to 0. Unknown stays unknown and lowers coverage.
 - Factory-specific extras stay in `events.payload`. A field becomes a column only when it joins the contract for everyone.
 - Factory vs. human commits are told apart by commit author. Each factory registers its commit identity and, optionally, the GitHub login it acts as: `factorybench factory add <id> --commit-email <email> --github-login <login>` (e.g. `factory-bot@users.noreply.github.com`).
-- Polling: `factorybench serve --poll 3m --repo a/b --repo c/d` reconciles each repo in turn at startup and then every interval, and re-normalizes once if anything new was stored. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile`. Without `--poll` nothing is polled. Polling and intake both rebuild with `normalize.Run`, one transaction on the database's single connection, so they never interleave.
+- Polling: `factorybench serve --poll 3m` reconciles, at startup and then every interval, every repo a factory sent an accepted `attempt.started` for, plus any `--repo a/b`. A factory working on a new repo needs no setup: it is polled from the next interval on. A repo the GitHub token can't see (404) is logged once and skipped. Errors are logged, never fatal. The token comes from `GITHUB_TOKEN` or `gh auth token`, as for `reconcile` (which takes the same repo list, or `--repo` to pick some). Without `--poll` nothing is polled.
+- Rebuilds: intake and polling only mark the derived tables stale; one background goroutine runs `normalize.Run` (one transaction on the database's single connection), and triggers during a rebuild collapse into one more. A POST therefore never waits for normalization, and reports can lag a batch by one rebuild.
 
 ## 4. The event contract
 
@@ -331,7 +333,7 @@ What a factory's maintainers change. Nothing in how the factory works changes; t
 ### One-time setup
 
 1. Register the factory in FactoryBench: get a `factory_id` and an API token, and register its commit author identity.
-2. Add the product repo to FactoryBench's watched repos (its read-only GitHub token needs access).
+2. Make sure FactoryBench's read-only GitHub token can read the factory's repos. They are polled automatically once the factory reports work on them.
 
 ### Code changes
 
@@ -339,22 +341,7 @@ What a factory's maintainers change. Nothing in how the factory works changes; t
 2. **Decide three mappings:** what one *attempt* is in this factory, a stable attempt ID, and the `factory_config_version` string (e.g. factory version + agent CLI version + config hash).
 3. **Call the emitter at about five points:** attempt start, after each agent session, PR created, human wait/resume, attempt end.
 
-Reference emitter in TypeScript:
-
-```ts
-// emit.ts
-const URL = process.env.FACTORYBENCH_URL, TOKEN = process.env.FACTORYBENCH_TOKEN;
-export function emit(type: string, attemptId: string, key: string, payload: object): void {
-  if (!URL) return;                                   // not configured: do nothing
-  const ev = { spec: 'factorybench/v1', id: `${attemptId}:${key}`, type,
-               ts: new Date().toISOString(), attempt_id: attemptId, payload };
-  fetch(`${URL}/v1/events`, { method: 'POST', body: JSON.stringify([ev]),
-    headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'application/json' } })
-    .catch(() => spool(ev));                          // never fail the run; retry later
-}
-```
-
-Factories in other languages do the same with one HTTP POST, or call `factorybench emit`.
+The reference emitter (TypeScript, with timeout, spool and flush) is in [INSTALL.md §3](INSTALL.md#3-send-events). Factories in other languages do the same with one HTTP POST, or call `factorybench emit`.
 
 ### What maintainers don't do
 
@@ -375,34 +362,12 @@ They don't change their gates, budget, ledger, or PR flow; don't calculate cost 
 5. **Aggregation.** Retries and child attempts into work-item cost; coverage metrics; versioned price table.
 6. **Longitudinal report** with configuration markers, cohorted by work-item start date.
 7. **Survival updater** (14-day revert and corrective-change check; evidence stored, outcome stays `pending` until the window closes).
-8. Dashboard only if reports are insufficient. Optional later: OTLP-to-contract adapter, `resource` events, app health numbers from `history.jsonl`.
+8. Dashboard only if reports are insufficient. Optional later: OTLP-to-contract adapter, `resource` events.
 
-The bench gate, nightly soak, and `docs/health/` are built in the product repo in parallel by the FactoryBench operator; FactoryBench only depends on their check runs.
-
-## 8. Hosting
-
-FactoryBench is one binary plus one SQLite file. The FactoryBench host and the machines running factories share a Tailscale tailnet.
-
-| Phase | Where it runs |
-|---|---|
-| Building it (delivery steps 1–3) | The operator's machine, on the tailnet |
-| From the first real end-to-end issue | A small always-on machine on the tailnet: a ~€5/month cloud VM or a spare mini PC |
-| Only if GitHub data must arrive within seconds | Add webhooks, exposing only `/github` publicly via Tailscale Funnel |
-
-- **Factory → FactoryBench:** over the tailnet, `FACTORYBENCH_URL=https://factorybench.<tailnet>.ts.net`. `tailscale serve` provides HTTPS. Each factory keeps its own API token, which sets its `factory_id`.
-- **GitHub → FactoryBench:** polling with a fine-grained read-only token; no inbound internet access needed. A few repos at a 2–5 minute interval stay far below the 5,000 requests/hour limit.
-- **Factories in GitHub Actions** (not used yet) join the tailnet with Tailscale's official GitHub Action and an ephemeral auth key.
-- **Backups:** Litestream to object storage, or a nightly `sqlite3 .backup`. Only `events` is essential; everything else rebuilds with `replay`.
-- **Moving hosts:** copy the SQLite file and repoint the tailnet name. Factories change nothing.
-- **Downtime:** emitters spool and retry, so no events are lost; the live view is stale until the server is back.
-- **Check first:** whether Tailscale is allowed on the factory machines and where this data may be hosted. Events contain repo names, issue numbers, labels, and model usage, but no code or prompts.
-
-## 9. Risks
+## 8. Risks
 
 - Every factory must adopt the contract. Keep it small and stable; version it (`spec`) and never require fields a factory cannot know.
 - The first integration needs buy-in from that factory's maintainers.
 - Revert and corrective-change attribution is ambiguous. Store evidence with the verdict; keep it out of the core path until step 7.
 - Tool output formats are not stable contracts. Drift is the factory's problem, but it shows up in FactoryBench as falling telemetry coverage.
 - Cost is estimated for any tool that reports only tokens; price tables must be versioned and never edited in place.
-- Bench results on shared CI runners are noisy; expect false failures unless thresholds are per-metric or runs are increased.
-- Writing `docs/health/` to main needs branch-protection access that only a repo admin can grant.

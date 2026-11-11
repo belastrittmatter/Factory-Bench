@@ -20,7 +20,7 @@ FactoryBench is factory-agnostic. Every factory reports through **one event cont
 
 - **Computing metrics inside the factory.** Factories send raw facts only. They don't calculate cost, rates, or outcomes for FactoryBench.
 - **Reading factory-specific data.** FactoryBench never reads a factory's own logs, ledgers, or transcripts.
-- **Measuring the app.** App performance (start time, memory, leaks) belongs to the product repo's bench gate (§9). FactoryBench only sees that gate's pass/fail result through GitHub.
+- **Measuring the app.** App performance belongs to the product repo's own CI. FactoryBench only sees check-run results through GitHub.
 - **Gating PRs or stopping runs.**
 
 ### Later, not in the MVP
@@ -56,17 +56,16 @@ Solid arrows are work and control; dashed arrows are observation only. FactoryBe
 
 ### Who owns what
 
-Factory maintainers each run their own factory; one FactoryBench operator runs FactoryBench and owns the app benchmarks. Hosting is in [implementation-plan.md §8](implementation-plan.md#8-hosting).
+Factory maintainers each run their own factory; one FactoryBench operator runs FactoryBench.
 
 | Part | Owner | Does | Never does |
 |---|---|---|---|
 | **Factories** | Factory maintainers, one factory each | Claim issues, run agent sessions, run their own gates, push PRs, send contract events | Compute metrics or read FactoryBench |
-| **Bench gate + nightly soak** (product CI) | FactoryBench operator | Owns `bench/`, budgets, main-vs-PR comparison, 2-hour soak, writes `docs/health/` | Know which factory made a change |
 | **FactoryBench** | FactoryBench operator | Receives events, polls GitHub, keeps raw events, prices tokens, builds reports and survival | Run benchmarks, gate PRs, or send anything back |
 | **GitHub** | — | Shared record: issues, labels, PRs, check runs, commit authors | — |
 | **Issues, plan approvals, reviews, merges** | Humans | The human steps of the loop | — |
 
-FactoryBench stays factory-agnostic: it only sees contract events and GitHub. The only app-specific code is `bench/` in the product repo.
+FactoryBench stays factory-agnostic: it only sees contract events and GitHub.
 
 ### FactoryBench's four parts
 
@@ -105,7 +104,7 @@ FactoryBench reads GitHub itself, identically for every factory:
 
 - PR opened, updated, reviewed, closed, and merged.
 - Factory and human commit authors (e.g. a factory committing as `factory-bot@users.noreply.github.com`).
-- Check run conclusions, including the bench gate.
+- Check run conclusions.
 - Labels on issues and PRs.
 - Reverts and linked corrective PRs or issues.
 
@@ -164,8 +163,7 @@ Always show outcome, cost, duration, and human effort separately. Every metric c
 | **Human effort** | Human wait count and time | Time explicitly marked as waiting for a person | contract |
 | | Steering events, manual resumes | Reported separately | contract |
 | | Human commits on agent PRs | Commits not authored by the factory | GitHub |
-| **Delivery quality** | CI pass rate on agent PRs | Per check, including the bench gate | GitHub check runs |
-| | Bench gate failures per PR | Budget or regression failures | GitHub check runs |
+| **Delivery quality** | CI pass rate on agent PRs | Per check | GitHub check runs |
 | | Perf issues created afterwards | Corrective `perf` issues linked to the PR | GitHub |
 | **Activity** | Model calls, tool calls | From optional `activity` events | contract |
 | **Data quality** | Telemetry coverage | Share of attempts with complete usage and timing | FactoryBench |
@@ -177,7 +175,7 @@ Follow-up and revert attribution can be ambiguous. Record the evidence and treat
 
 ### Hardware usage
 
-- **The app's hardware usage** (CPU, memory, leaks) is measured by the bench gate and nightly soak (§9), not by FactoryBench. FactoryBench sees pass/fail via the check run. Later, if the gate also writes `history.jsonl`, FactoryBench can chart those numbers per factory configuration as an optional generic metric.
+- **The app's hardware usage** (CPU, memory, leaks) is measured by the product repo's CI, not by FactoryBench. FactoryBench sees pass/fail via the check run.
 - **The factory's own hardware usage** is out of the MVP. Agent compute happens on the model provider's side and shows up as tokens and cost; local CPU on a shared laptop is noisy. Two cheap additions later: CI minutes per agent PR from GitHub's workflow-run API (no contract change), and an optional `resource` event (CPU seconds, peak memory, duration) for factories that run in CI or containers.
 
 ## 7. Reports
@@ -201,7 +199,7 @@ Warnings such as silence or rapid spend are advisory. The observer does not chan
   attempts  2 (plan completed, build completed)  config myfactory@0.1.0+agy@1.5.4+cfg:3e1a9c
   time      18m active / 26m elapsed          human 1 plan wait (8m), 0 code pushes
   usage     142k input / 9k output            cost $1.12 estimated (prices v3)
-  delivery  CI passed, bench gate passed, merged autonomously
+  delivery  CI passed, merged autonomously
   survival  pending until 2026-11-24
 ```
 
@@ -221,7 +219,7 @@ acme/chat-bridge#412 cache returns stale rows            outcome merged · survi
   09:31                   session 1  …                    gate test failed
   09:36                   session 2  …                    all gates passed
   09:36                   attempt a2 completed            9m, $0.91
-  09:41  github           check bench-gate: success       check test: success
+  09:41  github           check build: success            check test: success
   10:02  github           PR #57 merged (0 human commits)
   totals  2 attempts · 3 sessions · 12m active / 48m elapsed · $1.12 est. · 1 human wait · autonomous merge
 ```
@@ -243,7 +241,7 @@ open one: factorybench report item <owner/repo#n>
 
 ### Factory scorecard
 
-`factorybench report factories [--by config]`: factories head to head (metrics as rows), then the gates that caught defects and CI suite health. Definitions are in [implementation-plan.md](implementation-plan.md) §2 Reports.
+`factorybench report factories [--by config]`: factories head to head (metrics as rows), then the gates that caught defects and CI suite health. Definitions are in [implementation-plan.md §2 Reports](implementation-plan.md#reports).
 
 ```text
 metric                       fa                             fb
@@ -293,7 +291,7 @@ Group by week or rolling 28 days, by factory, and by factory configuration. Show
 - Median active and elapsed duration.
 - Autonomous and first-attempt merge rates.
 - Human interventions and wait time.
-- CI and bench gate pass rates.
+- CI pass rates.
 - Attempt counts and telemetry coverage.
 - Configuration-change markers.
 
@@ -314,137 +312,16 @@ Show counts and distributions alongside percentages. Do not use a universal “t
 
 Comparisons across factories require equivalent work and instrumentation. Telemetry provenance is part of the result, not a reason to make cross-source analysis impossible.
 
-## 9. App health: bench gate, nightly soak, and docs/health
-
-App health lives in the **product repo**, owned by the FactoryBench operator. It is not part of FactoryBench, but FactoryBench observes its results through GitHub.
-
-### Bench gate (every PR)
-
-`bench/` is a small benchmark suite for the app. **One run** starts the built app as a fresh process, measures once, stops it, and prints one JSON line:
-
-| Metric | How one run measures it |
-|---|---|
-| Start time | Launch until the app reports ready |
-| Idle CPU and memory | Leave it idle 30 s, average the samples |
-| 500-message import: speed | Feed a fixed set of 500 fake messages; messages/second |
-| 500-message import: latency | p50 and p95 per message |
-| Peak memory | Highest memory during the import |
-
-```json
-{"start_ms": 840, "idle_cpu_pct": 0.4, "idle_rss_mb": 205, "import_msgs_per_s": 310, "import_p95_ms": 42, "peak_rss_mb": 388}
-```
-
-On every PR, CI:
-
-1. Builds main and the PR.
-2. On the same runner, runs the suite 10 times, alternating main, PR, main, PR (5 runs each). Same runner and alternation cancel most runner noise.
-3. Takes the median of each metric per side.
-4. Fails if a PR median is over budget (`bench/budget.json`) or more than 10% worse than main.
-5. On failure, writes feedback the agent can act on: `idle memory 312 MB > budget 250 MB (main: 205 MB)`, plus the top 5 functions by CPU from a profiled PR run.
-
-The factory's own gate ladder can also run the bench against the budget only. The agent then gets fast feedback before the PR exists; CI stays the authority for the main-vs-PR comparison.
-
-### Nightly soak (every night, on main)
-
-A scheduled 2-hour run that catches slow problems like memory leaks:
-
-1. Start the app from main with fake sinks.
-2. Send fake traffic at a steady realistic rate for 2 hours, with some bursts and failing sinks so retry paths run.
-3. Sample memory, heap (if available), CPU, and outbox length every 30 s.
-4. Ignore the first 15 minutes of warm-up, fit a line through the memory samples, and fail if growth is above budget (e.g. 5 MB/h) or the outbox keeps growing.
-5. On failure, open an `agent:ready` + `perf` issue with the memory curve and heap snapshots from start and end.
-
-Rates and thresholds are placeholders for the FactoryBench operator to set.
-
-### docs/health/
-
-Two Markdown files on **main**, written only by CI:
-
-| File | Contents | Updated |
-|---|---|---|
-| `latest.md` | Current value of every metric next to its budget, the last soak result, what's close to budget, slowest functions | Every merge and every night |
-| `history.md` | One row per merge or night, so the trend is visible | Every merge and every night |
-
-They exist for three reasons: anyone can read the app's health without a dashboard; `AGENTS.md` tells the agent to read `latest.md` before touching the engine, outbox, or a sink; and the numbers can be trusted because nobody types them in.
-
-They must be on main because factories typically clone only the default branch. A bot (GitHub App or bot token allowed by branch protection) commits them with `[skip ci]`. `docs/health/**` and `bench/**` are protected: in the factory's protected paths and in CODEOWNERS with the FactoryBench operator as owner. If one commit per merge is too noisy, update only nightly.
-
-### Where the bench code lives
-
-`bench/` measures one specific app, so it lives **in the product repo**, not in a shared repo or a submodule. Submodules can break factories: one that clones without `--recurse-submodules`, or whose sandbox skips submodule directories, means the agent and its gates would run without `bench/`.
-
-```text
-product-repo/
-├── bench/
-│   ├── README.md              # what is measured, how to run it locally
-│   ├── budget.json            # budgets, direction, runs, regression %, soak settings
-│   ├── run.ts                 # entry: one run of all scenarios, prints one JSON line
-│   ├── scenarios/
-│   │   ├── startup.ts         # start time
-│   │   ├── idle.ts            # idle CPU + memory
-│   │   └── import-500.ts      # throughput, p50/p95, peak memory
-│   ├── soak/
-│   │   └── traffic.ts         # fake traffic generator for the 2-hour run
-│   └── fixtures/
-│       └── messages-500.jsonl # fixed, seeded fake messages (same input every run)
-├── docs/health/               # latest.md, history.md, history.jsonl (CI-written)
-├── .github/workflows/
-│   ├── bench-gate.yml         # on PR: calls the shared gate workflow
-│   └── nightly-soak.yml       # on schedule: calls the shared soak workflow
-└── .github/CODEOWNERS         # /bench/ and /docs/health/ → FactoryBench operator
-```
-
-`budget.json`:
-
-```json
-{
-  "runs": 5,
-  "maxRegressionPct": 10,
-  "metrics": {
-    "start_ms":          { "max": 1500 },
-    "idle_cpu_pct":      { "max": 2 },
-    "idle_rss_mb":       { "max": 250 },
-    "import_msgs_per_s": { "min": 200 },
-    "import_p95_ms":     { "max": 100, "maxRegressionPct": 20 },
-    "peak_rss_mb":       { "max": 500 }
-  },
-  "soak": { "durationMin": 120, "warmupMin": 15, "msgsPerSec": 5, "maxGrowthMbPerHour": 5 }
-}
-```
-
-`min`/`max` gives each metric its direction, so "worse than main" is unambiguous. Noisy metrics can override the regression threshold.
-
-The generic part (alternate main/PR runs, medians, budget comparison, failure message, profiling, writing `docs/health/`) is the same for every app. Keep it inside the first product repo until a second product repo needs it. Then extract it into a separate repo (e.g. `bench-gate`) that provides **reusable GitHub workflows** plus a small CLI, pinned by tag:
-
-```yaml
-# product-repo/.github/workflows/bench-gate.yml
-on: pull_request
-jobs:
-  gate:
-    uses: <org>/bench-gate/.github/workflows/gate.yml@v1
-    with:
-      bench-command: pnpm tsx bench/run.ts
-      budget: bench/budget.json
-```
-
-The interface between the two is just the bench command's JSON output line and `budget.json`, the same idea as the FactoryBench event contract.
-
-### What happens when the gate fails
-
-The gate comments the feedback on the PR and opens a new issue labelled `agent:ready` + `perf` that names the PR. The factory picks it up like any other issue, and FactoryBench links it as corrective work for the original work item.
-
-The spec's other path, "the agent fixes it in the same PR", needs a factory change: many factories read only PR reviews and comments, not failed CI checks.
-
-## 10. Delivery order
+## 9. Delivery order
 
 1. Write the event contract (JSON Schema + golden examples).
 2. Trace one real work item from attempt start to PR with timing, tokens, cost, and configuration, using one real factory.
-3. Add GitHub merge, CI, bench gate, and human-push attribution.
+3. Add GitHub merge, CI, and human-push attribution.
 4. Aggregate retries, failures, and multiple work items.
 5. Produce the first longitudinal report with configuration markers.
 6. Add the 14-day survival updater.
 7. Add a web dashboard only if the generated reports are insufficient.
-8. Choose the next investment based on observed gaps: sampled quality scoring, app health numbers per configuration, or controlled replays.
+8. Choose the next investment based on observed gaps: sampled quality scoring or controlled replays.
 
 ### MVP acceptance criteria
 
@@ -459,7 +336,7 @@ The spec's other path, "the agent fixes it in the same PR", needs a factory chan
 - Open work is not counted as merged or surviving.
 - Survival remains pending until its 14-day observation closes.
 
-## 11. Research basis
+## 10. Research basis
 
 - [Warp: Measure and improve a factory](https://docs.warp.dev/factories/measure-and-improve/) — production activity, cost, autonomy, cycle time, sampled scorers, and the baseline/change/monitor loop.
 - [Warp: Factory benchmarks](https://docs.warp.dev/factories/benchmarks/) — controlled fixed-task comparison as a separate mechanism.

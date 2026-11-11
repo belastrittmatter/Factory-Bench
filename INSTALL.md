@@ -19,7 +19,7 @@ Contract: [spec/events.schema.json](spec/events.schema.json) (validate your payl
 2. `FACTORYBENCH_TOKEN`. The FactoryBench operator creates it once and it is shown only once:
    `factorybench factory add <factory-id> --commit-email <email the factory commits as> --github-login <GitHub login the factory acts as>`
    (e.g. `--commit-email factory-bot@users.noreply.github.com`). Commit email and login are how FactoryBench tells factory work from human work, so get them right.
-3. That the factory's product repo is polled: the operator runs `factorybench serve --poll 3m --repo <owner/name> ...`. Without it tokens still show up, but PR outcome, reviews and CI stay unknown.
+3. That FactoryBench polls GitHub (`factorybench serve --poll 3m`) with a token that can read the factory's repos. Every repo the factory reports an attempt on is polled automatically; there is nothing to register per repo. Without polling, tokens still show up, but PR outcome, reviews and CI stay unknown.
 
 Put both env vars wherever the factory reads its environment (local shell and CI secrets). If `FACTORYBENCH_URL` is unset, the emitter must do nothing.
 
@@ -158,15 +158,15 @@ export async function flushSpool(): Promise<void> {
 ```
 "modelUsage":{"claude-sonnet-5-5":{"inputTokens":1200,"outputTokens":800,"cacheReadInputTokens":45000,"cacheCreationInputTokens":6000,"costUSD":0.0412},
               "claude-haiku-5-5":{"inputTokens":300,"outputTokens":90,"cacheReadInputTokens":0,"cacheCreationInputTokens":0,"costUSD":0.00075}}, "duration_ms":95000
-→ usage:1 {"model":"claude-haiku-5-5","input":300,"output":90,"cache_read":0,"cache_write":0,"reported_cost_usd":0.00075,"duration_ms":95000}
+→ usage:1 {"model":"claude-haiku-5-5","input":300,"output":90,"cache_read":0,"cache_write":0,"reported_cost_usd":0.00075}
 → usage:2 {"model":"claude-sonnet-5-5","input":1200,"output":800,"cache_read":45000,"cache_write":6000,"reported_cost_usd":0.0412}
 ```
 
-`thinkingTokens` → `reasoning`, `costUSD` → `reported_cost_usd`; the run's `duration_ms` goes on the first event only. `is_error: true` → `attempt.finished {"status":"failed","reason":<subtype>}`; no `result` line at all → no usage, `failed`.
+`thinkingTokens` → `reasoning`, `costUSD` → `reported_cost_usd`; the run's `duration_ms` is sent only when the run used one model (with several it can't be split per model, so it's omitted). A model entry without `inputTokens`/`outputTokens` gets no event. `is_error: true` → `attempt.finished {"status":"failed","reason":<subtype>}`; no `result` line at all → no usage, `failed`.
 
 ## 6. Verify
 
-Send one throwaway attempt on a dummy issue (it stays in FactoryBench; use a repo name nobody polls so it doesn't skew real metrics):
+Send one throwaway attempt on a dummy issue (it stays in FactoryBench; use a repo that doesn't exist, so polling skips it and it doesn't skew real metrics):
 
 ```bash
 A=fbtest-$(date -u +%Y%m%d%H%M%S)
@@ -202,4 +202,4 @@ Response to every POST: `{"accepted":n,"duplicates":n,"rejected":[{"id":"...","e
 | Spool keeps growing | Sends are failing (stderr says why: unreachable URL, 401, 5xx). Fix that, then `factorybench emit --flush` (or `flushSpool()`). A leftover `spool.jsonl.sending` is resent first. `emit --flush` with `FACTORYBENCH_URL` unset does nothing. |
 | Nothing arrives, no errors | `FACTORYBENCH_URL` is unset in the factory's environment (the emitter silently does nothing), or the process exited before an un-awaited `emit()` finished. |
 | `+?` in a report | Lower bound: some attempt sent no `usage`, or a session's `model` (or a token class it used) has no price. Check that every session emits usage; ask the operator to add a price for the model. `?` = nothing known at all. |
-| Outcome stays `open`, no PR/CI data | The repo is not polled (`serve --poll ... --repo`), or `pr.linked` was not sent. |
+| Outcome stays `open`, no PR/CI data | FactoryBench isn't polling (`serve --poll`), its GitHub token can't read the repo (the server logs `not found or no access`), or `pr.linked` was not sent. |

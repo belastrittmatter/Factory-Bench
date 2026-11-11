@@ -21,31 +21,53 @@ type table struct {
 	} `json:"models"`
 }
 
-// Version is the newest price table; estimates always use it and record its name.
-var Version, current = load()
+type version struct {
+	name string // YYYY-MM-DD, the date the table takes effect
+	t    table
+}
 
-func load() (string, table) {
+// versions holds every price table, oldest first.
+var versions = load()
+
+func load() []version {
 	entries, err := files.ReadDir("prices")
 	if err != nil || len(entries) == 0 {
 		panic(fmt.Sprintf("pricing: no price tables: %v", err))
 	}
-	name := entries[len(entries)-1].Name() // ReadDir sorts by name; files are YYYY-MM-DD.json so that is date order
-	b, err := files.ReadFile(path.Join("prices", name))
-	if err != nil {
-		panic("pricing: " + err.Error())
+	var vs []version
+	for _, e := range entries { // ReadDir sorts by name; files are YYYY-MM-DD.json so that is date order
+		b, err := files.ReadFile(path.Join("prices", e.Name()))
+		if err != nil {
+			panic("pricing: " + err.Error())
+		}
+		v := version{name: strings.TrimSuffix(e.Name(), ".json")}
+		if err := json.Unmarshal(b, &v.t); err != nil {
+			panic("pricing: " + e.Name() + ": " + err.Error())
+		}
+		vs = append(vs, v)
 	}
-	var t table
-	if err := json.Unmarshal(b, &t); err != nil {
-		panic("pricing: " + name + ": " + err.Error())
-	}
-	return strings.TrimSuffix(name, ".json"), t
+	return vs
 }
 
-// Estimate prices one session. ok is false when the model, or a token class it used, has no price.
-func Estimate(model string, input, output int64, cacheRead, cacheWrite *int64) (usd float64, ok bool) {
-	m, found := current.Models[model]
+// at returns the table in effect at ts (RFC 3339): the newest one dated on or before ts's day.
+// A ts before the first table gets the first table, the earliest prices known.
+func at(ts string) version {
+	v := versions[0]
+	for _, c := range versions[1:] {
+		if c.name <= ts[:min(len(ts), 10)] {
+			v = c
+		}
+	}
+	return v
+}
+
+// Estimate prices one session at the prices in effect at ts and returns the price version used.
+// ok is false when the model, or a token class it used, has no price.
+func Estimate(ts, model string, input, output int64, cacheRead, cacheWrite *int64) (usd float64, priceVersion string, ok bool) {
+	v := at(ts)
+	m, found := v.t.Models[model]
 	if !found {
-		return 0, false
+		return 0, "", false
 	}
 	usd = float64(input)*m.Input + float64(output)*m.Output
 	for _, c := range []struct {
@@ -56,9 +78,9 @@ func Estimate(model string, input, output int64, cacheRead, cacheWrite *int64) (
 			continue
 		}
 		if c.p == nil {
-			return 0, false
+			return 0, "", false
 		}
 		usd += float64(*c.n) * *c.p
 	}
-	return usd / 1e6, true
+	return usd / 1e6, v.name, true
 }

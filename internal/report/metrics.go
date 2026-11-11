@@ -9,11 +9,12 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"factorybench/internal/outcome"
 	"factorybench/internal/store"
 )
 
 // Metrics for `report items` and `report factories`. Every number is built from units: one factory (or
-// factory+config) on one work item. Definitions are in implementation-plan.md §7 "Reports".
+// factory+config) on one work item. Definitions are in implementation-plan.md §2 "Reports".
 
 type mAtt struct {
 	factory, id, repo, role, config, state, started string
@@ -181,7 +182,7 @@ type unit struct {
 	item           *mItem
 	atts           []*mAtt
 	prs            []*mPR
-	outcome        string // from this unit's own PRs, by store.Outcome like the work item
+	outcome        string // from this unit's own PRs, by outcome.FromPRStates like the work item
 
 	attempts, failed, sessions, withUsage, phased int
 	tokens, verifyTok                             int64
@@ -280,7 +281,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 	for _, p := range u.prs {
 		st[p.state] = true
 	}
-	u.outcome = store.Outcome(st)
+	u.outcome = outcome.FromPRStates(st)
 
 	evs := d.human[u.factory+"\x00"+u.item.key]
 	for _, e := range evs {
