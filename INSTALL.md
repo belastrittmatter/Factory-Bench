@@ -44,7 +44,7 @@ factorybench emit attempt.finished --attempt "$A" --key finished --json '{"statu
 ```
 
 - **What Claude Code sends:** with these variables, Claude Code (≥ 2.1.310) sends its own telemetry while it runs. That covers tokens and cost per model call, every tool call, subagents, and API errors. The factory sends **no `usage` or `activity`** for Claude.
-- **Phase (optional):** to split tokens by phase, tag each `claude` call: `OTEL_RESOURCE_ATTRIBUTES="factorybench.attempt=$A,factorybench.phase=verify"` (`implement`, `verify` or `review`). Without it, "verification tokens / PR" shows n/a.
+- **Phase (optional):** to split tokens by phase, tag each `claude` call: `OTEL_RESOURCE_ATTRIBUTES="factorybench.attempt=$A,factorybench.phase=verify"` (`implement`, `verify` or `review`). Untagged calls are not counted in "verification tokens / PR" (n/a if none are tagged).
 - **Where the variables go:** they must be set in the `claude` process environment. Claude Code ignores them in a repo's `.claude/settings.json`.
 - **Content flags:** leave `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS` and `OTEL_LOG_RAW_API_BODIES` unset.
 - **`factory_config_version`:** change it whenever anything that could change results changes (factory version, Claude Code version, model, config).
