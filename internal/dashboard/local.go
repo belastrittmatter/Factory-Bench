@@ -53,8 +53,6 @@ func (s *server) manifests() runLog {
 	return out
 }
 
-func (s *server) dispatches(issue int64) []dispatch { return s.manifests().dispatches[issue] }
-
 // flow returns one card's dispatches with the model calls made in each, its board moves and waits, its attempts,
 // its merge time and its rework counts. Without manifests every attempt is one row of calls with no lane.
 func (s *server) flow(r *http.Request) (any, error) {
@@ -158,7 +156,7 @@ func (s *server) workerLogs(a map[string]any) map[string]any {
 	if e, ok := a["ended_at"].(string); ok {
 		end, _ = time.Parse(time.RFC3339Nano, e)
 	}
-	lo, hi := start.Add(-time.Minute), end.Add(time.Minute)
+	lo, hi := start.Add(-dispatchSkew), end.Add(dispatchSkew)
 	workers := []map[string]any{}
 	files, _ := filepath.Glob(filepath.Join(s.o.Runs, "*-workers", "worker-*-"+strconv.FormatInt(issue, 10)+".log"))
 	for _, f := range files {

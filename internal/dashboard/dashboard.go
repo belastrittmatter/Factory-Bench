@@ -214,6 +214,7 @@ func (s *server) live(r *http.Request) (any, error) {
 		Idle                     bool
 		HasWaitEvents            bool // false: human wait is unavailable, not zero
 	}
+	ds := s.manifests().dispatches
 	out := []row{}
 	for _, l := range lr {
 		x := row{LiveRow: l, ElapsedS: secs(l.Elapsed), ActiveS: secs(l.Elapsed - l.Wait), WaitS: secs(l.Wait)}
@@ -238,15 +239,20 @@ func (s *server) live(r *http.Request) (any, error) {
 		if phase.Valid {
 			x.Phase = &phase.String
 		}
-		if d := s.dispatches(l.Issue); len(d) > 0 {
-			var lane string
-			for _, e := range d { // the newest dispatch at or after this attempt's start
-				if !e.At.Before(l.Started.Add(-time.Minute)) {
-					lane = e.Lane
-				}
+		if d := ds[l.Issue]; len(d) > 0 {
+			att, err := rows(s.db, `SELECT attempt_id, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2`, l.Repo, l.Issue)
+			if err != nil {
+				return nil, err
 			}
-			if lane != "" {
-				x.Lane = &lane
+			var wins []attemptWin
+			for _, a := range att {
+				wins = append(wins, attemptWin{ID: a["attempt_id"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])})
+			}
+			for _, r := range groupByDispatch(d, wins, nil, now) { // the newest dispatch that ran in this attempt
+				if r.Attempt == l.Attempt && r.Lane != "" {
+					lane := r.Lane
+					x.Lane = &lane
+				}
 			}
 		}
 		out = append(out, x)

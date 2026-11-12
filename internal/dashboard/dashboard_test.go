@@ -335,3 +335,18 @@ func TestReadTextTruncates(t *testing.T) {
 		t.Errorf("truncated %v, len %d, head %q, tail %q", r["truncated"], len(text), text[:3], text[len(text)-3:])
 	}
 }
+
+// Live shows the lane of the newest dispatch that ran in the attempt itself.
+func TestLiveLane(t *testing.T) {
+	_, h, dir := fixture(t)
+	at := time.Now().Add(-29 * time.Minute).Local() // a1 started 30 minutes ago
+	line := "[" + at.Format("15:04:05") + "] dispatch lane=delta issue=#7 pid=9\n"
+	if err := os.WriteFile(filepath.Join(dir, "runs", at.Format("2006-01-02")+"-y.md"), []byte(line), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var live []map[string]any
+	get(t, h, "/api/live", &live)
+	if len(live) != 1 || live[0]["Lane"] != "delta" {
+		t.Errorf("live lane: %v", live)
+	}
+}
