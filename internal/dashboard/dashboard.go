@@ -347,12 +347,12 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
-	if a := res["attempt"].([]map[string]any); len(a) == 0 {
+	a := res["attempt"].([]map[string]any)
+	if len(a) == 0 {
 		return nil, httpError{http.StatusNotFound, "no such attempt"}
-	} else {
-		withStatus(a, time.Now(), s.o.Idle)
-		res["attempt"] = a[0]
 	}
+	withStatus(a, time.Now(), s.o.Idle)
+	res["attempt"] = a[0]
 	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
 	at := res["attempt"].(map[string]any)
 	fl, err := s.cardFlow(at["repo"].(string), at["issue"].(int64), time.Now())

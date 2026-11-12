@@ -59,12 +59,18 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 	return &server{db: db, o: o, local: true}, Handler(db, o), dir
 }
 
-func get(t *testing.T, h http.Handler, url string, out any) *httptest.ResponseRecorder {
-	t.Helper()
-	req := httptest.NewRequest("GET", url, nil)
-	req.Host = "127.0.0.1:8081"
+// do sends one request with the given Host header.
+func do(h http.Handler, method, host, url string) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(method, url, nil)
+	req.Host = host
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
+	return w
+}
+
+func get(t *testing.T, h http.Handler, url string, out any) *httptest.ResponseRecorder {
+	t.Helper()
+	w := do(h, "GET", "127.0.0.1:8081", url)
 	if out != nil && w.Code == 200 {
 		if err := json.Unmarshal(w.Body.Bytes(), out); err != nil {
 			t.Fatalf("%s: %v: %s", url, err, w.Body)
@@ -197,26 +203,16 @@ func TestReadOnlyAndLocalOnly(t *testing.T) {
 	if _, err := s.db.Exec(`DELETE FROM events`); err == nil {
 		t.Error("write through the read-only handle succeeded")
 	}
-	if w := httptest.NewRecorder(); true {
-		req := httptest.NewRequest("POST", "/api/live", nil)
-		req.Host = "127.0.0.1:8081"
-		h.ServeHTTP(w, req)
-		if w.Code != 405 {
-			t.Errorf("POST: %d", w.Code)
-		}
+	if w := do(h, "POST", "127.0.0.1:8081", "/api/live"); w.Code != 405 {
+		t.Errorf("POST: %d", w.Code)
 	}
-	req := httptest.NewRequest("GET", "/api/live", nil)
-	req.Host = "evil.example:8081"
-	if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, req); return w.Code }() != 403 {
-		t.Error("foreign Host accepted on a loopback listener")
+	if w := do(h, "GET", "evil.example:8081", "/api/live"); w.Code != 403 {
+		t.Errorf("foreign Host on a loopback listener: %d", w.Code)
 	}
 	// a shared listener serves no local files
 	shared := Handler(s.db, Options{Addr: ":8081", Runs: filepath.Join(dir, "runs"), Transcripts: filepath.Join(dir, "tr")})
 	for _, u := range []string{"/api/local/transcript?session=" + sid, "/api/local/manifest?file=2026-01-02-x.md"} {
-		req := httptest.NewRequest("GET", u, nil)
-		w := httptest.NewRecorder()
-		shared.ServeHTTP(w, req)
-		if w.Code != 403 {
+		if w := do(shared, "GET", "example.com", u); w.Code != 403 {
 			t.Errorf("%s on shared listener: %d", u, w.Code)
 		}
 	}
