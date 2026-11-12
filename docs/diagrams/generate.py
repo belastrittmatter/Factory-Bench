@@ -84,7 +84,7 @@ def architecture():
                          ('p4', 'FactoryBench'), (None, '── work / control'), (None, '- - - observation only')]))
     o = 30  # vertical offset below the legend
     for x, y, w, h, t in [(0, 100, 210, 300, 'Factory · e.g. plan → build loop'), (250, 100, 220, 255, 'Product repo · GitHub + CI'),
-                          (510, 100, 210, 400, 'FactoryBench · passive')]:
+                          (510, 100, 210, 450, 'FactoryBench · passive')]:
         d.append(f'<rect x="{x}" y="{y + o}" width="{w}" height="{h}" rx="10" class="zone"/><text x="{x + 10}" y="{y + 18 + o}" class="zt">{E(t)}</text>')
     B = lambda x, y, w, h, l, c: box(x, y + o, w, h, l, c)
     L = lambda pts, **k: line([(x, y + o) for x, y in pts], **k)
@@ -98,7 +98,7 @@ def architecture():
     # factory
     d.append(B(15, 135, 180, 40, ['watch / run', 'claims labelled issues'], 'p2'))
     d.append(B(15, 195, 180, 70, ['loop: red → plan → green', 'gate ladder: build, guard,', 'test'], 'p2'))
-    d.append(B(60, 285, 135, 36, ['agent sessions'], 'p2'))
+    d.append(B(60, 285, 135, 36, ['agent sessions', 'e.g. Claude Code'], 'p2'))
     d.append(B(15, 341, 180, 44, ['emitter', '~5 call sites, raw facts'], 'p2'))
     d.append(L([(105, 175), (105, 193)])); d.append(L([(128, 265), (128, 283)]))
     d.append(L([(35, 265), (35, 339)], dash=True))
@@ -116,15 +116,19 @@ def architecture():
     d.append(B(525, 211, 180, 34, ['raw events (kept)'], 'p4'))
     d.append(B(525, 265, 180, 40, ['normalize', 'pure, replayable'], 'p4'))
     d.append(B(525, 325, 180, 34, ['SQLite: items, attempts'], 'p4'))
-    d.append(B(525, 379, 180, 50, ['reports', 'live · item · trends · survival'], 'p4'))
-    d.append(B(525, 450, 180, 36, ['POST /v1/events'], 'p4'))
+    d.append(B(525, 379, 180, 50, ['reports', 'live · item · items · factories'], 'p4'))
+    d.append(B(525, 450, 180, 40, ['POST /v1/logs', 'OTLP, Claude Code only'], 'p4'))
+    d.append(B(525, 505, 180, 36, ['POST /v1/events'], 'p4'))
     d.append(L([(472, 158), (523, 158)], dash=True)); d.append(T(497, 150, 'API poll'))
     for a, b in [(181, 209), (245, 263), (305, 323), (359, 377)]:
         d.append(L([(615, a), (615, b)]))
-    d.append(L([(705, 468), (714, 468), (714, 228), (707, 228)]))
-    d.append(L([(105, 385), (105, 468), (523, 468)], dash=True))
-    d.append(T(300, 462, 'contract events (only factory → FactoryBench link)'))
-    return svg(722, 505 + o, ''.join(d), 'FactoryBench architecture: who handles what')
+    d.append(L([(705, 470), (714, 470)], arrow=False))
+    d.append(L([(705, 523), (714, 523), (714, 228), (707, 228)]))
+    d.append(L([(195, 303), (222, 303), (222, 470), (523, 470)], dash=True))
+    d.append(T(372, 464, 'telemetry: tokens, tool calls, subagents'))
+    d.append(L([(105, 385), (105, 523), (523, 523)], dash=True))
+    d.append(T(314, 517, 'contract events: lifecycle (+ usage for other agents)'))
+    return svg(722, 555 + o, ''.join(d), 'FactoryBench architecture: who handles what')
 
 
 # ---------------------------------------------------------------- issue flow
@@ -215,7 +219,7 @@ TABLES = {
     # name: (x, y, width, class, [(column, type, key)])  key: PK, FK or ''
     'factories': (8, 40, 200, 'p0', [('factory_id', 'text', 'PK'), ('token_hash', 'text', ''), ('commit_email', 'text', ''),
                                      ('github_login', 'text, null', ''), ('created_at', 'text', '')]),
-    'events': (8, 200, 200, 'p4', [('source', 'contract|github', 'PK'), ('factory_id', 'text', 'PK'), ('id', 'text', 'PK'),
+    'events': (8, 200, 200, 'p4', [('source', 'contract|github|otlp', 'PK'), ('factory_id', 'text', 'PK'), ('id', 'text', 'PK'),
                                    ('type', 'text', ''), ('ts', 'text', ''), ('received_at', 'text', ''),
                                    ('payload', 'json (raw)', ''), ('rejected', 'text, null', '')]),
     'work_items': (261, 40, 200, 'p0', [('repo', 'text', 'PK'), ('issue', 'int', 'PK'), ('task_type', 'text', ''),
@@ -225,24 +229,35 @@ TABLES = {
     'attempts': (261, 252, 200, 'p0', [('factory_id', 'text', 'PK'), ('attempt_id', 'text', 'PK'), ('repo, issue', '', 'FK'),
                                        ('parent_attempt_id', 'text', 'FK'), ('role', 'text', ''), ('config_version', 'text', ''),
                                        ('state', 'enum', ''), ('started_at', 'text', ''), ('ended_at', 'text', ''),
-                                       ('human_wait_ms', 'int', ''), ('pr_url', 'text', 'FK')]),
-    'usage': (261, 464, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('model', 'text', ''), ('ts', 'text', ''),
+                                       ('human_wait_ms', 'int', ''), ('pr_url', 'text', 'FK'),
+                                       ('waiting_since', 'text, null', '')]),
+    'usage': (261, 480, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('model', 'text', ''), ('ts', 'text', ''),
                                     ('input / output', 'int', ''), ('cache_read / write', 'int', ''), ('reasoning', 'int', ''),
                                     ('cost_usd', 'real, null', ''), ('cost_provenance', 'text', ''),
-                                    ('price_version', 'text', 'FK'), ('phase', 'impl|verify|review', '')]),
-    'gates': (261, 664, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('ts', 'text', ''), ('name', 'text', ''),
+                                    ('price_version', 'text', ''), ('phase', 'impl|verify|review', ''),
+                                    ('agent_id', 'null = main', '')]),
+    'gates': (261, 697, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('ts', 'text', ''), ('name', 'text', ''),
                                     ('passed', 'bool', ''), ('reason', 'text', '')]),
     'prs': (514, 40, 200, 'p0', [('repo', 'text', 'PK'), ('number', 'int', 'PK'), ('url', 'text', ''), ('branch', 'text', ''),
                                  ('state', 'text', ''), ('merged_at', 'text', ''), ('factory_commits', 'int', ''),
-                                 ('human_commits', 'int', '')]),
-    'checks': (514, 210, 200, 'p0', [('repo, pr_number', '', 'FK'), ('name', 'text', ''), ('head_sha', 'text', ''),
+                                 ('human_commits', 'int', ''),
+                                 ('additions / deletions', 'int', ''), ('changed_files', 'int', '')]),
+    'checks': (514, 240, 200, 'p0', [('repo, pr_number', '', 'FK'), ('name', 'text', ''), ('head_sha', 'text', ''),
                                      ('conclusion', 'text', ''), ('started_at', 'text', ''), ('completed_at', 'text', '')]),
-    'reviews': (514, 345, 200, 'p0', [('repo, pr_number', '', 'FK'), ('reviewer', 'login', ''), ('state', 'text', ''),
+    'reviews': (514, 375, 200, 'p0', [('repo, pr_number', '', 'FK'), ('reviewer', 'login', ''), ('state', 'text', ''),
                                       ('submitted_at', 'text', '')]),
-    'pr_commits': (514, 465, 200, 'p0', [('repo, pr_number', '', 'FK'), ('sha', 'text', ''), ('author_email', 'text', ''),
+    'pr_commits': (514, 480, 200, 'p0', [('repo, pr_number', '', 'FK'), ('sha', 'text', ''), ('author_email', 'text', ''),
                                          ('factory_id', 'null = human', 'FK'), ('committed_at', 'text', '')]),
-    'prices': (514, 600, 200, 'p0', [('version', 'text', 'PK'), ('model', 'text', 'PK'), ('input_per_mtok', 'real', ''),
-                                     ('output_per_mtok', 'real', ''), ('cache_read_per_mtok', 'real', '')]),
+    'tool_calls': (767, 40, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('agent_id', 'null = main', ''), ('ts', 'text', ''),
+                                        ('tool_name', 'text', ''), ('success', 'bool, null', ''), ('duration_ms', 'int', ''),
+                                        ('error_type', 'text', '')]),
+    'agent_runs': (767, 200, 200, 'p0', [('factory_id, attempt_id', '', 'PK'), ('agent_id', 'text', 'PK'),
+                                        ('parent_agent_id', 'text', 'FK'), ('agent_type', 'text', ''), ('is_async', 'bool', ''),
+                                        ('model / final_model', 'text', ''), ('tool_calls', 'int', ''), ('duration_ms', 'int', ''),
+                                        ('status', 'run|done|killed', ''), ('started_at', 'text', '')]),
+    'api_errors': (767, 405, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('agent_id', 'text', ''), ('ts', 'text', ''),
+                                        ('kind', 'text', ''), ('model', 'text', ''), ('status_code', 'int', ''),
+                                        ('error', 'text', ''), ('duration_ms', 'int', '')]),
 }
 ROW, HEAD = 15, 24
 
@@ -293,7 +308,7 @@ def db_schema():
         d.append(line([(x1, y1), (x1 + 6, y1), (x1 + 6, y2), (x2 + 2, y2)]))
     (x1, y1), (x2, y2) = anchor('attempts', 'attempt_id', 'l'), anchor('gates', 'factory_id, attempt_id', 'l')
     d.append(line([(x1, y1), (x1 - 38, y1), (x1 - 38, y2), (x2 - 2, y2)]))
-    link('usage', 'price_version', 'prices', 'version', lx=488)
+    loop_left('agent_runs', 'parent_agent_id', 'agent_id', off=8)
     # events feed everything derived
     ex, ey, ew, _, ecols = TABLES['events']
     eh = HEAD + len(ecols) * ROW + 6
@@ -301,8 +316,11 @@ def db_schema():
     d.append(lab(ex + ew / 2 + 4, ey + eh + 30, 'normalize / replay', 'start'))
     d.append(f'<text x="{ex}" y="{ey + eh + 90}" class="lg">Intake writes only to events.</text>'
              f'<text x="{ex}" y="{ey + eh + 105}" class="lg">factory_id comes from the token,</text>'
-             f'<text x="{ex}" y="{ey + eh + 120}" class="lg">never from the request body.</text>')
-    return svg(722, 780, ''.join(d), 'FactoryBench database schema')
+             f'<text x="{ex}" y="{ey + eh + 120}" class="lg">never from the request body.</text>'
+             f'<text x="767" y="580" class="lg">tool_calls, agent_runs and api_errors</text>'
+             f'<text x="767" y="595" class="lg">belong to an attempt (factory_id,</text>'
+             f'<text x="767" y="610" class="lg">attempt_id), like usage and gates.</text>')
+    return svg(975, 815, ''.join(d), 'FactoryBench database schema')
 
 
 # ---------------------------------------------------------------- code map
@@ -335,7 +353,7 @@ def code_map():
     d.append(line([(cx[1] + 22, 222), (cx[1] + 22, 186)], dash=True)); d.append(lab(cx[1] + 26, 206, '--flush', 'start'))
     d.append(B(1, 318, 44, ['GitHub REST API', 'PRs, commits, checks'], 'p0'))
     # column 2: intake, github
-    d.append(B(2, 130, 62, ['intake', 'POST /v1/events', 'auth · validate · insert'], 'p4'))
+    d.append(B(2, 130, 62, ['intake', '/v1/events · /v1/logs', 'auth · validate · insert'], 'p4'))
     d.append(line([(260, 148), (274, 148)]))
     d.append(B(2, 312, 56, ['github', 'Reconcile(): poll,', 'store as raw events'], 'p4'))
     d.append(line([(274, 340), (262, 340)]))
@@ -347,7 +365,8 @@ def code_map():
     # column 4: normalize + derived tables
     d.append(B(4, 130, 72, ['normalize', 'derive(): pure', 'Run(): wipe + rebuild', 'in one transaction'], 'p4'))
     d.append(line([(528, 166), (542, 166)]))
-    d.append(B(4, 248, 92, ['derived tables', 'work_items · attempts', 'usage · gates · prs', 'checks · reviews', 'pr_commits'], 'p0'))
+    d.append(B(4, 248, 120, ['derived tables', 'work_items · attempts', 'usage · gates · prs', 'checks · reviews', 'pr_commits',
+                             'tool_calls', 'agent_runs', 'api_errors'], 'p0'))
     d.append(line([(cx[4], 202), (cx[4], 246)])); d.append(lab(cx[4] + 6, 228, 'INSERT', 'start'))
     # column 5: golden tests, report, stdout
     d.append(B(5, 130, 72, ['golden tests', 'testdata/golden/*', 'POST → normalize', '→ report = report.txt'], 'p0'))
