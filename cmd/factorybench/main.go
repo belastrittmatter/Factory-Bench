@@ -67,6 +67,7 @@ func main() {
 			go pollGitHub(db, repos, *poll, githubToken(), rebuild)
 		}
 		http.Handle("/v1/events", intake.Handler(db, rebuild))
+		http.Handle("/v1/logs", intake.LogsHandler(db, rebuild))
 		log.Printf("listening on %s", *addr)
 		check((&http.Server{Addr: *addr, ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
 	case cmd == "emit":
@@ -139,9 +140,10 @@ func main() {
 }
 
 // rebuilder runs normalize.Run in one background goroutine and returns a non-blocking trigger for it.
-// Triggers that arrive during a rebuild collapse into one more rebuild, so intake never waits for normalize
-// and a burst of batches costs at most two rebuilds.
-// shortcut: each rebuild is a full one; switch to incremental normalize when events grow large.
+// Triggers that arrive during a rebuild collapse into one more rebuild, so a burst of batches costs at most two rebuilds.
+// Triggering never blocks, but intake's inserts wait for a running rebuild's write lock.
+// shortcut: each rebuild is a full one (measured ~35k events/s) and intake waits for it; past the OTLP exporter's default
+// 10 s timeout (~350k events) Claude Code batches are dropped (no spool). Switch to incremental normalize before that.
 func rebuilder(db *sql.DB) func() {
 	dirty := make(chan struct{}, 1)
 	go func() {

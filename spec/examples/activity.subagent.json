@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:activity:2",
+  "type": "activity",
+  "ts": "2026-11-11T09:15:40Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "tool": "run_command", "failed": true, "duration_ms": 3852, "agent": "general-purpose", "agent_id": "a3bea183083d509c1", "parent_agent_id": "a659980bca3fb01e4" }
+}

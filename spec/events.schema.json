@@ -43,10 +43,28 @@
         "reasoning": { "$ref": "#/$defs/count" },
         "reported_cost_usd": { "type": "number", "minimum": 0, "description": "Only if the provider reported it." },
         "duration_ms": { "$ref": "#/$defs/count" },
-        "phase": { "enum": ["implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." }
+        "phase": { "enum": ["implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." },
+        "agent": { "$ref": "#/$defs/agent" },
+        "agent_id": { "$ref": "#/$defs/agent_id" },
+        "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }
       }
     },
-    "activity": { "type": "object", "properties": { "tool": { "type": "string" }, "summary": { "type": "string" } } },
+    "activity": {
+      "type": "object",
+      "description": "Something the agent did. With a tool, it counts as one tool call.",
+      "properties": {
+        "tool": { "type": "string" },
+        "summary": { "type": "string" },
+        "failed": { "type": "boolean", "description": "The tool call failed." },
+        "duration_ms": { "$ref": "#/$defs/count" },
+        "agent": { "$ref": "#/$defs/agent" },
+        "agent_id": { "$ref": "#/$defs/agent_id" },
+        "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }
+      }
+    },
+    "agent": { "type": "string", "description": "Subagent type, e.g. general-purpose." },
+    "agent_id": { "type": "string", "description": "Subagent that did this; omit for the main agent." },
+    "parent_agent_id": { "type": "string", "description": "Only for a nested subagent: the subagent that started it. Omit for a child of the main agent." },
     "human.waiting": { "type": "object", "properties": { "reason": { "type": "string" } } },
     "human.resumed": { "type": "object", "properties": { "reason": { "type": "string" } } },
     "human.steering": { "type": "object", "properties": { "source": { "enum": ["comment", "chat", "label"] } } },

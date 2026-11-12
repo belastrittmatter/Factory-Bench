@@ -50,9 +50,17 @@ Reports only read derived tables (plus human events). `report items [--factory f
 | review rounds / PR | human CHANGES_REQUESTED reviews ÷ linked PRs with any human review |
 | human interventions / issue | `human.waiting` + `human.steering` + human commits on linked PRs + human CHANGES_REQUESTED reviews, ÷ work items |
 | escaped defects | human CHANGES_REQUESTED reviews and human commits dated after the unit's last attempt ended, shown as `k on m/n PRs` |
-| telemetry coverage | attempts with ≥ 1 usage ÷ attempts; unpriced sessions; rejected events of the factory |
+| time to first PR / to merge | per unit, first attempt start → first `pr.linked` / first merge of its PRs; averaged over units that have one |
+| CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (the SHA of the earliest-started check run) all succeeded ÷ linked PRs with such runs |
+| PR size / cost per changed line | additions, deletions, changed files of sized linked PRs (from the single-PR API object), averaged per PR; cost of the units with a sized PR ÷ their additions + deletions |
+| tool calls / issue, tool mix, tool failure rate | `tool_calls` rows ÷ work items; the 3 most used tools; failed ÷ calls that report success or failure |
+| time in model / tool calls | sum of usage `duration_ms` / sum of tool call `duration_ms` (summed per call, so parallel subagents can exceed elapsed time) |
+| subagents / issue, API errors / attempt | `agent_runs` rows ÷ work items, `api_errors` rows ÷ attempts |
+| telemetry coverage | usage coverage: attempts with ≥ 1 usage ÷ attempts; activity coverage: attempts with ≥ 1 tool call ÷ attempts; unpriced sessions; rejected events of the factory |
 | gates | per gate name: failed ÷ runs from `gates`; per CI check on linked PRs: failure or timed_out ÷ executed runs (conclusion success, failure or timed_out; skipped, neutral, cancelled etc. are not runs) |
 | CI suite | per check, executed runs only (as in gates): median completed − started (negative durations dropped); flake rate = head SHAs with both a failure and a success ÷ head SHAs with an executed run |
+
+Tool, subagent, API error and PR size rows are left out of the scorecard when no factory has data for them.
 
 Not collected yet: spec items covered by E2E tests (needs a product-repo CI convention that reports them).
 
@@ -60,7 +68,7 @@ Not collected yet: spec items covered by E2E tests (needs a product-repo CI conv
 
 ![Database schema](docs/diagrams/db-schema.svg)
 
-One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
+One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`; v2 → v3 copied `events` to allow `source = 'otlp'`, added `tool_calls`, `agent_runs`, `api_errors`, `usage.agent_id` and the PR size columns of `prs`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
 
 ```sql
 -- registered factories; the API token identifies the factory
@@ -212,6 +220,7 @@ GitHub data (PRs, CI, merges, commit authors) is the same for every factory, so 
 
 - `POST /v1/events` with a JSON array of events (one or a batch) and a bearer token.
 - `factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]` does the same for shell-based factories and hook scripts (id = `<attempt>:<key>`; URL/token from `FACTORYBENCH_URL`/`FACTORYBENCH_TOKEN`). On failure it appends to a spool file (`FACTORYBENCH_SPOOL`, default `~/.factorybench/spool.jsonl`) and exits 0; `factorybench emit --flush` resends it in batches of 500, skipping (and logging) lines that aren't valid JSON. The spool is first renamed to `.sending`; that file is removed only once its events are delivered or re-spooled, and a leftover `.sending` from a crashed flush is sent first.
+- `POST /v1/logs` takes OpenTelemetry logs (OTLP/HTTP JSON) with the same bearer token; today only Claude Code's (see §6 and INSTALL.md §2). Each log record must carry the resource or record attribute `factorybench.attempt` (= `attempt_id`); records without it are rejected. Each record is stored as a raw event (`source = 'otlp'`, type `otlp.<event.name>`, id `session.id:event.sequence:event.timestamp`, so exporter retries are stored once and a resumed session, whose sequence restarts, is not), with personal data and content attributes dropped first. Normalize turns `api_request` into `usage`, `tool_result` into tool calls, `subagent_completed` into subagent runs and `api_error` / `api_retries_exhausted` into API errors; other event names are kept and ignored. The lifecycle (`attempt.started`, `pr.linked`, `attempt.finished`, ...) still comes over `/v1/events`.
 - Delivery is at-least-once: the factory retries on failure, and the `id` field deduplicates.
 - Events may arrive late or out of order. Normalization orders them by `ts`.
 
@@ -284,8 +293,8 @@ The factory is identified by its token. A `factory_id` in the body is ignored.
 | Type | Required payload | Optional |
 |---|---|---|
 | `attempt.started` | `work_item` (`{"repo": "owner/name", "issue": 412}`), `factory_config_version` | `parent_attempt_id`, `base_commit`, `labels`, `role` |
-| `usage` | `model`, `input`, `output` | `cache_read`, `cache_write`, `reasoning`, `reported_cost_usd`, `duration_ms`, `phase` (`implement`, `verify`, `review`) |
-| `activity` | — | `tool`, `summary` (advisory, live report only) |
+| `usage` | `model`, `input`, `output` | `cache_read`, `cache_write`, `reasoning`, `reported_cost_usd`, `duration_ms`, `phase` (`implement`, `verify`, `review`), `agent`, `agent_id`, `parent_agent_id` |
+| `activity` | — | `tool`, `summary`, `failed`, `duration_ms`, `agent`, `agent_id`, `parent_agent_id`. With a `tool` it is one tool call |
 | `human.waiting` | — | `reason` (e.g. `plan_review`) |
 | `human.resumed` | — | `reason` |
 | `human.steering` | — | `source` (`comment`, `chat`, `label`) |
@@ -298,6 +307,9 @@ Payload examples:
 ```jsonc
 // activity
 { "tool": "run_command", "summary": "pnpm test" }
+// activity: a failed tool call of a nested subagent (agent = subagent type; omit agent_id for the main agent,
+// parent_agent_id for a child of the main agent)
+{ "tool": "run_command", "failed": true, "duration_ms": 3852, "agent": "general-purpose", "agent_id": "a3bea183083d509c1", "parent_agent_id": "a659980bca3fb01e4" }
 // human.waiting / human.resumed
 { "reason": "plan_review" }
 // human.steering
@@ -341,7 +353,7 @@ What a factory's maintainers change. Nothing in how the factory works changes; t
 2. **Decide three mappings:** what one *attempt* is in this factory, a stable attempt ID, and the `factory_config_version` string (e.g. factory version + agent CLI version + config hash).
 3. **Call the emitter at about five points:** attempt start, after each agent session, PR created, human wait/resume, attempt end.
 
-The reference emitter (TypeScript, with timeout, spool and flush) is in [INSTALL.md §3](INSTALL.md#3-send-events). Factories in other languages do the same with one HTTP POST, or call `factorybench emit`.
+Factories call `factorybench emit` (timeout, spool and flush built in) or send one HTTP POST per batch; see [INSTALL.md §3](INSTALL.md#3-other-factories-agy-custom-agents).
 
 ### What maintainers don't do
 
@@ -351,6 +363,8 @@ They don't change their gates, budget, ledger, or PR flow; don't calculate cost 
 
 
 - **Claude Code 2.1.322**, `claude -p --output-format stream-json --verbose`: the final `result` line includes `total_cost_usd`, per-model `modelUsage` (with `costUSD`, list-price basis), tokens including cache and thinking, `duration_ms`, `num_turns`, `terminal_reason`, and `subagent_stats`. Hooks (`SessionStart`, `PostToolUse`, `Stop`, `SessionEnd`) carry `session_id` and `transcript_path` but no usage.
+- **Claude Code 2.1.322 OTLP logs** (`CLAUDE_CODE_ENABLE_TELEMETRY=1`, `OTEL_LOGS_EXPORTER=otlp`, `http/json`; captures and details in `testdata/captured/claude-code-2.1.322-otlp/FINDINGS.md`): one `resourceLogs` / `scopeLogs` per body, event name in the `event.name` attribute; some numbers and booleans arrive as `stringValue`. `OTEL_RESOURCE_ATTRIBUTES` lands on every record. Summed `api_request` tokens and cost equal the final `result.modelUsage` exactly, subagents included; `subagent_completed.total_tokens` is only the last request's size.
+- Subagent events carry `agent_id`; `parent_agent_id` only for nested ones; a killed subagent gets no `subagent_completed`. `session.id` + `event.sequence` is unique per record; retries resend identical bodies. Personal data (`user.email`, account and organization ids) is on every record. No spool: on 503 a batch is retried 3 times, then dropped; SIGTERM flushes, SIGKILL loses the last batch. `api_error` and `compaction` were not seen.
 - **`agy` 1.5.4**, `-p --output-format stream-json`: `init` (with `conversation_id`), `step_update` (`agent_response` steps carry per-call usage), and `result` with `usage`, `status`, `duration_seconds`, `finished_reason`. No cost field. A failed run exits with code 3 and zero usage. Hook config uses a different format and event names (`PreInvocation`, `PostInvocation`, `PreToolUse`, `PostToolUse`, `Stop`) than Claude Code; not verified. A successful `agy` run is not yet captured (quota exhausted at test time).
 
 ## 7. Delivery order

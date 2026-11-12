@@ -27,6 +27,7 @@ type card struct {
 	human, escaped, escapedPRs, planN, planPass, prN, prPass, reviewedPRs int
 	changesReq, rejected                                                  int
 	hasLogin                                                              bool
+	run                                                                   runStats
 }
 
 func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
@@ -70,6 +71,7 @@ func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
 		c.prPass += u.prPass
 		c.reviewedPRs += u.reviewedPRs
 		c.changesReq += u.changesReq
+		c.run.merge(u.run)
 	}
 	sort.Slice(cards, func(i, j int) bool { return cards[i].group < cards[j].group })
 	return cards
@@ -82,6 +84,18 @@ func avg(k, n int) string {
 	return fmt.Sprintf("%.1f (%d/%d)", float64(k)/float64(n), k, n)
 }
 
+// active hides a tool call metric: "" when the card has no tool calls (see Factories).
+func active(val func(c *card) string) func(c *card) string {
+	return func(c *card) string {
+		if c.run.withActivity == 0 {
+			return ""
+		}
+		return val(c)
+	}
+}
+
+// scorecard rows. A row whose value is "" for every card is left out, so factories without tool calls or
+// PR size see no rows for them; a single "" among other values shows as n/a.
 var scorecard = []struct {
 	label string
 	val   func(c *card) string
@@ -158,7 +172,83 @@ var scorecard = []struct {
 		}
 		return fmt.Sprintf("%d on %d/%d PRs", c.escaped, c.escapedPRs, c.prs)
 	}},
+	{"time to first PR", func(c *card) string {
+		if c.run.nToPR == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%s (%d issues)", dur(c.run.toPR/time.Duration(c.run.nToPR)), c.run.nToPR)
+	}},
+	{"time to merge", func(c *card) string {
+		if c.run.nToMerge == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%s (%d merged)", dur(c.run.toMerge/time.Duration(c.run.nToMerge)), c.run.nToMerge)
+	}},
+	{"CI passing on first push", func(c *card) string {
+		if c.run.ciN == 0 {
+			return ""
+		}
+		return rate(c.run.ciPass, c.run.ciN) + " PRs"
+	}},
+	{"PR size", func(c *card) string {
+		n := int64(c.run.sizedPRs)
+		if n == 0 {
+			return ""
+		}
+		return fmt.Sprintf("+%d / -%d lines, %d files (avg of %d PRs)", c.run.added/n, c.run.deleted/n, c.run.files/n, n)
+	}},
+	{"cost / changed line", func(c *card) string {
+		lines := c.run.added + c.run.deleted
+		sc := c.run.sizedCost
+		switch {
+		case c.run.sizedPRs == 0:
+			return ""
+		case lines == 0:
+			return "n/a (0 lines)"
+		case sc.sessions == sc.nUnk:
+			return "?"
+		}
+		s := fmt.Sprintf("$%.4f", (sc.rep+sc.est)/float64(lines)) // a cent per line is already a lot
+		if sc.nUnk > 0 || c.run.sizedNoUsage > 0 {
+			s += " +?"
+		}
+		return s + fmt.Sprintf(" (%d lines)", lines)
+	}},
+	{"tool calls / issue", active(func(c *card) string { return avg(c.run.toolCalls, c.items) })},
+	{"tool mix", active(func(c *card) string {
+		names := slices.Collect(maps.Keys(c.run.tools))
+		sort.Slice(names, func(i, j int) bool {
+			if a, b := c.run.tools[names[i]], c.run.tools[names[j]]; a != b {
+				return a > b
+			}
+			return names[i] < names[j]
+		})
+		var top []string
+		rest := c.run.toolCalls
+		for i, n := range names {
+			if i == 3 {
+				top = append(top, fmt.Sprintf("%d other", rest))
+				break
+			}
+			top = append(top, fmt.Sprintf("%s %d", n, c.run.tools[n]))
+			rest -= c.run.tools[n]
+		}
+		return strings.Join(top, ", ")
+	})},
+	{"tool failure rate", active(func(c *card) string { return rate(c.run.toolFailed, c.run.toolKnown) })},
+	{"time in model / tool calls", active(func(c *card) string {
+		// summed per call: parallel subagents can make either exceed the elapsed time
+		return dur(time.Duration(c.run.modelMS)*time.Millisecond) + " / " + dur(time.Duration(c.run.toolMS)*time.Millisecond)
+	})},
+	{"subagents / issue", active(func(c *card) string { return avg(c.run.subagents, c.items) })},
+	{"API errors / attempt", func(c *card) string {
+		if c.run.apiErrors == 0 && c.run.withActivity == 0 {
+			return ""
+		}
+		return avg(c.run.apiErrors, c.attempts)
+	}},
 	{"usage coverage", func(c *card) string { return rate(c.withUsage, c.attempts) + " attempts" }},
+	{"activity coverage", func(c *card) string { return rate(c.run.withActivity, c.attempts) + " attempts" }},
 	{"unpriced sessions", func(c *card) string { return fmt.Sprint(c.cost.nUnk) }},
 	{"rejected events", func(c *card) string { return fmt.Sprint(c.rejected) }},
 }
@@ -181,9 +271,20 @@ func Factories(db *sql.DB, w io.Writer, byConfig bool, now time.Time) error {
 	}
 	fmt.Fprintln(tw)
 	for _, m := range scorecard {
+		vals, shown := make([]string, len(cards)), false
+		for i, c := range cards {
+			vals[i] = m.val(c)
+			shown = shown || vals[i] != ""
+		}
+		if !shown {
+			continue
+		}
 		fmt.Fprint(tw, m.label)
-		for _, c := range cards {
-			fmt.Fprint(tw, "\t"+m.val(c))
+		for _, v := range vals {
+			if v == "" {
+				v = "n/a"
+			}
+			fmt.Fprint(tw, "\t"+v)
 		}
 		fmt.Fprintln(tw)
 	}

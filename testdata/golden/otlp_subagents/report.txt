@@ -1,0 +1,91 @@
+acme/app#30   outcome merged · survival pending
+  11-12 06:23  cc      attempt cc-phase0-subagent started (build)                                                          config cc@1+claude-code@2.1.322
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 1.3k in / 0 cache read / 0 cache write / 18 out        1s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 11.9k cache read / 14.3k cache write / 614 out  3s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 26.2k cache read / 901 cache write / 230 out    2s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 27.1k cache read / 476 cache write / 246 out    2s session, <$0.01 reported
+  11-12 06:23          subagent a78dbae5c3a9cb7ea (general-purpose) in attempt cc-phase0-subagent completed                1 tool call, 35.4k tokens, 5s
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 0 cache read / 16.2k cache write / 200 out      2s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 27.6k cache read / 712 cache write / 345 out    2s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 16.2k cache read / 2.3k cache write / 413 out   3s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 4 in / 28.3k cache read / 994 cache write / 421 out    2s session, <$0.01 reported
+  11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 29.3k cache read / 460 cache write / 142 out    1s session, <$0.01 reported
+  11-12 06:23          PR linked https://github.com/acme/app/pull/31                                                       
+  11-12 06:23          attempt cc-phase0-subagent completed                                                                24s, $0.01 reported, 7 tool calls (1 failed)
+  11-12 06:26  github  check test on PR #31: success                                                                       
+  11-12 06:40          PR acme/app#31 merged                                                                               1 factory / 0 human commits
+  totals  cc  1 attempts (1 completed) · 9 sessions · tokens 1.3k in / 2.6k out / 202.9k cache · 24s active / 24s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 1/1 attempts
+
+acme/app#32   outcome open · survival n/a
+  11-12 06:24  cc  attempt cc-phase0-killed-sigterm started (build)                                                          config cc@1+claude-code@2.1.322
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 1.3k in / 0 cache read / 0 cache write / 18 out        1s session, <$0.01 reported
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 11.9k cache read / 14.3k cache write / 500 out  3s session, <$0.01 reported
+  11-12 06:24      subagent a659980bca3fb01e4 (general-purpose) in attempt cc-phase0-killed-sigterm killed                   5 tool calls, 85.0k tokens
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 0 cache read / 18.0k cache write / 503 out      3s session, <$0.01 reported
+  11-12 06:24        subagent a3bea183083d509c1 (general-purpose) in subagent a659980bca3fb01e4 completed                    1 tool call, 38.7k tokens, 3s
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 8.5k cache read / 9.5k cache write / 254 out    2s session, <$0.01 reported
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 18.0k cache read / 2.5k cache write / 95 out    1s session, <$0.01 reported
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 18.0k cache read / 3.0k cache write / 608 out   4s session, <$0.01 reported
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 21.0k cache read / 894 cache write / 304 out    2s session, <$0.01 reported
+  11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 21.9k cache read / 437 cache write / 249 out    2s session, <$0.01 reported
+  11-12 06:24      attempt cc-phase0-killed-sigterm cancelled                                                                21s, $0.01 reported, 6 tool calls
+  11-12 06:24      attempt cc-phase0-killed-sigkill started (build, parent cc-phase0-killed-sigterm, inferred)               config cc@1+claude-code@2.1.322
+  11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 1.2k in / 0 cache read / 0 cache write / 19 out        1s session, <$0.01 reported
+  11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 11.9k cache read / 14.2k cache write / 464 out  3s session, <$0.01 reported
+  11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 26.1k cache read / 598 cache write / 257 out    2s session, <$0.01 reported
+  11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 26.7k cache read / 391 cache write / 261 out    2s session, <$0.01 reported
+  11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 27.1k cache read / 395 cache write / 248 out    2s session, <$0.01 reported
+  totals  cc  2 attempts (1 cancelled, 1 running) · 13 sessions · tokens 2.6k in / 3.8k out / 255.2k cache · 1m1s active / 1m1s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 2/2 attempts
+
+$ report items
+item         title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR          escaped
+acme/app#32         cc       open     2         261.6k  $0.01  1m1s    1m1s     0      -           0
+acme/app#30         cc       merged   1         206.9k  $0.01  24s     24s      0      #31 merged  0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       cc
+work items                   2
+attempts                     3 (0 failed)
+sessions                     22
+tokens / issue               234.2k
+time / issue                 43s active / 43s elapsed
+cost total                   $0.02 reported
+cost / issue                 $0.01
+cost / merged issue          $0.02 (1 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       0% (0/2)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/2)
+escaped defects              0 on 0/1 PRs
+time to first PR             23s (1 issues)
+time to merge                16m48s (1 merged)
+CI passing on first push     100% (1/1) PRs
+PR size                      +42 / -8 lines, 3 files (avg of 1 PRs)
+cost / changed line          $0.0002 (50 lines)
+tool calls / issue           8.5 (17/2)
+tool mix                     Write 11, Bash 3, Agent 2, 1 other
+tool failure rate            6% (1/17)
+time in model / tool calls   45s / 11s
+subagents / issue            1.5 (3/2)
+API errors / attempt         0.3 (1/3)
+usage coverage               100% (3/3) attempts
+activity coverage            100% (3/3) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source  gate  failed / runs
+  cc       CI      test  0% (0/1)
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  cc       test   2m0s            0% (0/1)
+
+$ report live
+factory  issue        attempt                   status   elapsed  active  human wait  tokens  cost    last event  last tool
+cc       acme/app#32  cc-phase0-killed-sigkill  running  22s      22s     0s          109.8k  <$0.01  9s ago      Write by main 9s ago

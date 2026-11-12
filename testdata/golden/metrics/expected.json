@@ -1,5 +1,7 @@
 {
   "derived": {
+    "agent_runs": [],
+    "api_errors": [],
     "attempts": [
       {
         "attempt_id": "b1",
@@ -228,7 +230,10 @@
     ],
     "prs": [
       {
+        "additions": null,
         "branch": "agent/pr-20",
+        "changed_files": null,
+        "deletions": null,
         "factory_commits": 1,
         "human_commits": 1,
         "merged_at": "2026-11-11T12:00:00Z",
@@ -238,7 +243,10 @@
         "url": "https://github.com/acme/app/pull/20"
       },
       {
+        "additions": null,
         "branch": "agent/pr-21",
+        "changed_files": null,
+        "deletions": null,
         "factory_commits": 1,
         "human_commits": 0,
         "merged_at": null,
@@ -248,7 +256,10 @@
         "url": "https://github.com/acme/app/pull/21"
       },
       {
+        "additions": null,
         "branch": "agent/pr-22",
+        "changed_files": null,
+        "deletions": null,
         "factory_commits": 1,
         "human_commits": 0,
         "merged_at": null,
@@ -302,8 +313,10 @@
         "submitted_at": "2026-11-11T11:20:00Z"
       }
     ],
+    "tool_calls": [],
     "usage": [
       {
+        "agent_id": null,
         "attempt_id": "b1",
         "cache_read": 2000,
         "cache_write": null,
@@ -320,6 +333,7 @@
         "ts": "2026-11-11T10:15:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b1",
         "cache_read": null,
         "cache_write": null,
@@ -336,6 +350,7 @@
         "ts": "2026-11-11T10:18:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b3",
         "cache_read": null,
         "cache_write": null,
@@ -352,6 +367,7 @@
         "ts": "2026-11-11T11:12:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "p1",
         "cache_read": null,
         "cache_write": null,
@@ -368,6 +384,7 @@
         "ts": "2026-11-11T10:02:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "p3",
         "cache_read": null,
         "cache_write": null,
@@ -384,6 +401,7 @@
         "ts": "2026-11-11T11:01:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "c2",
         "cache_read": null,
         "cache_write": null,
@@ -400,6 +418,7 @@
         "ts": "2026-11-11T10:09:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "c2",
         "cache_read": null,
         "cache_write": null,

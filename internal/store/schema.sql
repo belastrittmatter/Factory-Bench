@@ -9,9 +9,9 @@ CREATE TABLE factories (
 
 -- source of truth: everything that arrived, untouched, append-only
 CREATE TABLE events (
-  source       TEXT NOT NULL CHECK (source IN ('contract', 'github')),
+  source       TEXT NOT NULL CHECK (source IN ('contract', 'github', 'otlp')),
   factory_id   TEXT NOT NULL DEFAULT '',   -- '' for GitHub events
-  id           TEXT NOT NULL,              -- idempotency key (contract id or GitHub delivery id)
+  id           TEXT NOT NULL,              -- idempotency key (contract id, GitHub delivery id, or OTLP session.id:event.sequence:event.timestamp)
   type         TEXT NOT NULL,
   ts           TEXT NOT NULL,              -- when it happened
   received_at  TEXT NOT NULL,              -- when FactoryBench got it
@@ -68,7 +68,47 @@ CREATE TABLE usage (                        -- one row per usage event
   cost_usd          REAL,                   -- NULL when it can't be priced
   cost_provenance   TEXT CHECK (cost_provenance IN ('reported', 'estimated')),
   price_version     TEXT,
-  phase             TEXT                    -- implement | verify | review, NULL if not sent
+  phase             TEXT,                   -- implement | verify | review, NULL if not sent
+  agent_id          TEXT                    -- subagent, NULL = main agent (last column: v2 -> v3 ALTER)
+);
+
+CREATE TABLE tool_calls (                   -- OTLP tool_result, or a contract activity with a tool
+  factory_id   TEXT NOT NULL,
+  attempt_id   TEXT NOT NULL,
+  agent_id     TEXT,                        -- NULL = main agent
+  ts           TEXT NOT NULL,
+  tool_name    TEXT NOT NULL,
+  success      INTEGER,                     -- 1 | 0, NULL if not reported
+  duration_ms  INTEGER,
+  error_type   TEXT                         -- e.g. ShellError
+);
+
+CREATE TABLE agent_runs (                   -- one row per subagent seen on any event
+  factory_id       TEXT NOT NULL,
+  attempt_id       TEXT NOT NULL,
+  agent_id         TEXT NOT NULL,
+  parent_agent_id  TEXT,                    -- NULL = child of the main agent
+  agent_type       TEXT,                    -- e.g. general-purpose
+  is_async         INTEGER,
+  model            TEXT,
+  final_model      TEXT,
+  tool_calls       INTEGER NOT NULL,        -- rows in tool_calls for this agent
+  duration_ms      INTEGER,
+  status           TEXT NOT NULL CHECK (status IN ('running', 'completed', 'killed')),
+  started_at       TEXT NOT NULL,           -- its first event
+  PRIMARY KEY (factory_id, attempt_id, agent_id)
+);
+
+CREATE TABLE api_errors (                   -- OTLP api_error / api_retries_exhausted
+  factory_id   TEXT NOT NULL,
+  attempt_id   TEXT NOT NULL,
+  agent_id     TEXT,
+  ts           TEXT NOT NULL,
+  kind         TEXT NOT NULL,               -- api_error | api_retries_exhausted
+  model        TEXT,
+  status_code  INTEGER,
+  error        TEXT,
+  duration_ms  INTEGER
 );
 
 CREATE TABLE gates (                        -- factory-internal gate results (gate events)
@@ -89,6 +129,9 @@ CREATE TABLE prs (
   merged_at        TEXT,
   factory_commits  INTEGER NOT NULL DEFAULT 0,
   human_commits    INTEGER NOT NULL DEFAULT 0,
+  additions        INTEGER,                 -- PR size, NULL until fetched (last three columns: v2 -> v3 ALTER)
+  deletions        INTEGER,
+  changed_files    INTEGER,
   PRIMARY KEY (repo, number)
 );
 
