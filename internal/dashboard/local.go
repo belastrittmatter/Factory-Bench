@@ -65,7 +65,7 @@ func (s *server) flow(r *http.Request) (any, error) {
 }
 
 func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, error) {
-	att, err := rows(s.db, `SELECT a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.pr_url, `+lastEventSQL+` AS last_event
+	att, err := rows(s.db, `SELECT a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.waiting_since, a.pr_url, `+lastEventSQL+` AS last_event
 		FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`, repo, n)
 	if err != nil {
 		return nil, err
@@ -83,17 +83,11 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, 
 	}
 	var wins []attemptWin
 	for _, a := range att {
-		w := attemptWin{ID: a["attempt_id"].(string), State: a["status"].(string), Start: parseTS(a["started_at"])}
-		if e, ok := a["ended_at"].(string); ok {
-			t := parseTS(e)
-			w.End = &t
-		}
+		w := attemptWin{ID: a["attempt_id"].(string), State: a["status"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])}
 		if w.State != "running" { // an open attempt that went idle or waits stops at its last event, not at now
-			if e, ok := a["last_event"].(string); ok {
-				t := parseTS(e)
-				w.LastActive = &t
-			}
+			w.LastActive = tsPtr(a["last_event"])
 		}
+		a["bar_end"], a["bar_state"] = barEnd(w.State, w.End, tsPtr(a["waiting_since"]), tsPtr(a["last_event"]), now)
 		wins = append(wins, w)
 	}
 	var calls []call
@@ -144,6 +138,15 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, 
 }
 
 func parseTS(v any) time.Time { s, _ := v.(string); t, _ := time.Parse(time.RFC3339Nano, s); return t }
+
+// tsPtr parses a nullable timestamp column.
+func tsPtr(v any) *time.Time {
+	if _, ok := v.(string); !ok {
+		return nil
+	}
+	t := parseTS(v)
+	return &t
+}
 
 // workerLogs lists the manifests and worker logs that match an attempt: same issue, a dispatch inside its time window.
 func (s *server) workerLogs(a map[string]any) map[string]any {

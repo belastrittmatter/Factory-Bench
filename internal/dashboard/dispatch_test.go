@@ -127,3 +127,24 @@ func TestRework(t *testing.T) {
 		}
 	}
 }
+
+func TestBarEnd(t *testing.T) {
+	now := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+	at := func(h int) *time.Time { t := now.Add(-time.Duration(h) * time.Hour); return &t }
+	for _, c := range []struct {
+		status            string
+		ended, wait, last *time.Time
+		want              time.Time
+		why               string
+	}{
+		{"completed", at(3), nil, at(3), *at(3), "ended"},
+		{"waiting_for_human", nil, at(2), at(1), *at(2), "waiting"}, // stops where the wait began, not at now
+		{"waiting_for_human", nil, nil, at(1), now, "running"},      // no wait start reported
+		{"idle", nil, nil, at(5), *at(5), "idle"},
+		{"running", nil, nil, at(0), now, "running"},
+	} {
+		if got, why := barEnd(c.status, c.ended, c.wait, c.last, now); !got.Equal(c.want) || why != c.why {
+			t.Errorf("barEnd(%s) = %v %s, want %v %s", c.status, got, why, c.want, c.why)
+		}
+	}
+}

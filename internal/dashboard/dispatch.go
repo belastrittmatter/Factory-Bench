@@ -259,3 +259,17 @@ func rework(lanes []string) (bounces, redispatches int) {
 	}
 	return bounces, redispatches
 }
+
+// barEnd is where an attempt's timeline bar stops and why: its end ("ended"), the start of the human wait it is in
+// ("waiting"), its last event when idle ("idle"), or now while it runs ("running").
+func barEnd(status string, ended, waitingSince, lastEvent *time.Time, now time.Time) (time.Time, string) {
+	switch {
+	case ended != nil:
+		return *ended, "ended"
+	case status == "waiting_for_human" && waitingSince != nil:
+		return *waitingSince, "waiting"
+	case status == "idle" && lastEvent != nil:
+		return *lastEvent, "idle"
+	}
+	return now, "running"
+}

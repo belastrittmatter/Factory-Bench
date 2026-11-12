@@ -49,7 +49,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 	runs, tr := filepath.Join(dir, "runs"), filepath.Join(dir, "tr")
 	os.MkdirAll(filepath.Join(runs, "2026-11-12-x-workers"), 0o755)
 	os.MkdirAll(tr, 0o755)
-	os.WriteFile(filepath.Join(runs, "2026-11-12-x.md"), []byte("[10:00:00] dispatch lane=build issue=#7 pid=1\n[10:05:00] dispatch lane=review issue=#7 pid=2\n[10:09:00] dispatch lane=build issue=#7 pid=3\n[10:10:00] reaped lock on #7\n"), 0o644)
+	os.WriteFile(filepath.Join(runs, "2026-11-12-x.md"), []byte("[10:00:00] dispatch lane=build issue=#7 pid=1\n[10:05:00] dispatch lane=review issue=#7 pid=2\n[10:09:00] dispatch lane=build issue=#7 pid=3\n[10:10:00] reaped lock on #7\n[10:11:00] worker on #7 (pid=3) — card moved to 'Hold'; killing\n"), 0o644)
 	os.WriteFile(filepath.Join(tr, sid+".jsonl"), []byte(`{"type":"user","timestamp":"t","message":{"content":"do it"}}
 {"type":"assistant","timestamp":"t","message":{"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"ok"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}
 {"type":"user","timestamp":"t","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"file.go"}]}]}}
@@ -132,8 +132,15 @@ func TestEndpoints(t *testing.T) {
 	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" {
 		t.Errorf("series attempts: %v", a)
 	}
-	if u := se["usage"]; len(u) != 1 || u[0]["sessions"].(float64) != 2 || u[0]["cost_usd"].(float64) != 0.5 {
-		t.Errorf("series usage: %v", u)
+	calls, cost := 0.0, 0.0 // the two calls may fall into one hourly bucket or two, depending on the clock
+	for _, u := range se["usage"] {
+		calls += u["sessions"].(float64)
+		if c, ok := u["cost_usd"].(float64); ok {
+			cost += c
+		}
+	}
+	if calls != 2 || cost != 0.5 {
+		t.Errorf("series usage: %v", se["usage"])
 	}
 	if tl := se["tools"]; len(tl) != 1 || tl[0]["failed"].(float64) != 1 {
 		t.Errorf("series tools: %v", tl)
@@ -192,8 +199,14 @@ func TestLocalFiles(t *testing.T) {
 			d = append(d, r)
 		}
 	}
-	if len(d) != 3 || d[1].(map[string]any)["lane"] != "review" || len(fl["notes"].([]any)) != 1 {
+	if len(d) != 3 || d[1].(map[string]any)["lane"] != "review" || len(fl["notes"].([]any)) != 2 {
 		t.Errorf("flow: %v", fl)
+	}
+	if mv := fl["moves"].([]any); len(mv) != 1 || mv[0].(map[string]any)["State"] != "Hold" {
+		t.Errorf("moves: %v", fl["moves"])
+	}
+	if a := fl["attempts"].([]any)[0].(map[string]any); a["bar_state"] != "idle" || a["bar_end"] == nil {
+		t.Errorf("bar end: %v", a)
 	}
 	var m map[string]any
 	get(t, h, "/api/local/manifest?file=2026-11-12-x.md", &m)
