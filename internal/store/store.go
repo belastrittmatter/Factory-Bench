@@ -18,6 +18,9 @@ import (
 //go:embed schema.sql
 var schema string
 
+// SchemaVersion is the user_version that Open creates or migrates to.
+const SchemaVersion = 3
+
 // Open opens (and on first use migrates) the SQLite database at path.
 func Open(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "file:"+path+"?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)")
@@ -31,7 +34,7 @@ func Open(path string) (*sql.DB, error) {
 	}
 	switch v {
 	case 0:
-		_, err = db.Exec(schema + ";PRAGMA user_version = 3")
+		_, err = db.Exec(fmt.Sprintf("%s;PRAGMA user_version = %d", schema, SchemaVersion))
 	case 1, 2:
 		if err = migrate(db, v); err == nil {
 			log.Print("database migrated to v3: run `factorybench replay` to fill the new derived tables and columns")

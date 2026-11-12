@@ -60,7 +60,7 @@ func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
 	}
 }
 
-// OpenReadOnly opens the database without ever writing or migrating it. It refuses a schema older than v3.
+// OpenReadOnly opens the database without ever writing or migrating it. It refuses any schema but store.SchemaVersion.
 func OpenReadOnly(path string) (*sql.DB, error) {
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)&_pragma=query_only(1)")
 	if err != nil {
@@ -71,8 +71,8 @@ func OpenReadOnly(path string) (*sql.DB, error) {
 	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
 		return nil, err
 	}
-	if v != 3 {
-		return nil, fmt.Errorf("database schema is v%d, want v3: run serve or replay with the current binary first", v)
+	if v != store.SchemaVersion {
+		return nil, fmt.Errorf("database schema is v%d, want v%d: run serve or replay with the current binary first", v, store.SchemaVersion)
 	}
 	return db, nil
 }
