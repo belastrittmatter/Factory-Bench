@@ -478,7 +478,7 @@ V.items=async()=>{
    <div class="muted" style="margin-top:8px">? unknown · n/a nothing to measure · +? lower bound</div>`;
 };
 // report strings use 1234.5k and 44m37s; show them in the page's number style (1.23M, 44m 37s)
-const fixStr=v=>String(v).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
+const fixStr=v=>String(v).replace(/\bsession(\(s\)|s)?\b/g,(m,pl)=>'model call'+(pl||'')).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
 const na=v=>v==='n/a'?'<span class="muted">n/a</span>':v==='?'?U:esc(fixStr(v));
 
 // timeline event classification
@@ -585,12 +585,12 @@ V.attempt=async(f,id)=>{
   const calls=d.tools.reduce((s,t)=>s+t.calls,0),failed=d.tools.reduce((s,t)=>s+(t.failed||0),0);
   const el=((T(a.ended_at)||Date.now())-T(a.started_at))/1000;
   const w=W($('#main'))-60,cw=w*.62,ax0=+T(a.started_at),ax1=+T(a.bar_end||a.ended_at)||Date.now();
-  let c=0;const pts=[{t:T(a.started_at),v:0,tip:'start\n'+fmtWhen(a.started_at)}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} total\n${fmtWhen(u.ts)} · ${u.model}\nthis session ${fmtUsd(u.cost_usd)} · ${fmtTok(u.input+u.output+(u.cache_read||0)+(u.cache_write||0))} tokens`}}));
+  let c=0;const pts=[{t:T(a.started_at),v:0,tip:'start\n'+fmtWhen(a.started_at)}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} total\n${fmtWhen(u.ts)} · ${u.model}\nthis model call ${fmtUsd(u.cost_usd)} · ${fmtTok(u.input+u.output+(u.cache_read||0)+(u.cache_write||0))} tokens`}}));
   // tokens per session, stacked by class (4 series)
   const cls=[['input','Input'],['output','Output'],['cache_read','Cache read'],['cache_write','Cache write']];
   const tser=cls.map(([k,n],i)=>({name:n,color:SER[i],values:d.usage.map(u=>u[k]||0)}));
-  const tb=d.usage.map((u,i)=>({t:T(u.ts),tip:(u.lane?u.lane+' · ':'')+`Session ${i+1} · ${fmtWhen(u.ts)}\n${u.model}${u.phase?' · '+u.phase:''}${u.agent_id?' · subagent':''}\n${fmtUsd(u.cost_usd)} · ${fmtDur((u.duration_ms||0)/1000)}`}));
-  const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${p.sessions} sessions`}));
+  const tb=d.usage.map((u,i)=>({t:T(u.ts),tip:(u.lane?u.lane+' · ':'')+`Model call ${i+1} · ${fmtWhen(u.ts)}\n${u.model}${u.phase?' · '+u.phase:''}${u.agent_id?' · subagent':''}\n${fmtUsd(u.cost_usd)} · ${fmtDur((u.duration_ms||0)/1000)}`}));
+  const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${plural(p.sessions,'model call')}`}));
   const tl=d.tool_calls.slice().reverse();
   const local=meta.local||meta.transcripts;
   // tool call strip: one row per tool, dot per call
@@ -602,7 +602,7 @@ V.attempt=async(f,id)=>{
   `
   <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
   <div class="kpis">
-   ${kpi('Cost',usd(cost,unp||!d.usage.length),`${d.usage.length} sessions`)}
+   ${kpi('Cost',usd(cost,unp||!d.usage.length),plural(d.usage.length,'model call'))}
    ${kpi('Tokens',d.usage.length?esc(fmtTok(tokens)):U,d.usage.length?`${fmtTok(d.usage.reduce((s,u)=>s+(u.cache_read||0),0))} cache read`:'no usage reported')}
    ${kpi('Elapsed',esc(fmtDur(el)),(a.has_wait_events?`active ${fmtDur(el-(a.human_wait_ms||0)/1000)}`:'active n/a (no wait events reported)')+(a.ended_at?'':a.status==='idle'?' · idle':' · still running'))}
    ${kpi('Tool calls',calls,`${failed} failed${calls?' · '+Math.round(failed/calls*100)+'%':''}`,failed?'':'')}
@@ -612,7 +612,7 @@ V.attempt=async(f,id)=>{
    <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the dispatches it ran in · same time axis as tokens below</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands:d.dispatches}):'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Phase split</h3><div class="hint">Cost by phase, tokens second</div>${d.phases.length?segbar(ph)+`<div class="stat-list">${d.phases.map(p=>`<div><span class="chip" style="color:${phaseColor(p.phase)}"><span style="color:var(--text-2)">${esc(p.phase??'unknown')}</span></span><b>${usd(p.cost_usd,p.unpriced>0)} <span class="muted">· ${tok(p.tokens)}</span></b></div>`).join('')}</div>`:'<div class="empty">No phase data</div>'}
      <h3 style="margin-top:18px">Models</h3>${hbars(Object.entries(d.usage.reduce((m,u)=>{m[u.model]=(m[u.model]||0)+(u.cost_usd||0);return m},{})).map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}</div>
-   <div class="card c8"><h3>Tokens per session</h3><div class="hint">Stacked by token class, one bar per model call; each tooth of the saw is one dispatch</div>${d.usage.length?legend(tser)+tbars(cw,200,ax0,ax1,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c8"><h3>Tokens per model call</h3><div class="hint">Stacked by token class, one bar per model call; each tooth of the saw is one dispatch</div>${d.usage.length?legend(tser)+tbars(cw,200,ax0,ax1,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Tools</h3><div class="hint">Calls per tool, failures in red</div>${hbars(d.tools.map(t=>({label:t.tool_name,value:t.calls,fail:t.failed||0,color:'var(--ink)',tip:`${t.tool_name}\n${t.calls} calls · ${t.failed??'?'} failed${t.unknown?' · '+t.unknown+' unknown':''}\n${fmtDur((t.duration_ms||0)/1000)} total`})),v=>String(v))}</div>
    <div class="card c8"><h3>Tool calls over time</h3><div class="hint">One dot per call (newest 500), failed calls in red</div>${strip||'<div class="empty">No tool calls</div>'}</div>
    <div class="card c4"><h3>Failures</h3><div class="hint">Failed tool calls, API errors, failed gates: what, error class, lane, time</div>
@@ -641,10 +641,10 @@ V.compare=async()=>{
      <div class="v" style="font-size:20px">${na(val('cost / merged issue',gi).split(' (')[0])}<span class="muted" style="font-size:12px;font-weight:450"> per merged issue</span></div>
      <div class="d">${esc(val('work items',gi))} issue${val('work items',gi)==='1'?'':'s'} · ${esc(val('attempts',gi))} · ${esc(val('cost total',gi).split(' (')[0])}</div></div>`}).join('')}</div>
   <div class="grid">
-   <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced sessions in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
+   <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>
    <div class="card c12"><h3>Scorecard</h3><div class="hint">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>. Filters above select columns.</div>
-    ${table([{h:'Metric',f:r=>`<span class="sub">${esc(r.Label)}</span>`},...groups.map(g=>({h:`<span style="display:inline-flex;gap:6px;align-items:center"><i style="width:8px;height:8px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i>${esc(g)}</span>`,f:r=>na(r.Values[sc.groups.indexOf(g)])}))],sc.rows.map(r=>({...r,hi:pick.includes(r.Label)})),{cls:'sticky1'})}</div>
+    ${table([{h:'Metric',f:r=>`<span class="sub">${esc(fixStr(r.Label))}</span>`},...groups.map(g=>({h:`<span style="display:inline-flex;gap:6px;align-items:center"><i style="width:8px;height:8px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i>${esc(g)}</span>`,f:r=>na(r.Values[sc.groups.indexOf(g)])}))],sc.rows.map(r=>({...r,hi:pick.includes(r.Label)})),{cls:'sticky1'})}</div>
   </div>`:'<div class="card"><div class="empty">No attempts match these filters</div></div>');
 };
 
