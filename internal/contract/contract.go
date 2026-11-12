@@ -12,6 +12,9 @@ import (
 // Spec is the contract version every event carries.
 const Spec = "factorybench/v1"
 
+// Phases are the allowed usage phases.
+var Phases = map[string]bool{"implement": true, "verify": true, "review": true}
+
 // Event is the envelope of one contract event.
 type Event struct {
 	Spec      string          `json:"spec"`
@@ -127,7 +130,7 @@ func Validate(raw []byte) (Event, Payload, error) {
 			return e, p, errors.New("payload.output missing")
 		case p.ReportedCostUSD != nil && *p.ReportedCostUSD < 0:
 			return e, p, errors.New("payload.reported_cost_usd must be >= 0")
-		case p.Phase != "" && p.Phase != "implement" && p.Phase != "verify" && p.Phase != "review":
+		case p.Phase != "" && !Phases[p.Phase]:
 			return e, p, errors.New("payload.phase must be implement, verify, or review")
 		}
 	case "gate":

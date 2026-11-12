@@ -10,9 +10,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"factorybench/internal/intake"
+	"factorybench/internal/report"
 	"factorybench/internal/store"
 )
 
@@ -119,5 +122,63 @@ func TestOTLPAPIError(t *testing.T) {
 	if len(d.APIErrors) != 2 || *d.APIErrors[0].Status != 429 || *d.APIErrors[0].Error != "rate_limit_error" ||
 		d.APIErrors[1].Kind != "api_retries_exhausted" || d.APIErrors[1].Status != nil {
 		t.Fatalf("%+v", d.APIErrors)
+	}
+}
+
+// factorybench.phase from OTEL_RESOURCE_ATTRIBUTES survives intake and tags the usage row, so the scorecard
+// gets verification tokens; a value outside the contract's phases leaves the row unphased.
+func TestOTLPPhase(t *testing.T) {
+	db, err := store.Open(filepath.Join(t.TempDir(), "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tok, err := store.AddFactory(db, "fa", "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range [][2]string{
+		{"attempt.started", `{"work_item":{"repo":"acme/app","issue":1},"factory_config_version":"v1"}`},
+		{"pr.linked", `{"pr_url":"https://github.com/acme/app/pull/1"}`},
+	} {
+		raw := fmt.Sprintf(`{"spec":"factorybench/v1","id":%q,"type":%q,"ts":"2026-11-12T06:00:00.000Z","attempt_id":"a","payload":%s}`, e[0], e[0], e[1])
+		if _, err := store.InsertEvent(db, "contract", "fa", e[0], e[0], "2026-11-12T06:00:00.000Z", raw, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := store.InsertEvent(db, "github", "", "pr:1", "pr", "2026-11-12T06:10:00Z",
+		`{"repo":"acme/app","pr":{"number":1,"html_url":"https://github.com/acme/app/pull/1","state":"open","head":{"ref":"b"}}}`, nil); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(intake.LogsHandler(db, nil))
+	defer srv.Close()
+	for i, phase := range []string{"review", "testing"} {
+		kv := func(k, v string) string { return fmt.Sprintf(`{"key":%q,"value":{"stringValue":%q}}`, k, v) }
+		body := fmt.Sprintf(`{"resourceLogs":[{"resource":{"attributes":[%s,%s]},"scopeLogs":[{"logRecords":[{"attributes":[%s,%s,%s,%s,%s,%s,%s]}]}]}]}`,
+			kv("factorybench.attempt", "a"), kv("factorybench.phase", phase), kv("event.name", "api_request"), kv("session.id", "s"),
+			kv("event.sequence", fmt.Sprint(i)), kv("event.timestamp", fmt.Sprintf("2026-11-12T06:0%d:00Z", i+1)),
+			kv("model", "claude-sonnet-4-5"), kv("input_tokens", "100"), kv("output_tokens", "50"))
+		req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer "+tok)
+		req.Header.Set("Content-Type", "application/json")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil || resp.StatusCode != 200 {
+			t.Fatalf("%v %v", resp.Status, err)
+		}
+		resp.Body.Close()
+	}
+	if err := Run(db); err != nil {
+		t.Fatal(err)
+	}
+	var phases string
+	db.QueryRow(`SELECT group_concat(coalesce(phase, '-'), ',') FROM (SELECT phase FROM usage ORDER BY ts)`).Scan(&phases)
+	if phases != "review,-" {
+		t.Errorf("phases %q, want review,-", phases)
+	}
+	var out strings.Builder
+	if err := report.Factories(db, &out, false, time.Date(2026, 11, 12, 7, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "150 (150 / 1 PRs)") {
+		t.Errorf("scorecard:\n%s", out.String())
 	}
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"factorybench/internal/contract"
 )
 
 type toolCall struct {
@@ -139,10 +141,14 @@ func (d *result) otlp(e event, g *agents) {
 		if in == nil || out == nil || model == "" {
 			return
 		}
+		phase := at.text("factorybench.phase") // from OTEL_RESOURCE_ATTRIBUTES; other values are ignored
+		if !contract.Phases[phase] {
+			phase = ""
+		}
 		// subagent tokens come only from here: subagent_completed.total_tokens is the last request's size
 		d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: e.AttemptID, Model: model, TS: e.TS, Input: *in,
 			Output: *out, CacheRead: at.num("cache_read_tokens"), CacheWrite: at.num("cache_creation_tokens"),
-			Duration: at.num("duration_ms"), Agent: agent}, at.float("cost_usd")))
+			Duration: at.num("duration_ms"), Agent: agent, Phase: str(phase)}, at.float("cost_usd")))
 		if r != nil && r.Model == nil {
 			r.Model = ptr(model)
 		}
