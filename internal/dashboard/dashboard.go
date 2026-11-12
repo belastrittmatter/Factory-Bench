@@ -360,12 +360,12 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		return nil, err
 	}
 	mine := []dispatchRow{}
-	for _, d := range fl["dispatches"].([]dispatchRow) {
+	for _, d := range fl.Dispatches {
 		if d.Attempt == id {
 			mine = append(mine, d)
 		}
 	}
-	for _, x := range fl["attempts"].([]map[string]any) {
+	for _, x := range fl.Attempts {
 		if x["attempt_id"] == id {
 			at["bar_end"], at["bar_state"] = x["bar_end"], x["bar_state"]
 		}

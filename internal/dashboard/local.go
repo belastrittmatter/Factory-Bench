@@ -71,22 +71,37 @@ func (s *server) flow(r *http.Request) (any, error) {
 	return s.cardFlow(repo, n, time.Now())
 }
 
-func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, error) {
+// cardFlow is the /api/flow answer for one card.
+type cardFlow struct {
+	Attempts        []map[string]any `json:"attempts"` // with status, bar_end and bar_state
+	MergedAt        any              `json:"merged_at"`
+	Dispatches      []dispatchRow    `json:"dispatches"`
+	Notes           []note           `json:"notes"`
+	Moves           []move           `json:"moves"`
+	Waits           []map[string]any `json:"waits"`
+	RetryCostUSD    float64          `json:"retry_cost_usd"`
+	RetryDispatches int              `json:"retry_dispatches"`
+	Bounces         int              `json:"bounces"`
+	Redispatches    int              `json:"redispatches"`
+	Manifest        bool             `json:"manifest"` // run manifests are configured and served
+}
+
+func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error) {
 	att, err := rows(s.db, `SELECT a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.waiting_since, a.pr_url, `+lastEventSQL+` AS last_event
 		FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`, repo, n)
 	if err != nil {
-		return nil, err
+		return cardFlow{}, err
 	}
 	withStatus(att, now, s.o.Idle)
 	merged, err := rows(s.db, `SELECT min(p.merged_at) AS merged_at FROM prs p WHERE p.merged_at IS NOT NULL AND p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`, repo, n)
 	if err != nil {
-		return nil, err
+		return cardFlow{}, err
 	}
 	waits, err := rows(s.db, `SELECT e.ts, e.type, json_extract(e.payload, '$.attempt_id') AS attempt_id, json_extract(e.payload, '$.payload.reason') AS reason
 		FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 		WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed') AND a.repo = ?1 AND a.issue = ?2 ORDER BY e.ts`, repo, n)
 	if err != nil {
-		return nil, err
+		return cardFlow{}, err
 	}
 	var wins []attemptWin
 	for _, a := range att {
@@ -122,11 +137,11 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, 
 		return nil
 	}, repo, n)
 	if err != nil {
-		return nil, err
+		return cardFlow{}, err
 	}
 	rl, err := s.manifests()
 	if err != nil {
-		return nil, err
+		return cardFlow{}, err
 	}
 	ds := rl.dispatches[n]
 	grouped := groupByDispatch(ds, wins, calls, now)
@@ -142,9 +157,8 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, 
 		}
 	}
 	bounces, redis := rework(lanes)
-	return map[string]any{"attempts": att, "merged_at": merged[0]["merged_at"], "dispatches": grouped, "notes": rl.notes[n], "moves": rl.moves[n],
-		"waits": waits, "retry_cost_usd": retryCost, "retry_dispatches": retryRows, "bounces": bounces, "redispatches": redis,
-		"manifest": s.local && s.o.Runs != ""}, nil
+	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n], Waits: waits,
+		RetryCostUSD: retryCost, RetryDispatches: retryRows, Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
 }
 
 func parseTS(v any) time.Time { s, _ := v.(string); t, _ := time.Parse(time.RFC3339Nano, s); return t }
