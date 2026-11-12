@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -159,7 +160,8 @@ func (s *server) json(f func(*http.Request) (any, error)) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		if err != nil {
 			code := http.StatusInternalServerError
-			if e, ok := err.(httpError); ok {
+			var e httpError
+			if errors.As(err, &e) {
 				code = e.code
 			}
 			w.WriteHeader(code)
@@ -232,11 +234,13 @@ func (s *server) live(r *http.Request) (any, error) {
 		}
 		x.Status = status(l.State, l.LastEvent, now, s.o.Idle)
 		x.Idle = x.Status == "idle"
-		s.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM events WHERE factory_id = ? AND type IN ('human.waiting', 'human.resumed')
-			AND json_extract(payload, '$.attempt_id') = ?)`, l.Factory, l.Attempt).Scan(&x.HasWaitEvents)
 		var role, phase sql.NullString
-		s.db.QueryRow(`SELECT role, (SELECT phase FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id
-			AND phase IS NOT NULL ORDER BY ts DESC LIMIT 1) FROM attempts a WHERE factory_id = ? AND attempt_id = ?`, l.Factory, l.Attempt).Scan(&role, &phase)
+		if err := s.db.QueryRow(`SELECT role, (SELECT phase FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id
+			AND phase IS NOT NULL ORDER BY ts DESC LIMIT 1), EXISTS (SELECT 1 FROM events e WHERE e.factory_id = a.factory_id
+			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)
+			FROM attempts a WHERE factory_id = ? AND attempt_id = ?`, l.Factory, l.Attempt).Scan(&role, &phase, &x.HasWaitEvents); err != nil {
+			return nil, err
+		}
 		if role.Valid {
 			x.Role = &role.String
 		}
@@ -271,8 +275,11 @@ func (s *server) item(r *http.Request) (any, error) {
 		return nil, httpError{http.StatusBadRequest, "repo and issue required"}
 	}
 	var title sql.NullString
-	if err := s.db.QueryRow(`SELECT title FROM work_items WHERE repo = ? AND issue = ?`, repo, n).Scan(&title); err == sql.ErrNoRows {
+	switch err := s.db.QueryRow(`SELECT title FROM work_items WHERE repo = ? AND issue = ?`, repo, n).Scan(&title); {
+	case errors.Is(err, sql.ErrNoRows):
 		return nil, httpError{http.StatusNotFound, fmt.Sprintf("no work item %s#%d", repo, n)}
+	case err != nil:
+		return nil, err
 	}
 	tl, err := report.Timeline(s.db, repo, n, time.Now())
 	if err != nil {
