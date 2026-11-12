@@ -2,6 +2,7 @@ package normalize
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -49,10 +50,10 @@ func parseAttrs(b []byte) attrs {
 	return a
 }
 
-func (a attrs) s(k string) string { s, _ := a[k].(string); return s }
+func (a attrs) text(k string) string { s, _ := a[k].(string); return s }
 
-// n, f and b also accept the value as a string: Claude Code sends e.g. tool_result success "true", duration_ms "3852".
-func (a attrs) n(k string) *int64 {
+// num, float and boolean also accept the value as a string: Claude Code sends e.g. tool_result success "true", duration_ms "3852".
+func (a attrs) num(k string) *int64 {
 	v, err := strconv.ParseInt(fmt.Sprint(a[k]), 10, 64)
 	if err != nil {
 		return nil
@@ -60,7 +61,7 @@ func (a attrs) n(k string) *int64 {
 	return &v
 }
 
-func (a attrs) f(k string) *float64 {
+func (a attrs) float(k string) *float64 {
 	v, err := strconv.ParseFloat(fmt.Sprint(a[k]), 64)
 	if err != nil {
 		return nil
@@ -68,7 +69,7 @@ func (a attrs) f(k string) *float64 {
 	return &v
 }
 
-func (a attrs) b(k string) *bool {
+func (a attrs) boolean(k string) *bool {
 	v, err := strconv.ParseBool(fmt.Sprint(a[k]))
 	if err != nil {
 		return nil
@@ -94,12 +95,7 @@ func (g *agents) see(e event, id, parent, typ string, otlp bool) *agentRun {
 		g.runs[k] = r
 		g.order = append(g.order, k)
 	}
-	if r.Parent == nil {
-		r.Parent = str(parent)
-	}
-	if r.Type == nil {
-		r.Type = str(typ)
-	}
+	r.Parent, r.Type = cmp.Or(r.Parent, str(parent)), cmp.Or(r.Type, str(typ))
 	r.otlp = r.otlp || otlp
 	return r
 }
@@ -135,46 +131,34 @@ func (g *agents) finish(attempts map[string]*attempt, calls []toolCall) []agentR
 // otlp derives rows from one OTLP event (Claude Code telemetry) of a started attempt. Unknown event names are ignored.
 func (d *result) otlp(e event, g *agents) {
 	at := parseAttrs(e.Payload)
-	agent := str(at.s("agent_id"))
-	typ := at.s("agent_type")
-	if typ == "" {
-		typ = at.s("agent.name")
-	}
-	r := g.see(e, at.s("agent_id"), at.s("parent_agent_id"), typ, true)
+	agent := str(at.text("agent_id"))
+	r := g.see(e, at.text("agent_id"), at.text("parent_agent_id"), cmp.Or(at.text("agent_type"), at.text("agent.name")), true)
 	switch e.Type {
 	case "otlp.api_request":
-		in, out, model := at.n("input_tokens"), at.n("output_tokens"), at.s("model")
+		in, out, model := at.num("input_tokens"), at.num("output_tokens"), at.text("model")
 		if in == nil || out == nil || model == "" {
 			return
 		}
 		// subagent tokens come only from here: subagent_completed.total_tokens is the last request's size
 		d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: e.AttemptID, Model: model, TS: e.TS, Input: *in,
-			Output: *out, CacheRead: at.n("cache_read_tokens"), CacheWrite: at.n("cache_creation_tokens"),
-			Duration: at.n("duration_ms"), Agent: agent}, at.f("cost_usd")))
+			Output: *out, CacheRead: at.num("cache_read_tokens"), CacheWrite: at.num("cache_creation_tokens"),
+			Duration: at.num("duration_ms"), Agent: agent}, at.float("cost_usd")))
 		if r != nil && r.Model == nil {
 			r.Model = ptr(model)
 		}
 	case "otlp.tool_result":
 		d.ToolCalls = append(d.ToolCalls, toolCall{Factory: e.Factory, Attempt: e.AttemptID, Agent: agent, TS: e.TS,
-			Tool: at.s("tool_name"), Success: at.b("success"), Duration: at.n("duration_ms"), ErrorType: str(at.s("error_type"))})
+			Tool: at.text("tool_name"), Success: at.boolean("success"), Duration: at.num("duration_ms"), ErrorType: str(at.text("error_type"))})
 	case "otlp.subagent_completed":
 		if r == nil {
 			return
 		}
-		r.completed, r.Async, r.Duration, r.FinalModel = true, at.b("is_async"), at.n("duration_ms"), str(at.s("final_model"))
-		if m := at.s("model"); m != "" {
-			r.Model = ptr(m)
-		}
+		r.completed, r.Async, r.Duration, r.FinalModel = true, at.boolean("is_async"), at.num("duration_ms"), str(at.text("final_model"))
+		r.Model = cmp.Or(str(at.text("model")), r.Model)
 	case "otlp.api_error", "otlp.api_retries_exhausted":
 		// shape not verified yet (no capture): read the likely fields and tolerate their absence
-		msg := at.s("error_type")
-		for _, k := range []string{"error.type", "error"} {
-			if msg == "" {
-				msg = at.s(k)
-			}
-		}
 		d.APIErrors = append(d.APIErrors, apiError{Factory: e.Factory, Attempt: e.AttemptID, Agent: agent, TS: e.TS,
-			Kind: strings.TrimPrefix(e.Type, "otlp."), Model: str(at.s("model")), Status: at.n("status_code"),
-			Error: str(msg), Duration: at.n("duration_ms")})
+			Kind: strings.TrimPrefix(e.Type, "otlp."), Model: str(at.text("model")), Status: at.num("status_code"),
+			Error: str(cmp.Or(at.text("error_type"), at.text("error.type"), at.text("error"))), Duration: at.num("duration_ms")})
 	}
 }

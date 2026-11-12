@@ -263,7 +263,7 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		ORDER BY r.started_at, r.factory_id, r.attempt_id, r.agent_id`, func(r *sql.Rows) error {
 		var k run
 		var typ, status, ts string
-		var calls, failed int64
+		var calls, failed int
 		var d, tokens sql.NullInt64
 		if err := r.Scan(&k.factory, &k.attempt, &k.id, &k.parent, &typ, &status, &calls, &d, &ts, &failed, &tokens); err != nil {
 			return err
@@ -273,7 +273,7 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		if k.parent != "" {
 			in = "subagent " + k.parent
 		}
-		extra := fmt.Sprintf("%d tool calls", calls)
+		extra := plural(calls, "tool call")
 		if failed > 0 {
 			extra += fmt.Sprintf(" (%d failed)", failed)
 		}
@@ -367,13 +367,13 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 			}
 			extra := dur(parse(a.ended.String).Sub(parse(a.started))) + ", " + a.cost.String()
 			if a.tools > 0 {
-				extra += fmt.Sprintf(", %d tool calls", a.tools)
+				extra += ", " + plural(a.tools, "tool call")
 				if a.toolsFailed > 0 {
 					extra += fmt.Sprintf(" (%d failed)", a.toolsFailed)
 				}
 			}
 			if a.apiErrors > 0 {
-				extra += fmt.Sprintf(", %d API errors", a.apiErrors)
+				extra += ", " + plural(a.apiErrors, "API error")
 			}
 			lines = append(lines, line{a.ended.String, 3, a.factory, text, extra})
 		}
@@ -573,4 +573,11 @@ func Live(db *sql.DB, w io.Writer, now time.Time) error {
 		fmt.Fprint(tw, l)
 	}
 	return tw.Flush()
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
 }

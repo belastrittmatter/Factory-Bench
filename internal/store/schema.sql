@@ -11,7 +11,7 @@ CREATE TABLE factories (
 CREATE TABLE events (
   source       TEXT NOT NULL CHECK (source IN ('contract', 'github', 'otlp')),
   factory_id   TEXT NOT NULL DEFAULT '',   -- '' for GitHub events
-  id           TEXT NOT NULL,              -- idempotency key (contract id, GitHub delivery id, or OTLP session.id:event.sequence)
+  id           TEXT NOT NULL,              -- idempotency key (contract id, GitHub delivery id, or OTLP session.id:event.sequence:event.timestamp)
   type         TEXT NOT NULL,
   ts           TEXT NOT NULL,              -- when it happened
   received_at  TEXT NOT NULL,              -- when FactoryBench got it

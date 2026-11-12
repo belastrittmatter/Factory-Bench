@@ -4,7 +4,7 @@ acme/app#30   outcome merged · survival pending
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 11.9k cache read / 14.3k cache write / 614 out  3s session, <$0.01 reported
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 26.2k cache read / 901 cache write / 230 out    2s session, <$0.01 reported
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 27.1k cache read / 476 cache write / 246 out    2s session, <$0.01 reported
-  11-12 06:23          subagent a78dbae5c3a9cb7ea (general-purpose) in attempt cc-phase0-subagent completed                1 tool calls, 35.4k tokens, 5s
+  11-12 06:23          subagent a78dbae5c3a9cb7ea (general-purpose) in attempt cc-phase0-subagent completed                1 tool call, 35.4k tokens, 5s
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 0 cache read / 16.2k cache write / 200 out      2s session, <$0.01 reported
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 27.6k cache read / 712 cache write / 345 out    2s session, <$0.01 reported
   11-12 06:23          session cc-phase0-subagent claude-haiku-5-5: 2 in / 16.2k cache read / 2.3k cache write / 413 out   3s session, <$0.01 reported
@@ -22,7 +22,7 @@ acme/app#32   outcome open · survival n/a
   11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 11.9k cache read / 14.3k cache write / 500 out  3s session, <$0.01 reported
   11-12 06:24      subagent a659980bca3fb01e4 (general-purpose) in attempt cc-phase0-killed-sigterm killed                   5 tool calls, 85.0k tokens
   11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 0 cache read / 18.0k cache write / 503 out      3s session, <$0.01 reported
-  11-12 06:24        subagent a3bea183083d509c1 (general-purpose) in subagent a659980bca3fb01e4 completed                    1 tool calls, 38.7k tokens, 3s
+  11-12 06:24        subagent a3bea183083d509c1 (general-purpose) in subagent a659980bca3fb01e4 completed                    1 tool call, 38.7k tokens, 3s
   11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 8.5k cache read / 9.5k cache write / 254 out    2s session, <$0.01 reported
   11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 18.0k cache read / 2.5k cache write / 95 out    1s session, <$0.01 reported
   11-12 06:24      session cc-phase0-killed-sigterm claude-haiku-5-5: 2 in / 18.0k cache read / 3.0k cache write / 608 out   4s session, <$0.01 reported

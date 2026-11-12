@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"mime"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,9 +93,46 @@ func dropped(key, name string) bool {
 	return dropAttrs[key] || strings.Contains(key, "body") || key == "error" && !strings.HasPrefix(name, "api_")
 }
 
+// record turns one log record and its resource's attributes into an event; ok is false without factorybench.attempt.
+// The payload is the attributes, resource ones included, minus dropped ones, plus attempt_id.
+func record(resource, attributes []otlpKV, nano flexInt) (id, typ, ts, payload string, ok bool) {
+	attrs := map[string]any{}
+	for _, kv := range slices.Concat(resource, attributes) { // the record's own value wins
+		attrs[kv.Key] = kv.Value.plain()
+	}
+	attempt, _ := attrs["factorybench.attempt"].(string)
+	if attempt == "" {
+		return "", "", "", "", false
+	}
+	name, _ := attrs["event.name"].(string)
+	for k := range attrs {
+		if dropped(k, name) {
+			delete(attrs, k)
+		}
+	}
+	attrs["attempt_id"] = attempt // where normalize and reports look for it, as on contract events
+	ts = store.Now()
+	if nano > 0 {
+		ts = store.FormatTS(time.Unix(0, int64(nano)))
+	}
+	stamp, _ := attrs["event.timestamp"].(string)
+	if t, err := time.Parse(time.RFC3339Nano, stamp); err == nil {
+		ts = store.FormatTS(t)
+	}
+	b, _ := json.Marshal(attrs) // decoded from JSON, so it always encodes
+	session, _ := attrs["session.id"].(string)
+	seq, hasSeq := attrs["event.sequence"]
+	// a resumed session restarts event.sequence in the new process; the timestamp keeps those apart
+	id = fmt.Sprintf("%s:%v:%s", session, seq, stamp)
+	if session == "" || !hasSeq {
+		s := sha256.Sum256(b)
+		id = "nokey:" + hex.EncodeToString(s[:8])
+	}
+	return id, "otlp." + name, ts, string(b), true
+}
+
 // LogsHandler returns the POST /v1/logs handler: OTLP/HTTP JSON logs, as Claude Code exports them.
-// Each log record is stored as one raw event (source otlp, type otlp.<event.name>) whose payload is its attributes,
-// resource attributes included, plus attempt_id. after runs once new records are stored.
+// Each log record is stored as one raw event (source otlp, type otlp.<event.name>, see record). after runs once new records are stored.
 func LogsHandler(db *sql.DB, after func()) http.Handler {
 	var mu sync.Mutex
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -102,8 +140,10 @@ func LogsHandler(db *sql.DB, after func()) http.Handler {
 		if factory == "" {
 			return
 		}
-		if mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type")); mt != "application/json" {
-			http.Error(w, "only OTLP/HTTP JSON (Content-Type application/json) is supported", http.StatusUnsupportedMediaType)
+		mt, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+		if ce := r.Header.Get("Content-Encoding"); mt != "application/json" || ce != "" && ce != "identity" {
+			http.Error(w, "only uncompressed OTLP/HTTP JSON is supported: set OTEL_EXPORTER_OTLP_PROTOCOL=http/json "+
+				"and leave OTEL_EXPORTER_OTLP_COMPRESSION unset", http.StatusUnsupportedMediaType)
 			return
 		}
 		var req otlpLogs
@@ -117,47 +157,12 @@ func LogsHandler(db *sql.DB, after func()) http.Handler {
 		for _, rl := range req.ResourceLogs {
 			for _, sl := range rl.ScopeLogs {
 				for _, lr := range sl.LogRecords {
-					attrs := map[string]any{}
-					for _, kv := range rl.Resource.Attributes {
-						attrs[kv.Key] = kv.Value.plain()
-					}
-					for _, kv := range lr.Attributes { // the record's own value wins
-						attrs[kv.Key] = kv.Value.plain()
-					}
-					attempt, _ := attrs["factorybench.attempt"].(string)
-					if attempt == "" {
+					id, typ, ts, payload, ok := record(rl.Resource.Attributes, lr.Attributes, lr.TimeUnixNano)
+					if !ok {
 						rejected++
 						continue
 					}
-					name, _ := attrs["event.name"].(string)
-					for k := range attrs {
-						if dropped(k, name) {
-							delete(attrs, k)
-						}
-					}
-					attrs["attempt_id"] = attempt // where normalize and reports look for it, as on contract events
-					ts := store.Now()
-					if lr.TimeUnixNano > 0 {
-						ts = store.FormatTS(time.Unix(0, int64(lr.TimeUnixNano)))
-					}
-					if s, ok := attrs["event.timestamp"].(string); ok {
-						if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-							ts = store.FormatTS(t)
-						}
-					}
-					payload, err := json.Marshal(attrs)
-					if err != nil {
-						internalError(w, err)
-						return
-					}
-					session, _ := attrs["session.id"].(string)
-					seq, ok := attrs["event.sequence"]
-					id := fmt.Sprintf("%s:%v", session, seq)
-					if session == "" || !ok {
-						s := sha256.Sum256(payload)
-						id = "nokey:" + hex.EncodeToString(s[:8])
-					}
-					dup, err := store.InsertEvent(db, "otlp", factory, id, "otlp."+name, ts, string(payload), nil)
+					dup, err := store.InsertEvent(db, "otlp", factory, id, typ, ts, payload, nil)
 					if err != nil {
 						internalError(w, err)
 						return

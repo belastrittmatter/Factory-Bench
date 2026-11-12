@@ -99,27 +99,63 @@ func TestLogsCaptures(t *testing.T) {
 
 func TestLogsRejects(t *testing.T) {
 	db, tok, post := logsServer(t)
-	rec := func(attempt string) string {
+	rec := func(attempt, stamp string) string {
 		a := `{"key":"session.id","value":{"stringValue":"s"}},{"key":"event.sequence","value":{"intValue":"1"}},` +
-			`{"key":"event.name","value":{"stringValue":"tool_result"}}`
+			`{"key":"event.name","value":{"stringValue":"tool_result"}},{"key":"event.timestamp","value":{"stringValue":"` + stamp + `"}}`
 		if attempt != "" {
 			a += `,{"key":"factorybench.attempt","value":{"stringValue":"` + attempt + `"}}`
 		}
 		return `{"timeUnixNano":"1794464593795000000","attributes":[` + a + `]}`
 	}
-	body := `{"resourceLogs":[{"resource":{"attributes":[]},"scopeLogs":[{"logRecords":[` + rec("") + `,` + rec("a1") + `]}]}]}`
+	// the third record has the same session.id and event.sequence as the second: a resumed session in a new process
+	body := `{"resourceLogs":[{"resource":{"attributes":[]},"scopeLogs":[{"logRecords":[` +
+		rec("", "2026-11-12T06:23:13.795Z") + `,` + rec("a1", "2026-11-12T06:23:13.795Z") + `,` + rec("a1", "2026-11-12T07:00:00.000Z") + `]}]}]}`
 	if code, _ := post("fbt_wrong", body); code != 401 {
 		t.Fatalf("bad token: %d", code)
 	}
 	if code, _ := post(tok, "not json"); code != 400 {
 		t.Fatalf("bad body: %d", code)
 	}
-	code, resp := post(tok, body)
-	if code != 200 || !strings.Contains(resp, `"rejectedLogRecords":1`) {
-		t.Fatalf("missing attempt: %d %s", code, resp)
+	gz := httptest.NewRequest("POST", "/v1/logs", strings.NewReader(body))
+	gz.Header.Set("Authorization", "Bearer "+tok)
+	gz.Header.Set("Content-Type", "application/json")
+	gz.Header.Set("Content-Encoding", "gzip")
+	w := httptest.NewRecorder()
+	LogsHandler(db, nil).ServeHTTP(w, gz)
+	if w.Code != 415 {
+		t.Fatalf("gzip: %d", w.Code)
 	}
-	var id, ts string
-	if err := db.QueryRow(`SELECT id, ts FROM events`).Scan(&id, &ts); err != nil || id != "s:1" || ts != "2026-11-12T06:23:13.795Z" {
-		t.Fatalf("stored %s %s %v, want only s:1", id, ts, err)
+	for range 2 { // the second post is an exporter retry
+		if code, resp := post(tok, body); code != 200 || !strings.Contains(resp, `"rejectedLogRecords":1`) {
+			t.Fatalf("missing attempt: %d %s", code, resp)
+		}
+	}
+	var ids string
+	if err := db.QueryRow(`SELECT group_concat(id || ' ' || ts, ', ') FROM (SELECT * FROM events ORDER BY id)`).Scan(&ids); err != nil ||
+		ids != "s:1:2026-11-12T06:23:13.795Z 2026-11-12T06:23:13.795Z, s:1:2026-11-12T07:00:00.000Z 2026-11-12T07:00:00.000Z" {
+		t.Fatalf("stored %s %v", ids, err)
+	}
+}
+
+// record drops personal data and content before anything is stored, but keeps the API's error on api_* events.
+func TestRecord(t *testing.T) {
+	kv := func(k, v string) otlpKV { return otlpKV{k, otlpValue{StringValue: &v}} }
+	res := []otlpKV{kv("factorybench.attempt", "a1"), kv("user.email", "x@example.com")}
+	attrs := func(name string) []otlpKV {
+		return []otlpKV{kv("event.name", name), kv("session.id", "s"), kv("event.sequence", "1"),
+			kv("event.timestamp", "2026-11-12T06:23:13.795Z"), kv("tool_parameters", `{"bash_command":"rm -rf /"}`),
+			kv("tool_input", "{}"), kv("api_request_body", "{}"), kv("body", "x"), kv("error", "boom")}
+	}
+	id, typ, ts, p, ok := record(res, attrs("tool_result"), 0)
+	if !ok || id != "s:1:2026-11-12T06:23:13.795Z" || typ != "otlp.tool_result" || ts != "2026-11-12T06:23:13.795Z" ||
+		p != `{"attempt_id":"a1","event.name":"tool_result","event.sequence":"1","event.timestamp":"2026-11-12T06:23:13.795Z",`+
+			`"factorybench.attempt":"a1","session.id":"s"}` {
+		t.Errorf("tool_result: %v %s %s %s %s", ok, id, typ, ts, p)
+	}
+	if _, _, _, p, _ := record(res, attrs("api_error"), 0); !strings.Contains(p, `"error":"boom"`) || strings.Contains(p, "body") {
+		t.Errorf("api_error: %s", p)
+	}
+	if _, _, _, _, ok := record(nil, attrs("tool_result"), 0); ok {
+		t.Error("record without factorybench.attempt accepted")
 	}
 }

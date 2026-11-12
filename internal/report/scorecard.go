@@ -84,8 +84,15 @@ func avg(k, n int) string {
 	return fmt.Sprintf("%.1f (%d/%d)", float64(k)/float64(n), k, n)
 }
 
-// noActivity hides a tool call metric: "" when the card has no tool calls (see Factories).
-func noActivity(c *card) bool { return c.run.withActivity == 0 }
+// active hides a tool call metric: "" when the card has no tool calls (see Factories).
+func active(val func(c *card) string) func(c *card) string {
+	return func(c *card) string {
+		if c.run.withActivity == 0 {
+			return ""
+		}
+		return val(c)
+	}
+}
 
 // scorecard rows. A row whose value is "" for every card is left out, so factories without tool calls or
 // PR size see no rows for them; a single "" among other values shows as n/a.
@@ -207,16 +214,8 @@ var scorecard = []struct {
 		}
 		return s + fmt.Sprintf(" (%d lines)", lines)
 	}},
-	{"tool calls / issue", func(c *card) string {
-		if noActivity(c) {
-			return ""
-		}
-		return avg(c.run.toolCalls, c.items)
-	}},
-	{"tool mix", func(c *card) string {
-		if noActivity(c) {
-			return ""
-		}
+	{"tool calls / issue", active(func(c *card) string { return avg(c.run.toolCalls, c.items) })},
+	{"tool mix", active(func(c *card) string {
 		names := slices.Collect(maps.Keys(c.run.tools))
 		sort.Slice(names, func(i, j int) bool {
 			if a, b := c.run.tools[names[i]], c.run.tools[names[j]]; a != b {
@@ -235,28 +234,15 @@ var scorecard = []struct {
 			rest -= c.run.tools[n]
 		}
 		return strings.Join(top, ", ")
-	}},
-	{"tool failure rate", func(c *card) string {
-		if noActivity(c) {
-			return ""
-		}
-		return rate(c.run.toolFailed, c.run.toolKnown)
-	}},
-	{"time in model / tool calls", func(c *card) string {
-		if noActivity(c) {
-			return ""
-		}
+	})},
+	{"tool failure rate", active(func(c *card) string { return rate(c.run.toolFailed, c.run.toolKnown) })},
+	{"time in model / tool calls", active(func(c *card) string {
 		// summed per call: parallel subagents can make either exceed the elapsed time
 		return dur(time.Duration(c.run.modelMS)*time.Millisecond) + " / " + dur(time.Duration(c.run.toolMS)*time.Millisecond)
-	}},
-	{"subagents / issue", func(c *card) string {
-		if noActivity(c) {
-			return ""
-		}
-		return avg(c.run.subagents, c.items)
-	}},
+	})},
+	{"subagents / issue", active(func(c *card) string { return avg(c.run.subagents, c.items) })},
 	{"API errors / attempt", func(c *card) string {
-		if noActivity(c) {
+		if c.run.apiErrors == 0 && c.run.withActivity == 0 {
 			return ""
 		}
 		return avg(c.run.apiErrors, c.attempts)

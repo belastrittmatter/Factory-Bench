@@ -162,7 +162,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
 	prs := map[string]*pr{}
 	var prOrder []string
-	agents := agents{runs: map[string]*agentRun{}}
+	runs := agents{runs: map[string]*agentRun{}}
 	gh := github{commits: map[string][]prCommit{}, checks: map[int64]check{}, reviews: map[string][]review{},
 		issues: map[string]ghIssue{}, emails: commitEmails, logins: logins}
 	for _, e := range events {
@@ -176,7 +176,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			continue // events of an attempt that never started stay in events only
 		}
 		if e.Source == "otlp" {
-			d.otlp(e, &agents)
+			d.otlp(e, &runs)
 			continue
 		}
 		p := contract.ParsePayload(e.Payload)
@@ -218,12 +218,12 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "gate":
 			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
 		case "usage":
-			agents.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
 				Phase: str(p.Phase), Agent: str(p.AgentID)}, p.ReportedCostUSD))
 		case "activity":
-			agents.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			if p.Tool != "" {
 				var ok *bool
 				if p.Failed != nil {
@@ -255,7 +255,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	for _, id := range gh.checkOrder {
 		d.Checks = append(d.Checks, gh.checks[id])
 	}
-	d.AgentRuns = agents.finish(attempts, d.ToolCalls)
+	d.AgentRuns = runs.finish(attempts, d.ToolCalls)
 	prStates := map[string]map[string]bool{} // work item -> states of its linked PRs
 	for _, k := range order {
 		a := attempts[k]
@@ -314,11 +314,14 @@ func taskType(labels []string) *string {
 
 // load reads accepted events in normalization order and the registered commit emails and GitHub logins.
 func load(tx *sql.Tx) (evs []event, emails, logins map[string]string, err error) {
-	// contract rows hold the whole raw event; github rows hold the reconciler's wrapper object
+	// contract rows hold the whole raw event; github rows hold the reconciler's wrapper object;
+	// OTLP rows otlp() ignores (other event names, outside a subagent) are about half of all rows, so they are not read
 	err = store.Each(tx, `SELECT source, factory_id, id, type, ts,
 		CASE source WHEN 'contract' THEN json_extract(payload, '$.payload') ELSE payload END,
 		json_extract(payload, '$.attempt_id')
-		FROM events WHERE rejected IS NULL ORDER BY ts, source, factory_id, id`, func(r *sql.Rows) error {
+		FROM events WHERE rejected IS NULL AND (source <> 'otlp' OR json_extract(payload, '$.agent_id') IS NOT NULL OR type IN
+		  ('otlp.api_request', 'otlp.tool_result', 'otlp.subagent_completed', 'otlp.api_error', 'otlp.api_retries_exhausted'))
+		ORDER BY ts, source, factory_id, id`, func(r *sql.Rows) error {
 		var e event
 		var p string
 		var att sql.NullString

@@ -153,14 +153,15 @@ func (r *reconciler) prs() error {
 			return err
 		}
 		if dup && pr.State == "closed" {
-			// a pr.linked event can arrive after the PR was stored closed, so skip only if details were fetched
+			// a pr.linked event can arrive after the PR was stored closed, so skip only if details were fetched:
+			// prDetails stores the full PR last (PRs stored before v3 have none, so they are fetched once more for their size)
 			var fetched bool
-			if err := r.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM events WHERE source = 'github' AND type = 'pr.commits'
-				AND json_extract(payload, '$.repo') = ? AND json_extract(payload, '$.number') = ?)`, r.repo, pr.Number).Scan(&fetched); err != nil {
+			if err := r.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM events WHERE source = 'github' AND factory_id = '' AND id = ?)`,
+				r.repo+":"+fullID(pr)).Scan(&fetched); err != nil {
 				return err
 			}
 			if fetched {
-				continue // unchanged and closed: its commits and checks are already stored
+				continue // unchanged and closed: its details are already stored
 			}
 		}
 		if !factory[pr.HTMLURL] && !factory[strings.ToLower(pr.User.Login)] {
@@ -173,16 +174,11 @@ func (r *reconciler) prs() error {
 	return nil
 }
 
-// prDetails stores the full PR object (the list endpoint has no additions, deletions or changed_files),
-// commits, reviews, and check runs of one factory PR.
+func fullID(pr pullRequest) string { return fmt.Sprintf("pr:%d:%s:full", pr.Number, pr.UpdatedAt) }
+
+// prDetails stores the commits, reviews, check runs and, last, the full PR object (the list endpoint has no additions,
+// deletions or changed_files) of one factory PR.
 func (r *reconciler) prDetails(pr pullRequest, ts string) error {
-	var full json.RawMessage
-	if err := r.get(fmt.Sprintf("/repos/%s/pulls/%d", r.repo, pr.Number), &full); err != nil {
-		return err
-	}
-	if _, err := r.put("pr", fmt.Sprintf("pr:%d:%s:full", pr.Number, pr.UpdatedAt), ts, map[string]any{"repo": r.repo, "pr": full}); err != nil {
-		return err
-	}
 	var commits []json.RawMessage
 	if err := r.get(fmt.Sprintf("/repos/%s/pulls/%d/commits?per_page=100", r.repo, pr.Number), &commits); err != nil {
 		return err
@@ -238,7 +234,12 @@ func (r *reconciler) prDetails(pr pullRequest, ts string) error {
 			return err
 		}
 	}
-	return nil
+	var full json.RawMessage
+	if err := r.get(fmt.Sprintf("/repos/%s/pulls/%d", r.repo, pr.Number), &full); err != nil {
+		return err
+	}
+	_, err := r.put("pr", fullID(pr), ts, map[string]any{"repo": r.repo, "pr": full})
+	return err
 }
 
 // issues stores every issue of the repo a factory started an attempt on.

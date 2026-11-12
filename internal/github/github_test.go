@@ -99,6 +99,19 @@ func TestReconcileFetchesDetailsOnlyForFactoryPRs(t *testing.T) {
 			}
 		}
 	}
+
+	// a closed PR stored before v3 has its details but no full PR: it is fetched once more, for its size
+	if _, err := db.Exec(`DELETE FROM events WHERE id = 'o/r:pr:4:2026-11-11T09:00:00Z:full'`); err != nil {
+		t.Fatal(err)
+	}
+	for range 2 {
+		if _, err := Reconcile(db, "o/r", ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if hits["/repos/o/r/pulls/4"] != 2 {
+		t.Errorf("full PR 4 fetched %d times, want 2", hits["/repos/o/r/pulls/4"])
+	}
 }
 
 func TestReconcileKeepsSamePRNumberInTwoRepos(t *testing.T) {

@@ -72,8 +72,9 @@ func otlpDB(t *testing.T, finished map[string]string, contract ...string) *sql.D
 	return db
 }
 
+// Subagent runs, tool calls and replay are pinned by the otlp_subagents golden case; this checks usage against the run's result.
 func TestOTLP(t *testing.T) {
-	db := otlpDB(t, map[string]string{"subagent": "completed", "killed-sigterm": "failed"},
+	db := otlpDB(t, map[string]string{"subagent": "completed"},
 		`{"tool":"run_command","failed":true,"duration_ms":7,"agent_id":"x1"}`)
 
 	// usage matches the run's final result.modelUsage exactly, subagent requests included
@@ -86,66 +87,12 @@ func TestOTLP(t *testing.T) {
 	if in != 1338 || out != 2629 || cr != 166488 || cw != 36410 || math.Abs(cost-0.009003855) > 1e-12 {
 		t.Errorf("usage %d %d %d %d %v", in, out, cr, cw, cost)
 	}
-	var sub int
-	db.QueryRow(`SELECT count(*) FROM usage WHERE agent_id = 'a78dbae5c3a9cb7ea'`).Scan(&sub)
-	if sub != 2 {
-		t.Errorf("subagent usage rows %d, want 2", sub)
-	}
-
-	runs := map[string]string{}
-	store.Each(db, `SELECT agent_id, coalesce(parent_agent_id, '-'), agent_type, is_async, model, tool_calls, coalesce(duration_ms, -1), status
-		FROM agent_runs`, func(r *sql.Rows) error {
-		var id, parent, typ, model, status string
-		var async sql.NullBool
-		var tools, dur int64
-		err := r.Scan(&id, &parent, &typ, &async, &model, &tools, &dur, &status)
-		runs[id] = fmt.Sprint(parent, typ, async.Valid && async.Bool, model, tools, dur, status)
-		return err
-	})
-	want := map[string]string{
-		"a78dbae5c3a9cb7ea": fmt.Sprint("-", "general-purpose", true, "claude-haiku-5-5", 1, 4630, "completed"),
-		"a659980bca3fb01e4": fmt.Sprint("-", "general-purpose", false, "claude-haiku-5-5", 5, -1, "killed"), // SIGTERM
-		"a3bea183083d509c1": fmt.Sprint("a659980bca3fb01e4", "general-purpose", false, "claude-haiku-5-5", 1, 2852, "completed"),
-	}
-	for id, w := range want {
-		if runs[id] != w {
-			t.Errorf("agent_runs %s = %q, want %q", id, runs[id], w)
-		}
-	}
-
-	var failed string
-	db.QueryRow(`SELECT tool_name || ':' || success || ':' || duration_ms || ':' || error_type FROM tool_calls
-		WHERE attempt_id = 'cc-phase0-subagent' AND success = 0`).Scan(&failed)
-	if failed != "Bash:0:3852:ShellError" {
-		t.Errorf("failed tool call %q", failed)
-	}
-	var calls int
-	db.QueryRow(`SELECT count(*) FROM tool_calls WHERE attempt_id = 'cc-phase0-subagent'`).Scan(&calls)
-	if calls != 7 {
-		t.Errorf("tool calls %d, want 7", calls)
-	}
-
 	// a contract activity with a tool lands in the same tables
 	var contractCall string
 	db.QueryRow(`SELECT c.tool_name || ':' || c.success || ':' || c.duration_ms || ':' || r.status FROM tool_calls c
 		JOIN agent_runs r USING (factory_id, attempt_id, agent_id) WHERE c.agent_id = 'x1'`).Scan(&contractCall)
 	if contractCall != "run_command:0:7:running" {
 		t.Errorf("contract tool call %q", contractCall)
-	}
-
-	// replay rebuilds identical derived tables
-	d1, err := dump(db)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := Run(db); err != nil {
-		t.Fatal(err)
-	}
-	d2, _ := dump(db)
-	j1, _ := json.Marshal(d1)
-	j2, _ := json.Marshal(d2)
-	if !bytes.Equal(j1, j2) {
-		t.Error("replay changed derived tables")
 	}
 }
 
