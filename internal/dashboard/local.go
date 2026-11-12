@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"bufio"
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"os"
@@ -12,6 +13,8 @@ import (
 	"strings"
 	"time"
 	"unicode/utf8"
+
+	"factorybench/internal/store"
 )
 
 // Local views read files on request only, never into the database. They can hold prompts and code,
@@ -28,23 +31,12 @@ var (
 
 const maxFile = 4 << 20 // bytes served from one local file
 
-type dispatch struct {
-	At   time.Time
-	Lane string
-	File string
-}
-
-type note struct { // a manifest line that mentions a card but is not a dispatch (reaps, halts)
-	At   time.Time
-	Text string
-}
-
-// manifests parses every run manifest: dispatch lines per issue and the other lines that name the issue.
+// manifests parses every run manifest in the runs dir.
 // shortcut: the manifest's clock is local time on the date in its file name; a run crossing midnight gets wrong dates.
-func (s *server) manifests() (map[int64][]dispatch, map[int64][]note) {
-	d, n := map[int64][]dispatch{}, map[int64][]note{}
+func (s *server) manifests() runLog {
+	out := newRunLog()
 	if !s.local || s.o.Runs == "" {
-		return d, n
+		return out
 	}
 	files, _ := filepath.Glob(filepath.Join(s.o.Runs, "*.md"))
 	for _, f := range files {
@@ -53,56 +45,105 @@ func (s *server) manifests() (map[int64][]dispatch, map[int64][]note) {
 		if m == nil || err != nil {
 			continue
 		}
-		sc := bufio.NewScanner(fh)
-		for sc.Scan() {
-			l := manifestLine.FindStringSubmatch(sc.Text())
-			if l == nil {
-				continue
-			}
-			at, err := time.ParseInLocation("2006-01-02 15:04:05", m[1]+" "+l[1], time.Local)
-			if err != nil {
-				continue
-			}
-			if x := dispatchLine.FindStringSubmatch(l[2]); x != nil {
-				issue, _ := strconv.ParseInt(x[2], 10, 64)
-				d[issue] = append(d[issue], dispatch{at, x[1], filepath.Base(f)})
-			} else {
-				for _, w := range strings.Fields(l[2]) {
-					if issue, err := strconv.ParseInt(strings.TrimPrefix(strings.Trim(w, ",()"), "#"), 10, 64); err == nil && strings.HasPrefix(w, "#") {
-						n[issue] = append(n[issue], note{at, l[2]})
-						break
-					}
-				}
-			}
-		}
+		parseManifest(m[1], filepath.Base(f), fh, out)
 		fh.Close()
 	}
-	return d, n
+	return out
 }
 
-func (s *server) dispatches(issue int64) []dispatch {
-	d, _ := s.manifests()
-	return d[issue]
-}
+func (s *server) dispatches(issue int64) []dispatch { return s.manifests().dispatches[issue] }
 
-// flow returns the dispatches (lane moves) of one card from the run manifests, its attempts and its merge time.
+// flow returns one card's dispatches with the model calls made in each, its board moves and waits, its attempts,
+// its merge time and its rework counts. Without manifests every attempt is one row of calls with no lane.
 func (s *server) flow(r *http.Request) (any, error) {
 	repo, issue := r.URL.Query().Get("repo"), r.URL.Query().Get("issue")
 	n, err := strconv.ParseInt(issue, 10, 64)
 	if err != nil || repo == "" {
 		return nil, httpError{http.StatusBadRequest, "repo and issue required"}
 	}
-	att, err := rows(s.db, `SELECT attempt_id, role, state, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`, repo, n)
+	return s.cardFlow(repo, n, time.Now())
+}
+
+func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, error) {
+	att, err := rows(s.db, `SELECT a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.pr_url, `+lastEventSQL+` AS last_event
+		FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`, repo, n)
 	if err != nil {
 		return nil, err
 	}
+	withStatus(att, now, s.o.Idle)
 	merged, err := rows(s.db, `SELECT min(p.merged_at) AS merged_at FROM prs p WHERE p.merged_at IS NOT NULL AND p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`, repo, n)
 	if err != nil {
 		return nil, err
 	}
-	d, notes := s.manifests()
-	return map[string]any{"attempts": att, "merged_at": merged[0]["merged_at"], "dispatches": d[n], "notes": notes[n], "manifest": s.local && s.o.Runs != ""}, nil
+	waits, err := rows(s.db, `SELECT e.ts, e.type, json_extract(e.payload, '$.attempt_id') AS attempt_id, json_extract(e.payload, '$.payload.reason') AS reason
+		FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
+		WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed') AND a.repo = ?1 AND a.issue = ?2 ORDER BY e.ts`, repo, n)
+	if err != nil {
+		return nil, err
+	}
+	var wins []attemptWin
+	for _, a := range att {
+		w := attemptWin{ID: a["attempt_id"].(string), State: a["status"].(string), Start: parseTS(a["started_at"])}
+		if e, ok := a["ended_at"].(string); ok {
+			t := parseTS(e)
+			w.End = &t
+		}
+		if w.State != "running" { // an open attempt that went idle or waits stops at its last event, not at now
+			if e, ok := a["last_event"].(string); ok {
+				t := parseTS(e)
+				w.LastActive = &t
+			}
+		}
+		wins = append(wins, w)
+	}
+	var calls []call
+	err = store.Each(s.db, `SELECT u.ts, u.attempt_id, u.model, u.phase, u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0),
+		u.cost_usd, u.duration_ms FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ? AND a.issue = ? ORDER BY u.ts`, func(r *sql.Rows) error {
+		var c call
+		var ts string
+		var phase sql.NullString
+		var cost sql.NullFloat64
+		var d sql.NullInt64
+		if err := r.Scan(&ts, &c.Attempt, &c.Model, &phase, &c.Tokens, &cost, &d); err != nil {
+			return err
+		}
+		c.TS = parseTS(ts)
+		if phase.Valid {
+			c.Phase = &phase.String
+		}
+		if cost.Valid {
+			c.Cost = &cost.Float64
+		}
+		if d.Valid {
+			c.DurationMS = &d.Int64
+		}
+		calls = append(calls, c)
+		return nil
+	}, repo, n)
+	if err != nil {
+		return nil, err
+	}
+	rl := s.manifests()
+	ds := rl.dispatches[n]
+	grouped := groupByDispatch(ds, wins, calls, now)
+	var lanes []string
+	retryCost, retryRows := 0.0, 0
+	for _, d := range grouped {
+		if d.Lane != "" {
+			lanes = append(lanes, d.Lane)
+		}
+		if d.Retry {
+			retryCost += d.Cost
+			retryRows++
+		}
+	}
+	bounces, redis := rework(lanes)
+	return map[string]any{"attempts": att, "merged_at": merged[0]["merged_at"], "dispatches": grouped, "notes": rl.notes[n], "moves": rl.moves[n],
+		"waits": waits, "retry_cost_usd": retryCost, "retry_dispatches": retryRows, "bounces": bounces, "redispatches": redis,
+		"manifest": s.local && s.o.Runs != ""}, nil
 }
+
+func parseTS(v any) time.Time { s, _ := v.(string); t, _ := time.Parse(time.RFC3339Nano, s); return t }
 
 // workerLogs lists the manifests and worker logs that match an attempt: same issue, a dispatch inside its time window.
 func (s *server) workerLogs(a map[string]any) map[string]any {

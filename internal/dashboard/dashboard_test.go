@@ -186,8 +186,13 @@ func TestLocalFiles(t *testing.T) {
 	_, h, _ := fixture(t)
 	var fl map[string]any
 	get(t, h, "/api/flow?repo=o/r&issue=7", &fl)
-	d := fl["dispatches"].([]any)
-	if len(d) != 3 || d[1].(map[string]any)["Lane"] != "review" || len(fl["notes"].([]any)) != 1 {
+	var d []any
+	for _, r := range fl["dispatches"].([]any) {
+		if r.(map[string]any)["lane"] != "" {
+			d = append(d, r)
+		}
+	}
+	if len(d) != 3 || d[1].(map[string]any)["lane"] != "review" || len(fl["notes"].([]any)) != 1 {
 		t.Errorf("flow: %v", fl)
 	}
 	var m map[string]any
