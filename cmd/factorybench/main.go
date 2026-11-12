@@ -67,6 +67,7 @@ func main() {
 			go pollGitHub(db, repos, *poll, githubToken(), rebuild)
 		}
 		http.Handle("/v1/events", intake.Handler(db, rebuild))
+		http.Handle("/v1/logs", intake.LogsHandler(db, rebuild))
 		log.Printf("listening on %s", *addr)
 		check((&http.Server{Addr: *addr, ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
 	case cmd == "emit":

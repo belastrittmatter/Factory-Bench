@@ -1,5 +1,7 @@
 {
   "derived": {
+    "agent_runs": [],
+    "api_errors": [],
     "attempts": [
       {
         "attempt_id": "b1",
@@ -37,8 +39,10 @@
     "pr_commits": [],
     "prs": [],
     "reviews": [],
+    "tool_calls": [],
     "usage": [
       {
+        "agent_id": null,
         "attempt_id": "b1",
         "cache_read": null,
         "cache_write": null,
@@ -55,6 +59,7 @@
         "ts": "2026-11-11T09:18:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "p1",
         "cache_read": 10000,
         "cache_write": 3000,

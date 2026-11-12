@@ -1,4 +1,4 @@
-// Package intake serves POST /v1/events. It writes only the events table.
+// Package intake serves POST /v1/events and POST /v1/logs (OTLP). It writes only the events table.
 package intake
 
 import (
@@ -15,6 +15,8 @@ import (
 	"factorybench/internal/contract"
 	"factorybench/internal/store"
 )
+
+const maxBody = 10 << 20
 
 // Rejected names one event that failed validation and why.
 type Rejected struct {
@@ -33,26 +35,12 @@ type Response struct {
 func Handler(db *sql.DB, after func()) http.Handler {
 	var mu sync.Mutex
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "POST only", http.StatusMethodNotAllowed)
-			return
-		}
-		token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
-		if !ok {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
-			return
-		}
-		factory, err := store.FactoryByToken(db, token)
-		if err != nil {
-			internalError(w, err)
-			return
-		}
+		factory := authorize(db, w, r)
 		if factory == "" {
-			http.Error(w, "invalid token", http.StatusUnauthorized)
 			return
 		}
 		var batch []json.RawMessage
-		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 10<<20)).Decode(&batch); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxBody)).Decode(&batch); err != nil {
 			http.Error(w, "body must be a JSON array of events", http.StatusBadRequest)
 			return
 		}
@@ -80,6 +68,28 @@ func Handler(db *sql.DB, after func()) http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
 	})
+}
+
+// authorize returns the factory of a POST's bearer token, or writes the error response and returns "".
+func authorize(db *sql.DB, w http.ResponseWriter, r *http.Request) string {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return ""
+	}
+	token, ok := strings.CutPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+		return ""
+	}
+	factory, err := store.FactoryByToken(db, token)
+	if err != nil {
+		internalError(w, err)
+		return ""
+	}
+	if factory == "" {
+		http.Error(w, "invalid token", http.StatusUnauthorized)
+	}
+	return factory
 }
 
 func internalError(w http.ResponseWriter, err error) {

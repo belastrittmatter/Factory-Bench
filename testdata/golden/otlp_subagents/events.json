@@ -1,0 +1,210 @@
+{
+  "note": "Claude Code OTLP logs from the Phase 0 captures, wrapped in the lifecycle a factory sends. #30: background subagent, a failed Bash call, PR merged. #32: a foreground subagent with a nested one, SIGTERM mid-run (attempt cancelled, outer subagent killed), then a retry still running at report time (the SIGKILL capture) with one synthetic api_error (shape not verified). The last pr event is a list item without size: the size stays.",
+  "now": "2026-11-12T06:25:20Z",
+  "factories": {
+    "cc": {
+      "commit_email": "cc-bot@example.com",
+      "github_login": "cc-bot"
+    }
+  },
+  "batches": [
+    {
+      "factory": "cc",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "s:started",
+          "type": "attempt.started",
+          "ts": "2026-11-12T06:23:12Z",
+          "attempt_id": "cc-phase0-subagent",
+          "payload": {
+            "work_item": { "repo": "acme/app", "issue": 30 },
+            "factory_config_version": "cc@1+claude-code@2.1.322",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "s:pr",
+          "type": "pr.linked",
+          "ts": "2026-11-12T06:23:35Z",
+          "attempt_id": "cc-phase0-subagent",
+          "payload": { "pr_url": "https://github.com/acme/app/pull/31" }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "s:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-12T06:23:36Z",
+          "attempt_id": "cc-phase0-subagent",
+          "payload": { "status": "completed" }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "t:started",
+          "type": "attempt.started",
+          "ts": "2026-11-12T06:24:19Z",
+          "attempt_id": "cc-phase0-killed-sigterm",
+          "payload": {
+            "work_item": { "repo": "acme/app", "issue": 32 },
+            "factory_config_version": "cc@1+claude-code@2.1.322",
+            "role": "build"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "t:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-12T06:24:40Z",
+          "attempt_id": "cc-phase0-killed-sigterm",
+          "payload": { "status": "cancelled", "reason": "SIGTERM after 20s" }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "k:started",
+          "type": "attempt.started",
+          "ts": "2026-11-12T06:24:58Z",
+          "attempt_id": "cc-phase0-killed-sigkill",
+          "payload": {
+            "work_item": { "repo": "acme/app", "issue": 32 },
+            "factory_config_version": "cc@1+claude-code@2.1.322",
+            "role": "build"
+          }
+        }
+      ]
+    }
+  ],
+  "otlp": [
+    { "factory": "cc", "capture": "../../captured/claude-code-2.1.322-otlp/subagent.json" },
+    { "factory": "cc", "capture": "../../captured/claude-code-2.1.322-otlp/killed-sigterm.json" },
+    {
+      "factory": "cc",
+      "capture": "../../captured/claude-code-2.1.322-otlp/killed-sigkill.json",
+      "bodies": [
+        {
+          "resourceLogs": [
+            {
+              "resource": {
+                "attributes": [
+                  { "key": "factorybench.attempt", "value": { "stringValue": "cc-phase0-killed-sigkill" } },
+                  { "key": "service.name", "value": { "stringValue": "claude-code" } },
+                  { "key": "service.version", "value": { "stringValue": "2.1.322" } }
+                ]
+              },
+              "scopeLogs": [
+                {
+                  "scope": { "name": "com.anthropic.claude_code.events", "version": "2.1.322" },
+                  "logRecords": [
+                    {
+                      "timeUnixNano": "1794464709000000000",
+                      "body": { "stringValue": "claude_code.api_error" },
+                      "attributes": [
+                        { "key": "factorybench.attempt", "value": { "stringValue": "cc-phase0-killed-sigkill" } },
+                        { "key": "user.email", "value": { "stringValue": "user@example.com" } },
+                        { "key": "session.id", "value": { "stringValue": "synthetic-api-error" } },
+                        { "key": "event.name", "value": { "stringValue": "api_error" } },
+                        { "key": "event.timestamp", "value": { "stringValue": "2026-11-12T06:25:09.000Z" } },
+                        { "key": "event.sequence", "value": { "intValue": 0 } },
+                        { "key": "model", "value": { "stringValue": "claude-haiku-5-5" } },
+                        { "key": "error", "value": { "stringValue": "overloaded_error" } },
+                        { "key": "status_code", "value": { "stringValue": "529" } },
+                        { "key": "duration_ms", "value": { "intValue": 1200 } }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "github": [
+    {
+      "type": "pr",
+      "id": "acme/app:pr:31:2026-11-12T06:40:00Z",
+      "ts": "2026-11-12T06:40:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 31,
+          "html_url": "https://github.com/acme/app/pull/31",
+          "state": "closed",
+          "merged_at": "2026-11-12T06:40:00Z",
+          "updated_at": "2026-11-12T06:40:00Z",
+          "user": { "login": "cc-bot" },
+          "head": { "ref": "agent/issue-30", "sha": "c0ffee1" }
+        }
+      }
+    },
+    {
+      "type": "pr",
+      "id": "acme/app:pr:31:2026-11-12T06:40:00Z:full",
+      "ts": "2026-11-12T06:40:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 31,
+          "html_url": "https://github.com/acme/app/pull/31",
+          "state": "closed",
+          "merged_at": "2026-11-12T06:40:00Z",
+          "updated_at": "2026-11-12T06:40:00Z",
+          "user": { "login": "cc-bot" },
+          "head": { "ref": "agent/issue-30", "sha": "c0ffee1" },
+          "additions": 42,
+          "deletions": 8,
+          "changed_files": 3
+        }
+      }
+    },
+    {
+      "type": "pr",
+      "id": "acme/app:pr:31:2026-11-12T06:50:00Z",
+      "ts": "2026-11-12T06:50:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr": {
+          "number": 31,
+          "html_url": "https://github.com/acme/app/pull/31",
+          "state": "closed",
+          "merged_at": "2026-11-12T06:40:00Z",
+          "updated_at": "2026-11-12T06:50:00Z",
+          "user": { "login": "cc-bot" },
+          "head": { "ref": "agent/issue-30", "sha": "c0ffee1" }
+        }
+      }
+    },
+    {
+      "type": "pr.commits",
+      "id": "acme/app:commits:31:c0ffee1",
+      "ts": "2026-11-12T06:40:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "number": 31,
+        "head_sha": "c0ffee1",
+        "commits": [
+          { "sha": "c0ffee1", "commit": { "author": { "email": "cc-bot@example.com", "date": "2026-11-12T06:23:34Z" } } }
+        ]
+      }
+    },
+    {
+      "type": "check_run",
+      "id": "acme/app:check:3101:completed:2026-11-12T06:26:00Z",
+      "ts": "2026-11-12T06:26:00.000Z",
+      "payload": {
+        "repo": "acme/app",
+        "pr_number": 31,
+        "check_run": {
+          "id": 3101,
+          "name": "test",
+          "head_sha": "c0ffee1",
+          "conclusion": "success",
+          "started_at": "2026-11-12T06:24:00Z",
+          "completed_at": "2026-11-12T06:26:00Z"
+        }
+      }
+    }
+  ],
+  "report": ["acme/app#30", "acme/app#32"]
+}

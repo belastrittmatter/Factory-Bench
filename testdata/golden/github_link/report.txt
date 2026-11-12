@@ -35,7 +35,11 @@ first-pass PR approval       0% (0/1)
 review rounds / PR           1.0 (1/1)
 human interventions / issue  2.0 (2/1)
 escaped defects              2 on 1/1 PRs
+time to first PR             6m0s (1 issues)
+time to merge                30m0s (1 merged)
+CI passing on first push     0% (0/1) PRs
 usage coverage               100% (1/1) attempts
+activity coverage            0% (0/1) attempts
 unpriced sessions            0
 rejected events              0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced

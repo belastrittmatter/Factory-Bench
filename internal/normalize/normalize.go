@@ -14,7 +14,8 @@ import (
 )
 
 // tables lists every table normalize rebuilds.
-var tables = []string{"work_items", "attempts", "usage", "gates", "prs", "checks", "reviews", "pr_commits"}
+var tables = []string{"work_items", "attempts", "usage", "gates", "prs", "checks", "reviews", "pr_commits",
+	"tool_calls", "agent_runs", "api_errors"}
 
 type event struct {
 	Source, Factory, ID, Type, TS, AttemptID string
@@ -48,7 +49,7 @@ type usage struct {
 	Input, Output                              int64
 	CacheRead, CacheWrite, Reasoning, Duration *int64
 	Cost                                       *float64
-	Provenance, PriceVersion, Phase            *string
+	Provenance, PriceVersion, Phase, Agent     *string
 }
 
 type gate struct {
@@ -63,6 +64,8 @@ type pr struct {
 	URL                    string
 	Branch, State, Merged  *string
 	FactoryCommits, Humans int64
+	Additions, Deletions   *int64
+	Files                  *int64
 }
 
 type check struct {
@@ -95,6 +98,9 @@ type result struct {
 	Checks    []check
 	Reviews   []review
 	PRCommits []prCommit
+	ToolCalls []toolCall
+	AgentRuns []agentRun
+	APIErrors []apiError
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -156,6 +162,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
 	prs := map[string]*pr{}
 	var prOrder []string
+	agents := agents{runs: map[string]*agentRun{}}
 	gh := github{commits: map[string][]prCommit{}, checks: map[int64]check{}, reviews: map[string][]review{},
 		issues: map[string]ghIssue{}, emails: commitEmails, logins: logins}
 	for _, e := range events {
@@ -167,6 +174,10 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		a := attempts[k]
 		if a == nil || e.Type == "attempt.started" {
 			continue // events of an attempt that never started stay in events only
+		}
+		if e.Source == "otlp" {
+			d.otlp(e, &agents)
+			continue
 		}
 		p := contract.ParsePayload(e.Payload)
 		switch e.Type {
@@ -207,14 +218,20 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "gate":
 			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
 		case "usage":
-			u := usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input, Output: *p.Output,
-				CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS, Phase: str(p.Phase)}
-			if p.ReportedCostUSD != nil {
-				u.Cost, u.Provenance = p.ReportedCostUSD, ptr("reported")
-			} else if usd, ver, ok := pricing.Estimate(e.TS, p.Model, *p.Input, *p.Output, p.CacheRead, p.CacheWrite); ok {
-				u.Cost, u.Provenance, u.PriceVersion = &usd, ptr("estimated"), ptr(ver)
+			agents.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
+				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
+				Phase: str(p.Phase), Agent: str(p.AgentID)}, p.ReportedCostUSD))
+		case "activity":
+			agents.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			if p.Tool != "" {
+				var ok *bool
+				if p.Failed != nil {
+					ok = ptr(!*p.Failed)
+				}
+				d.ToolCalls = append(d.ToolCalls, toolCall{Factory: e.Factory, Attempt: a.ID, Agent: str(p.AgentID), TS: e.TS,
+					Tool: p.Tool, Success: ok, Duration: p.DurationMS})
 			}
-			d.Usage = append(d.Usage, u)
 		}
 	}
 
@@ -238,6 +255,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	for _, id := range gh.checkOrder {
 		d.Checks = append(d.Checks, gh.checks[id])
 	}
+	d.AgentRuns = agents.finish(attempts, d.ToolCalls)
 	prStates := map[string]map[string]bool{} // work item -> states of its linked PRs
 	for _, k := range order {
 		a := attempts[k]
@@ -270,6 +288,16 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		d.WorkItems = append(d.WorkItems, *wi)
 	}
 	return d
+}
+
+// priced sets u's cost: the reported one if any, else estimated from the price table.
+func priced(u usage, reported *float64) usage {
+	if reported != nil {
+		u.Cost, u.Provenance = reported, ptr("reported")
+	} else if usd, ver, ok := pricing.Estimate(u.TS, u.Model, u.Input, u.Output, u.CacheRead, u.CacheWrite); ok {
+		u.Cost, u.Provenance, u.PriceVersion = &usd, ptr("estimated"), ptr(ver)
+	}
+	return u
 }
 
 func itoa(n int64) string { return strconv.FormatInt(n, 10) }
@@ -350,14 +378,15 @@ func Run(db *sql.DB) error {
 			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
 	}
 	for _, u := range d.Usage {
-		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
-			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase)
+		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
+			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent)
 	}
 	for _, g := range d.Gates {
 		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)
 	}
 	for _, p := range d.PRs {
-		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits, p.Humans)
+		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits,
+			p.Humans, p.Additions, p.Deletions, p.Files)
 	}
 	for _, c := range d.Checks {
 		ins(`INSERT INTO checks VALUES (?,?,?,?,?,?,?)`, c.Repo, c.PR, c.Name, c.HeadSHA, c.Conclusion, c.Started, c.Done)
@@ -367,6 +396,16 @@ func Run(db *sql.DB) error {
 	}
 	for _, c := range d.PRCommits {
 		ins(`INSERT INTO pr_commits VALUES (?,?,?,?,?,?)`, c.Repo, c.PR, c.SHA, c.Email, c.Factory, c.Committed)
+	}
+	for _, c := range d.ToolCalls {
+		ins(`INSERT INTO tool_calls VALUES (?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.Agent, c.TS, c.Tool, c.Success, c.Duration, c.ErrorType)
+	}
+	for _, r := range d.AgentRuns {
+		ins(`INSERT INTO agent_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, r.Factory, r.Attempt, r.ID, r.Parent, r.Type, r.Async,
+			r.Model, r.FinalModel, r.ToolCalls, r.Duration, r.Status, r.Started)
+	}
+	for _, x := range d.APIErrors {
+		ins(`INSERT INTO api_errors VALUES (?,?,?,?,?,?,?,?,?)`, x.Factory, x.Attempt, x.Agent, x.TS, x.Kind, x.Model, x.Status, x.Error, x.Duration)
 	}
 	if err != nil {
 		return err

@@ -13,7 +13,11 @@ type ghPR struct {
 		HTMLURL  string  `json:"html_url"`
 		State    string  `json:"state"`
 		MergedAt *string `json:"merged_at"`
-		Head     struct {
+		// only on the single-PR object the reconciler fetches for factory PRs
+		Additions    *int64 `json:"additions"`
+		Deletions    *int64 `json:"deletions"`
+		ChangedFiles *int64 `json:"changed_files"`
+		Head         struct {
 			Ref string `json:"ref"`
 		} `json:"head"`
 	} `json:"pr"`
@@ -110,7 +114,12 @@ func (g *github) add(e event, prs map[string]*pr, order *[]string) {
 		if v.PR.MergedAt != nil {
 			state = "merged"
 		}
-		prs[k] = &pr{Repo: v.Repo, Number: v.PR.Number, URL: v.PR.HTMLURL, Branch: str(v.PR.Head.Ref), State: &state, Merged: v.PR.MergedAt}
+		p := &pr{Repo: v.Repo, Number: v.PR.Number, URL: v.PR.HTMLURL, Branch: str(v.PR.Head.Ref), State: &state, Merged: v.PR.MergedAt,
+			Additions: v.PR.Additions, Deletions: v.PR.Deletions, Files: v.PR.ChangedFiles}
+		if old := prs[k]; old != nil && p.Additions == nil { // a list item doesn't erase the size of the full object
+			p.Additions, p.Deletions, p.Files = old.Additions, old.Deletions, old.Files
+		}
+		prs[k] = p
 	case "pr.commits":
 		var v ghCommits
 		if json.Unmarshal(e.Payload, &v) != nil {

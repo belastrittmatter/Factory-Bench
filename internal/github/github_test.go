@@ -23,6 +23,8 @@ func TestReconcileFetchesDetailsOnlyForFactoryPRs(t *testing.T) {
 			pr := `{"number":%d,"state":"open","updated_at":"2026-11-11T09:00:00Z","html_url":"https://github.com/o/r/pull/%d","user":{"login":"%s"},"head":{"sha":"sha%d"}}`
 			closed := `{"number":4,"state":"closed","updated_at":"2026-11-11T09:00:00Z","html_url":"https://github.com/o/r/pull/4","user":{"login":"someone"},"head":{"sha":"sha4"}}`
 			fmt.Fprintf(w, "[%s,%s,%s,%s]", fmt.Sprintf(pr, 1, 1, "someone", 1), fmt.Sprintf(pr, 2, 2, "someone", 2), fmt.Sprintf(pr, 3, 3, "Bot-Login", 3), closed)
+		case "/repos/o/r/pulls/2", "/repos/o/r/pulls/3", "/repos/o/r/pulls/4":
+			fmt.Fprintf(w, `{"number":%s,"additions":10,"deletions":2,"changed_files":3}`, r.URL.Path[len("/repos/o/r/pulls/"):])
 		case "/repos/o/r/commits/sha1/check-runs", "/repos/o/r/commits/sha2/check-runs", "/repos/o/r/commits/sha3/check-runs", "/repos/o/r/commits/sha4/check-runs":
 			fmt.Fprintf(w, `{"check_runs":[{"id":%c,"status":"completed","started_at":"2026-11-11T09:01:00Z","completed_at":"2026-11-11T09:02:00Z"}]}`, r.URL.Path[len("/repos/o/r/commits/sha")])
 		default:
@@ -50,16 +52,21 @@ func TestReconcileFetchesDetailsOnlyForFactoryPRs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// 4 pr events, plus commits + reviews + 1 check run for PRs 2 and 3
-	if st.Added != 10 {
-		t.Errorf("first run added %d events, want 10", st.Added)
+	// 4 pr events, plus the full PR + commits + reviews + 1 check run for PRs 2 and 3
+	if st.Added != 12 {
+		t.Errorf("first run added %d events, want 12", st.Added)
+	}
+	var size string
+	if err := db.QueryRow(`SELECT json_extract(payload, '$.pr.additions') || '/' || json_extract(payload, '$.pr.changed_files') FROM events
+		WHERE id = 'o/r:pr:2:2026-11-11T09:00:00Z:full'`).Scan(&size); err != nil || size != "10/3" {
+		t.Errorf("full PR 2: size %q, %v; want 10/3", size, err)
 	}
 	for _, n := range []int{1, 2, 3, 4} {
 		want := 0
 		if n == 2 || n == 3 {
 			want = 1
 		}
-		for _, p := range []string{fmt.Sprintf("/repos/o/r/pulls/%d/commits", n), fmt.Sprintf("/repos/o/r/pulls/%d/reviews", n), fmt.Sprintf("/repos/o/r/commits/sha%d/check-runs", n)} {
+		for _, p := range []string{fmt.Sprintf("/repos/o/r/pulls/%d", n), fmt.Sprintf("/repos/o/r/pulls/%d/commits", n), fmt.Sprintf("/repos/o/r/pulls/%d/reviews", n), fmt.Sprintf("/repos/o/r/commits/sha%d/check-runs", n)} {
 			if hits[p] != want {
 				t.Errorf("%s: %d requests, want %d", p, hits[p], want)
 			}
@@ -86,7 +93,7 @@ func TestReconcileFetchesDetailsOnlyForFactoryPRs(t *testing.T) {
 		if _, err := Reconcile(db, "o/r", ""); err != nil {
 			t.Fatal(err)
 		}
-		for _, p := range []string{"/repos/o/r/pulls/4/commits", "/repos/o/r/pulls/4/reviews", "/repos/o/r/commits/sha4/check-runs"} {
+		for _, p := range []string{"/repos/o/r/pulls/4", "/repos/o/r/pulls/4/commits", "/repos/o/r/pulls/4/reviews", "/repos/o/r/commits/sha4/check-runs"} {
 			if hits[p] != 1 {
 				t.Errorf("after run %d: %s: %d requests, want 1", run, p, hits[p])
 			}

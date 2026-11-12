@@ -23,7 +23,7 @@ import (
 
 var update = flag.Bool("update", false, "rewrite golden expected files")
 
-// A golden case: factories, contract batches posted over HTTP, github events, and work items to report.
+// A golden case: factories, contract batches and OTLP logs posted over HTTP, github events, and work items to report.
 type goldenCase struct {
 	// id -> commit email, or id -> {"commit_email", "github_login"}
 	Factories map[string]json.RawMessage `json:"factories"`
@@ -35,7 +35,15 @@ type goldenCase struct {
 		Type, ID, TS string
 		Payload      json.RawMessage
 	} `json:"github"`
+	// OTLP/HTTP JSON bodies posted to /v1/logs: every request body of a capture file (path relative to the case,
+	// see testdata/captured), then the inline bodies
+	OTLP []struct {
+		Factory string            `json:"factory"`
+		Capture string            `json:"capture"`
+		Bodies  []json.RawMessage `json:"bodies"`
+	} `json:"otlp"`
 	Report []string `json:"report"`
+	Now    string   `json:"now"` // report time, RFC 3339; default fixedNow
 }
 
 func TestGolden(t *testing.T) {
@@ -81,18 +89,17 @@ func runGolden(t *testing.T, dir string) {
 	}
 	srv := httptest.NewServer(intake.Handler(db, nil))
 	defer srv.Close()
+	logs := httptest.NewServer(intake.LogsHandler(db, nil))
+	defer logs.Close()
 
 	var responses []json.RawMessage
-	for _, batch := range gc.Batches {
-		body, err := json.Marshal(batch.Events)
+	post := func(url, factory string, body []byte) {
+		req, err := http.NewRequest("POST", url, bytes.NewReader(body))
 		if err != nil {
 			t.Fatal(err)
 		}
-		req, err := http.NewRequest("POST", srv.URL, bytes.NewReader(body))
-		if err != nil {
-			t.Fatal(err)
-		}
-		req.Header.Set("Authorization", "Bearer "+tokens[batch.Factory])
+		req.Header.Set("Authorization", "Bearer "+tokens[factory])
+		req.Header.Set("Content-Type", "application/json")
 		resp, err := http.DefaultClient.Do(req)
 		if err != nil {
 			t.Fatal(err)
@@ -104,6 +111,36 @@ func runGolden(t *testing.T, dir string) {
 		}
 		responses = append(responses, bytes.TrimSpace(rb))
 	}
+	for _, batch := range gc.Batches {
+		body, err := json.Marshal(batch.Events)
+		if err != nil {
+			t.Fatal(err)
+		}
+		post(srv.URL, batch.Factory, body)
+	}
+	for _, o := range gc.OTLP {
+		var bodies []json.RawMessage
+		if o.Capture != "" {
+			b, err := os.ReadFile(filepath.Join(dir, o.Capture))
+			if err != nil {
+				t.Fatal(err)
+			}
+			var c struct {
+				Requests []struct {
+					Body json.RawMessage `json:"body"`
+				} `json:"requests"`
+			}
+			if err := json.Unmarshal(b, &c); err != nil {
+				t.Fatal(err)
+			}
+			for _, r := range c.Requests {
+				bodies = append(bodies, r.Body)
+			}
+		}
+		for _, b := range append(bodies, o.Bodies...) {
+			post(logs.URL, o.Factory, b)
+		}
+	}
 	for _, g := range gc.GitHub {
 		if _, err := store.InsertEvent(db, "github", "", g.ID, g.Type, g.TS, string(g.Payload), nil); err != nil {
 			t.Fatal(err)
@@ -113,7 +150,13 @@ func runGolden(t *testing.T, dir string) {
 	if err := Run(db); err != nil {
 		t.Fatal(err)
 	}
-	derived, reports := snapshot(t, db, gc.Report)
+	now := fixedNow
+	if gc.Now != "" {
+		if now, err = time.Parse(time.RFC3339, gc.Now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	derived, reports := snapshot(t, db, gc.Report, now)
 
 	var rejected []map[string]any
 	rows, err := db.Query(`SELECT factory_id, id, rejected FROM events WHERE rejected IS NOT NULL ORDER BY factory_id, id`)
@@ -142,7 +185,7 @@ func runGolden(t *testing.T, dir string) {
 	if err := Run(db); err != nil {
 		t.Fatal(err)
 	}
-	derived2, reports2 := snapshot(t, db, gc.Report)
+	derived2, reports2 := snapshot(t, db, gc.Report, now)
 	if !bytes.Equal(derived, derived2) || !bytes.Equal(reports, reports2) {
 		t.Fatalf("replay changed the result:\n%s\n---\n%s", derived, derived2)
 	}
@@ -153,7 +196,7 @@ var itemRe = regexp.MustCompile(`^(.+)#(\d+)$`)
 // fixedNow makes reports of unfinished attempts deterministic.
 var fixedNow = time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
 
-func snapshot(t *testing.T, db *sql.DB, items []string) (derived, reports []byte) {
+func snapshot(t *testing.T, db *sql.DB, items []string, now time.Time) (derived, reports []byte) {
 	d, err := dump(db)
 	if err != nil {
 		t.Fatal(err)
@@ -168,21 +211,21 @@ func snapshot(t *testing.T, db *sql.DB, items []string) (derived, reports []byte
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := report.Item(db, &buf, m[1], n, fixedNow); err != nil {
+		if err := report.Item(db, &buf, m[1], n, now); err != nil {
 			t.Fatal(err)
 		}
 		buf.WriteString("\n")
 	}
 	buf.WriteString("$ report items\n")
-	if err := report.Items(db, &buf, "", "", fixedNow); err != nil {
+	if err := report.Items(db, &buf, "", "", now); err != nil {
 		t.Fatal(err)
 	}
 	buf.WriteString("\n$ report factories\n")
-	if err := report.Factories(db, &buf, false, fixedNow); err != nil {
+	if err := report.Factories(db, &buf, false, now); err != nil {
 		t.Fatal(err)
 	}
 	buf.WriteString("\n$ report live\n")
-	if err := report.Live(db, &buf, fixedNow); err != nil {
+	if err := report.Live(db, &buf, now); err != nil {
 		t.Fatal(err)
 	}
 	return derived, buf.Bytes()

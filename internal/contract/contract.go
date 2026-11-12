@@ -29,7 +29,7 @@ type WorkItem struct {
 }
 
 // Payload is the union of the event payload fields FactoryBench reads; each type uses its own.
-// Other fields (e.g. base_commit, tool, branch) are allowed and stay in the raw payload.
+// Other fields (e.g. base_commit, summary, branch) are allowed and stay in the raw payload.
 type Payload struct {
 	// attempt.started
 	WorkItem             *WorkItem `json:"work_item"`
@@ -47,6 +47,13 @@ type Payload struct {
 	ReportedCostUSD *float64 `json:"reported_cost_usd"`
 	DurationMS      *int64   `json:"duration_ms"`
 	Phase           string   `json:"phase"`
+	// usage and activity: which subagent, if any (none = the main agent)
+	Agent         string `json:"agent"`
+	AgentID       string `json:"agent_id"`
+	ParentAgentID string `json:"parent_agent_id"`
+	// activity
+	Tool   string `json:"tool"`
+	Failed *bool  `json:"failed"`
 	// gate
 	Name   string `json:"name"`
 	Passed *bool  `json:"passed"`

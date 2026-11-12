@@ -1,5 +1,7 @@
 {
   "derived": {
+    "agent_runs": [],
+    "api_errors": [],
     "attempts": [
       {
         "attempt_id": "a1",
@@ -22,8 +24,10 @@
     "pr_commits": [],
     "prs": [],
     "reviews": [],
+    "tool_calls": [],
     "usage": [
       {
+        "agent_id": null,
         "attempt_id": "a1",
         "cache_read": null,
         "cache_write": null,

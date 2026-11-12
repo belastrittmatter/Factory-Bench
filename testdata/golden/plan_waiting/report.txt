@@ -32,7 +32,9 @@ first-pass PR approval       n/a
 review rounds / PR           n/a
 human interventions / issue  2.0 (2/1)
 escaped defects              0 on 0/1 PRs
+time to first PR             3m0s (1 issues)
 usage coverage               100% (1/1) attempts
+activity coverage            0% (0/1) attempts
 unpriced sessions            0
 rejected events              0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced

@@ -1,5 +1,7 @@
 {
   "derived": {
+    "agent_runs": [],
+    "api_errors": [],
     "attempts": [
       {
         "attempt_id": "p1",
@@ -32,7 +34,10 @@
     "pr_commits": [],
     "prs": [
       {
+        "additions": null,
         "branch": "agent/issue-2",
+        "changed_files": null,
+        "deletions": null,
         "factory_commits": 0,
         "human_commits": 0,
         "merged_at": null,
@@ -43,8 +48,10 @@
       }
     ],
     "reviews": [],
+    "tool_calls": [],
     "usage": [
       {
+        "agent_id": null,
         "attempt_id": "p1",
         "cache_read": null,
         "cache_write": null,

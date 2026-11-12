@@ -27,6 +27,13 @@ type mUse struct {
 	tokens      int64
 	cost        sql.NullFloat64
 	prov, phase sql.NullString
+	ms          sql.NullInt64
+}
+
+type mTool struct {
+	name string
+	ok   sql.NullBool
+	ms   sql.NullInt64
 }
 
 type mItem struct {
@@ -35,8 +42,9 @@ type mItem struct {
 }
 
 type mPR struct {
-	key, state string // key is repo#number
-	number     int64
+	key, state, merged string // key is repo#number; merged is "" if not merged
+	number             int64
+	add, del, files    sql.NullInt64
 }
 
 type mReview struct{ who, state, at string } // at is "" when not submitted
@@ -64,12 +72,17 @@ type metricsData struct {
 	checks   map[string][]mCheck
 	human    map[string][]mEvent // factory \x00 repo#issue, ordered by ts
 	rejected map[string]int
+	tools    map[string][]mTool // factory \x00 attempt
+	agents   map[string]int     // factory \x00 attempt -> subagent runs
+	apiErrs  map[string]int     // factory \x00 attempt
+	linked   map[string]string  // factory \x00 attempt -> first pr.linked ts
 }
 
 func loadMetrics(db *sql.DB) (*metricsData, error) {
 	d := &metricsData{usage: map[string][]mUse{}, gates: map[string][]mGate{}, items: map[string]*mItem{},
 		login: map[string]string{}, bot: map[string]bool{}, prs: map[string]*mPR{}, reviews: map[string][]mReview{},
-		commits: map[string][]mCommit{}, checks: map[string][]mCheck{}, human: map[string][]mEvent{}, rejected: map[string]int{}}
+		commits: map[string][]mCommit{}, checks: map[string][]mCheck{}, human: map[string][]mEvent{}, rejected: map[string]int{},
+		tools: map[string][]mTool{}, agents: map[string]int{}, apiErrs: map[string]int{}, linked: map[string]string{}}
 	key := func(repo string, n int64) string { return fmt.Sprintf("%s#%d", repo, n) }
 	return d, firstErr(
 		store.Each(db, `SELECT factory_id, attempt_id, repo, issue, coalesce(role, ''), config_version, state, started_at,
@@ -81,10 +94,10 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 					&a.parent, &a.ended, &a.pr, &a.waitMS)
 			}),
 		store.Each(db, `SELECT factory_id, attempt_id, input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0),
-			cost_usd, cost_provenance, phase FROM usage`, func(r *sql.Rows) error {
+			cost_usd, cost_provenance, phase, duration_ms FROM usage`, func(r *sql.Rows) error {
 			var f, id string
 			var u mUse
-			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase)
+			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase, &u.ms)
 			d.usage[f+"\x00"+id] = append(d.usage[f+"\x00"+id], u)
 			return err
 		}),
@@ -112,10 +125,11 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			}
 			return err
 		}),
-		store.Each(db, `SELECT url, repo, number, coalesce(state, '') FROM prs`, func(r *sql.Rows) error {
+		store.Each(db, `SELECT url, repo, number, coalesce(state, ''), coalesce(merged_at, ''), additions, deletions, changed_files
+			FROM prs`, func(r *sql.Rows) error {
 			var url, repo string
 			p := &mPR{}
-			err := r.Scan(&url, &repo, &p.number, &p.state)
+			err := r.Scan(&url, &repo, &p.number, &p.state, &p.merged, &p.add, &p.del, &p.files)
 			p.key = key(repo, p.number)
 			d.prs[url] = p
 			return err
@@ -164,6 +178,31 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			d.rejected[f] = n
 			return err
 		}),
+		store.Each(db, `SELECT factory_id, attempt_id, tool_name, success, duration_ms FROM tool_calls`, func(r *sql.Rows) error {
+			var f, id string
+			var t mTool
+			err := r.Scan(&f, &id, &t.name, &t.ok, &t.ms)
+			d.tools[f+"\x00"+id] = append(d.tools[f+"\x00"+id], t)
+			return err
+		}),
+		store.Each(db, `SELECT factory_id, attempt_id, 'a' FROM agent_runs UNION ALL SELECT factory_id, attempt_id, 'e' FROM api_errors`,
+			func(r *sql.Rows) error {
+				var f, id, kind string
+				err := r.Scan(&f, &id, &kind)
+				if kind == "a" {
+					d.agents[f+"\x00"+id]++
+				} else {
+					d.apiErrs[f+"\x00"+id]++
+				}
+				return err
+			}),
+		store.Each(db, `SELECT factory_id, json_extract(payload, '$.attempt_id'), min(ts) FROM events
+			WHERE source = 'contract' AND type = 'pr.linked' AND rejected IS NULL GROUP BY 1, 2`, func(r *sql.Rows) error {
+			var f, id, ts string
+			err := r.Scan(&f, &id, &ts)
+			d.linked[f+"\x00"+id] = ts
+			return err
+		}),
 	)
 }
 
@@ -191,6 +230,48 @@ type unit struct {
 	human, escaped, escapedPRs                    int
 	planN, planPass, prN, prPass                  int // first-pass approvals: denominators and passes
 	reviewedPRs, changesReq                       int
+	run                                           runStats
+}
+
+// runStats are the tool call, subagent and PR metrics of a unit, summed into its card by merge.
+type runStats struct {
+	withActivity, toolCalls, toolKnown, toolFailed, subagents, apiErrors int
+	modelMS, toolMS                                                      int64
+	tools                                                                map[string]int
+	sizedPRs, sizedNoUsage                                               int
+	added, deleted, files                                                int64
+	sizedCost                                                            cost // cost of units with a sized PR, for cost / changed line
+	toPR, toMerge                                                        time.Duration
+	nToPR, nToMerge, ciN, ciPass                                         int
+}
+
+func (s *runStats) merge(o runStats) {
+	s.withActivity += o.withActivity
+	s.toolCalls += o.toolCalls
+	s.toolKnown += o.toolKnown
+	s.toolFailed += o.toolFailed
+	s.subagents += o.subagents
+	s.apiErrors += o.apiErrors
+	s.modelMS += o.modelMS
+	s.toolMS += o.toolMS
+	if s.tools == nil {
+		s.tools = map[string]int{}
+	}
+	for k, v := range o.tools {
+		s.tools[k] += v
+	}
+	s.sizedPRs += o.sizedPRs
+	s.sizedNoUsage += o.sizedNoUsage
+	s.added += o.added
+	s.deleted += o.deleted
+	s.files += o.files
+	s.sizedCost.merge(o.sizedCost)
+	s.toPR += o.toPR
+	s.toMerge += o.toMerge
+	s.nToPR += o.nToPR
+	s.nToMerge += o.nToMerge
+	s.ciN += o.ciN
+	s.ciPass += o.ciPass
 }
 
 func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
@@ -235,7 +316,29 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 	open := false // an attempt still running: nothing can have escaped it yet
 	ids := map[string]*mAtt{}
 	seenPR := map[string]bool{}
+	linked := ""
+	u.run.tools = map[string]int{}
 	for _, a := range u.atts {
+		k := a.factory + "\x00" + a.id
+		if ts := d.linked[k]; ts != "" && (linked == "" || ts < linked) {
+			linked = ts
+		}
+		if len(d.tools[k]) > 0 {
+			u.run.withActivity++
+		}
+		for _, t := range d.tools[k] {
+			u.run.toolCalls++
+			u.run.tools[t.name]++
+			u.run.toolMS += t.ms.Int64
+			if t.ok.Valid {
+				u.run.toolKnown++
+				if !t.ok.Bool {
+					u.run.toolFailed++
+				}
+			}
+		}
+		u.run.subagents += d.agents[k]
+		u.run.apiErrors += d.apiErrs[k]
 		ids[a.id] = a
 		u.attempts++
 		if a.state == "failed" {
@@ -246,6 +349,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 			u.withUsage++
 		}
 		for _, s := range uses {
+			u.run.modelMS += s.ms.Int64
 			u.sessions++
 			u.tokens += s.tokens
 			u.cost.add(s.cost, s.prov)
@@ -276,6 +380,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 	}
 	u.elapsed = last.Sub(first)
 	u.active = u.elapsed - time.Duration(waitMS)*time.Millisecond
+	u.prStats(d, first, linked)
 
 	st := map[string]bool{}
 	for _, p := range u.prs {
@@ -369,6 +474,49 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 	}
 	if len(plans) == 1 {
 		u.planPass = 1
+	}
+}
+
+// prStats sets the unit's PR size, time to first PR and to merge (from its first attempt start), and CI on the first push.
+func (u *unit) prStats(d *metricsData, first time.Time, linked string) {
+	if linked != "" {
+		u.run.nToPR, u.run.toPR = 1, parse(linked).Sub(first)
+	}
+	merged := ""
+	for _, p := range u.prs {
+		if p.merged != "" && (merged == "" || p.merged < merged) {
+			merged = p.merged
+		}
+		if p.add.Valid && p.del.Valid {
+			u.run.sizedPRs++
+			u.run.added, u.run.deleted, u.run.files = u.run.added+p.add.Int64, u.run.deleted+p.del.Int64, u.run.files+p.files.Int64
+		}
+		// shortcut: the first push is the head SHA of the earliest-started check run; pushes without checks are invisible
+		var sha, at string
+		for _, c := range d.checks[p.key] {
+			if c.started != "" && (at == "" || c.started < at) {
+				sha, at = c.sha, c.started
+			}
+		}
+		runs, ok := 0, true
+		for _, c := range d.checks[p.key] {
+			if c.sha == sha && (c.concl == "success" || c.concl == "failure" || c.concl == "timed_out") {
+				runs++
+				ok = ok && c.concl == "success"
+			}
+		}
+		if runs > 0 {
+			u.run.ciN++
+			if ok {
+				u.run.ciPass++
+			}
+		}
+	}
+	if merged != "" {
+		u.run.nToMerge, u.run.toMerge = 1, parse(merged).Sub(first)
+	}
+	if u.run.sizedPRs > 0 {
+		u.run.sizedCost, u.run.sizedNoUsage = u.cost, u.attempts-u.withUsage
 	}
 }
 

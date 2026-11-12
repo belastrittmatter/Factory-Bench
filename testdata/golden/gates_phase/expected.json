@@ -1,5 +1,7 @@
 {
   "derived": {
+    "agent_runs": [],
+    "api_errors": [],
     "attempts": [
       {
         "attempt_id": "b1",
@@ -70,8 +72,10 @@
     "pr_commits": [],
     "prs": [],
     "reviews": [],
+    "tool_calls": [],
     "usage": [
       {
+        "agent_id": null,
         "attempt_id": "b1",
         "cache_read": 1000,
         "cache_write": null,
@@ -88,6 +92,7 @@
         "ts": "2026-11-11T10:04:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b1",
         "cache_read": 1000,
         "cache_write": null,
@@ -104,6 +109,7 @@
         "ts": "2026-11-11T10:07:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b2",
         "cache_read": 1000,
         "cache_write": null,
@@ -120,6 +126,7 @@
         "ts": "2026-11-11T10:14:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b2",
         "cache_read": 1000,
         "cache_write": null,
@@ -136,6 +143,7 @@
         "ts": "2026-11-11T10:18:00.000Z"
       },
       {
+        "agent_id": null,
         "attempt_id": "b2",
         "cache_read": 1000,
         "cache_write": null,

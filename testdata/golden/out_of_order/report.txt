@@ -29,6 +29,7 @@ review rounds / PR           n/a
 human interventions / issue  1.0 (1/1)
 escaped defects              n/a (no PRs)
 usage coverage               0% (0/1) attempts
+activity coverage            0% (0/1) attempts
 unpriced sessions            0
 rejected events              0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced

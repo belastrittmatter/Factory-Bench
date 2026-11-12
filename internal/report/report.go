@@ -85,6 +85,7 @@ type attempt struct {
 	parent, role, ended, pr             sql.NullString
 	waitMS                              int64
 	inferred                            bool
+	tools, toolsFailed, apiErrors       int
 	cost                                cost
 	in, out, cache                      sql.NullInt64 // token sums; cache is NULL when no session reported it
 }
@@ -179,11 +180,14 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		a.role, a.ended_at, a.pr_url, a.human_wait_ms,
 		coalesce((SELECT json_extract(e.payload, '$.payload.parent_attempt_id') IS NULL FROM events e
 		  WHERE e.source = 'contract' AND e.factory_id = a.factory_id AND e.type = 'attempt.started' AND e.rejected IS NULL
-		    AND json_extract(e.payload, '$.attempt_id') = a.attempt_id ORDER BY e.ts, e.id LIMIT 1), 0)
+		    AND json_extract(e.payload, '$.attempt_id') = a.attempt_id ORDER BY e.ts, e.id LIMIT 1), 0),
+		(SELECT count(*) FROM tool_calls t WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id),
+		(SELECT count(*) FROM tool_calls t WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id AND t.success = 0),
+		(SELECT count(*) FROM api_errors x WHERE x.factory_id = a.factory_id AND x.attempt_id = a.attempt_id)
 		FROM attempts a WHERE repo = ? AND issue = ? ORDER BY started_at, factory_id, attempt_id`, func(r *sql.Rows) error {
 		a := &attempt{}
 		if err := r.Scan(&a.factory, &a.id, &a.state, &a.started, &a.config, &a.parent, &a.role, &a.ended, &a.pr,
-			&a.waitMS, &a.inferred); err != nil {
+			&a.waitMS, &a.inferred, &a.tools, &a.toolsFailed, &a.apiErrors); err != nil {
 			return err
 		}
 		atts = append(atts, a)
@@ -240,6 +244,55 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 	}, repo, issue)
 	if err != nil {
 		return nil, nil, err
+	}
+
+	// Subagent runs, indented under their parent subagent; the line names the attempt (or parent) they ran in.
+	type run struct {
+		l                            line
+		factory, attempt, id, parent string
+	}
+	var runs []run
+	parents := map[string]string{} // factory \x00 attempt \x00 agent -> parent agent ("" = main agent)
+	err = store.Each(db, `SELECT r.factory_id, r.attempt_id, r.agent_id, coalesce(r.parent_agent_id, ''), coalesce(r.agent_type, '?'),
+		r.status, r.tool_calls, r.duration_ms, r.started_at,
+		(SELECT count(*) FROM tool_calls t WHERE t.factory_id = r.factory_id AND t.attempt_id = r.attempt_id
+		   AND t.agent_id = r.agent_id AND t.success = 0),
+		(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u
+		   WHERE u.factory_id = r.factory_id AND u.attempt_id = r.attempt_id AND u.agent_id = r.agent_id)
+		FROM agent_runs r JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ? AND a.issue = ?
+		ORDER BY r.started_at, r.factory_id, r.attempt_id, r.agent_id`, func(r *sql.Rows) error {
+		var k run
+		var typ, status, ts string
+		var calls, failed int64
+		var d, tokens sql.NullInt64
+		if err := r.Scan(&k.factory, &k.attempt, &k.id, &k.parent, &typ, &status, &calls, &d, &ts, &failed, &tokens); err != nil {
+			return err
+		}
+		parents[k.factory+"\x00"+k.attempt+"\x00"+k.id] = k.parent
+		in := "attempt " + k.attempt
+		if k.parent != "" {
+			in = "subagent " + k.parent
+		}
+		extra := fmt.Sprintf("%d tool calls", calls)
+		if failed > 0 {
+			extra += fmt.Sprintf(" (%d failed)", failed)
+		}
+		extra += ", " + tok(tokens) + " tokens"
+		if d.Valid {
+			extra += ", " + dur(time.Duration(d.Int64)*time.Millisecond)
+		}
+		k.l = line{ts, 1, k.factory, fmt.Sprintf("subagent %s (%s) in %s %s", k.id, typ, in, status), extra}
+		runs = append(runs, k)
+		return nil
+	}, repo, issue)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, k := range runs {
+		for p, depth := k.parent, 0; p != "" && depth < 8; p, depth = parents[k.factory+"\x00"+k.attempt+"\x00"+p], depth+1 { // a factory may send a parent loop
+			k.l.text = "  " + k.l.text
+		}
+		lines = append(lines, k.l)
 	}
 
 	err = store.Each(db, `SELECT g.factory_id, g.ts, g.name, g.passed, g.reason
@@ -312,8 +365,17 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 			if a.state == "waiting_for_human" { // finished its run, but a human still has to act
 				text = fmt.Sprintf("attempt %s finished, waiting for human", a.id)
 			}
-			lines = append(lines, line{a.ended.String, 3, a.factory, text,
-				dur(parse(a.ended.String).Sub(parse(a.started))) + ", " + a.cost.String()})
+			extra := dur(parse(a.ended.String).Sub(parse(a.started))) + ", " + a.cost.String()
+			if a.tools > 0 {
+				extra += fmt.Sprintf(", %d tool calls", a.tools)
+				if a.toolsFailed > 0 {
+					extra += fmt.Sprintf(" (%d failed)", a.toolsFailed)
+				}
+			}
+			if a.apiErrors > 0 {
+				extra += fmt.Sprintf(", %d API errors", a.apiErrors)
+			}
+			lines = append(lines, line{a.ended.String, 3, a.factory, text, extra})
 		}
 	}
 
@@ -447,7 +509,8 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 		len(atts), strings.Join(st, ", "), c.sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
 }
 
-// Live prints one row per attempt that is running or waiting for a human.
+// Live prints one row per attempt that is running or waiting for a human. The last tool column (latest tool call,
+// the agent that made it, how long ago) is only shown when one of the attempts has tool calls.
 func Live(db *sql.DB, w io.Writer, now time.Time) error {
 	rows, err := db.Query(`SELECT a.factory_id, a.repo, a.issue, a.attempt_id, a.state, a.started_at, a.human_wait_ms,
 		a.waiting_since,
@@ -455,21 +518,24 @@ func Live(db *sql.DB, w io.Writer, now time.Time) error {
 		   WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id),
 		(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id),
 		(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL),
-		(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)
+		(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id),
+		(SELECT tool_name || ' by ' || coalesce('subagent ' || agent_id, 'main') FROM tool_calls t
+		   WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id ORDER BY ts DESC, rowid DESC LIMIT 1),
+		(SELECT max(ts) FROM tool_calls t WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id)
 		FROM attempts a WHERE state IN ('running', 'waiting_for_human') ORDER BY started_at`)
 	if err != nil {
 		return err
 	}
 	defer rows.Close()
-	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(tw, "factory\tissue\tattempt\tstatus\telapsed\tactive\thuman wait\ttokens\tcost\tlast event")
+	var out []string
+	tools := false
 	for rows.Next() {
 		var f, repo, id, state, started string
 		var issue, waitMS, unpriced int64
-		var waitingSince, lastTS sql.NullString
+		var waitingSince, lastTS, lastTool, lastToolTS sql.NullString
 		var tokens sql.NullInt64
 		var cost sql.NullFloat64
-		if err := rows.Scan(&f, &repo, &issue, &id, &state, &started, &waitMS, &waitingSince, &tokens, &cost, &unpriced, &lastTS); err != nil {
+		if err := rows.Scan(&f, &repo, &issue, &id, &state, &started, &waitMS, &waitingSince, &tokens, &cost, &unpriced, &lastTS, &lastTool, &lastToolTS); err != nil {
 			return err
 		}
 		wait := time.Duration(waitMS) * time.Millisecond
@@ -484,11 +550,27 @@ func Live(db *sql.DB, w io.Writer, now time.Time) error {
 				c += " + unknown"
 			}
 		}
-		fmt.Fprintf(tw, "%s\t%s#%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s ago\n", f, repo, issue, id, state, dur(elapsed),
-			dur(elapsed-wait), dur(wait), tok(tokens), c, dur(now.Sub(parse(lastTS.String))))
+		tool := "-"
+		if lastTool.Valid {
+			tools, tool = true, lastTool.String+" "+dur(now.Sub(parse(lastToolTS.String)))+" ago"
+		}
+		out = append(out, fmt.Sprintf("%s\t%s#%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s ago\t%s\n", f, repo, issue, id, state, dur(elapsed),
+			dur(elapsed-wait), dur(wait), tok(tokens), c, dur(now.Sub(parse(lastTS.String))), tool))
 	}
 	if err := rows.Err(); err != nil {
 		return err
+	}
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	header := "factory\tissue\tattempt\tstatus\telapsed\tactive\thuman wait\ttokens\tcost\tlast event"
+	if tools {
+		header += "\tlast tool"
+	}
+	fmt.Fprintln(tw, header)
+	for _, l := range out {
+		if !tools {
+			l = l[:strings.LastIndex(l, "\t")] + "\n"
+		}
+		fmt.Fprint(tw, l)
 	}
 	return tw.Flush()
 }

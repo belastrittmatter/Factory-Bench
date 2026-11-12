@@ -32,7 +32,7 @@ type reconciler struct {
 	st          Stats
 }
 
-// Reconcile stores the 100 most recently updated PRs of repo, the commits, reviews, and check runs
+// Reconcile stores the 100 most recently updated PRs of repo, the full PR object (for its size), commits, reviews, and check runs
 // (reruns included) of the factory PRs among them, and every issue of repo a factory started an attempt on, once each, as events.
 // A factory PR is one linked by an accepted pr.linked event or authored by a factory's github_login; other PRs cost no
 // requests beyond the list call. A closed PR that hasn't changed since the last run and whose details are already stored is skipped,
@@ -173,8 +173,16 @@ func (r *reconciler) prs() error {
 	return nil
 }
 
-// prDetails stores the commits, reviews, and check runs of one factory PR.
+// prDetails stores the full PR object (the list endpoint has no additions, deletions or changed_files),
+// commits, reviews, and check runs of one factory PR.
 func (r *reconciler) prDetails(pr pullRequest, ts string) error {
+	var full json.RawMessage
+	if err := r.get(fmt.Sprintf("/repos/%s/pulls/%d", r.repo, pr.Number), &full); err != nil {
+		return err
+	}
+	if _, err := r.put("pr", fmt.Sprintf("pr:%d:%s:full", pr.Number, pr.UpdatedAt), ts, map[string]any{"repo": r.repo, "pr": full}); err != nil {
+		return err
+	}
 	var commits []json.RawMessage
 	if err := r.get(fmt.Sprintf("/repos/%s/pulls/%d/commits?per_page=100", r.repo, pr.Number), &commits); err != nil {
 		return err

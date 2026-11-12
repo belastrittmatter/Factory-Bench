@@ -31,16 +31,48 @@ func Open(path string) (*sql.DB, error) {
 	}
 	switch v {
 	case 0:
-		_, err = db.Exec(schema + ";PRAGMA user_version = 2")
-	case 1: // attempts is derived, so the new column only needs a rebuild
-		if _, err = db.Exec("ALTER TABLE attempts ADD COLUMN waiting_since TEXT; PRAGMA user_version = 2"); err == nil {
-			log.Print("database migrated to v2: run `factorybench replay` to fill attempts.waiting_since")
+		_, err = db.Exec(schema + ";PRAGMA user_version = 3")
+	case 1, 2:
+		if err = migrate(db, v); err == nil {
+			log.Print("database migrated to v3: run `factorybench replay` to fill the new derived tables and columns")
 		}
 	}
 	if err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
 	return db, nil
+}
+
+// migrate upgrades a v1 or v2 database to v3 in one transaction. Only events holds source data;
+// every other change is to derived tables, which `replay` refills.
+func migrate(db *sql.DB, from int) error {
+	q := ""
+	if from < 2 {
+		q = "ALTER TABLE attempts ADD COLUMN waiting_since TEXT;"
+	}
+	// SQLite can't alter the CHECK on events.source to allow 'otlp', so the table is copied.
+	q += "ALTER TABLE events RENAME TO events_v2;" + create("events") + ";INSERT INTO events SELECT * FROM events_v2; DROP TABLE events_v2;" +
+		create("tool_calls") + ";" + create("agent_runs") + ";" + create("api_errors") + `;
+		ALTER TABLE usage ADD COLUMN agent_id TEXT;
+		ALTER TABLE prs ADD COLUMN additions INTEGER;
+		ALTER TABLE prs ADD COLUMN deletions INTEGER;
+		ALTER TABLE prs ADD COLUMN changed_files INTEGER;
+		PRAGMA user_version = 3`
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(q); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// create returns the CREATE TABLE statement for table from schema.sql, so migrations and fresh databases agree.
+func create(table string) string {
+	s := schema[strings.Index(schema, "CREATE TABLE "+table+" ("):]
+	return s[:strings.Index(s, "\n);")+3]
 }
 
 // Querier is a *sql.DB or a *sql.Tx.
