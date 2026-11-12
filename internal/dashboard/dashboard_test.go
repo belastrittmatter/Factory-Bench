@@ -35,6 +35,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 'Bash', 0, 12, 'ShellError')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `"}')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e2', 'otlp.tool_decision', '` + ts(18*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","tool_name":"T9","decision":"reject","source":"cfg"}')`,
 	} {
 		if _, err := rw.Exec(q); err != nil {
 			t.Fatal(err, q)
@@ -128,6 +129,12 @@ func TestEndpoints(t *testing.T) {
 	}
 	if u := at["usage"].([]any)[0].(map[string]any); u["lane"] != "" || at["dispatches"] == nil { // the fixture's dispatches are hours away
 		t.Errorf("lanes: %v %v", u, at["dispatches"])
+	}
+	if tl := at["tools_by_lane"].([]any); len(tl) != 1 || tl[0].(map[string]any)["calls"].(float64) != 1 {
+		t.Errorf("tools by lane: %v", tl)
+	}
+	if td := at["tool_decisions"].([]any); len(td) != 1 || td[0].(map[string]any)["decision"] != "reject" || td[0].(map[string]any)["n"].(float64) != 1 {
+		t.Errorf("tool decisions: %v", td)
 	}
 	if get(t, h, "/api/attempt?factory=f&id=nope", nil).Code != 404 {
 		t.Error("missing attempt")

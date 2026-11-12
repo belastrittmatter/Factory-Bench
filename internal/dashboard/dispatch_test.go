@@ -199,3 +199,25 @@ func TestSummarize(t *testing.T) {
 		t.Errorf("empty: %+v", z)
 	}
 }
+
+func TestToolsByLane(t *testing.T) {
+	day := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	m := func(n int) time.Time { return day.Add(time.Duration(n) * time.Minute) }
+	no, yes := false, true
+	rows := []dispatchRow{{Lane: "alpha", At: m(0), End: m(10)}, {Lane: "beta", At: m(20), End: m(30)}}
+	calls := []toolCall{
+		{m(1), "t1", &yes}, {m(2), "t2", &no}, {m(3), "t1", nil},
+		{m(15), "t1", &yes}, // between dispatches
+		{m(21), "t3", &no},
+	}
+	got := toolsByLane(rows, calls)
+	if len(got) != 3 || got[0].Lane != "alpha" || got[0].Calls != 3 || got[1].Lane != "" || got[2].Lane != "beta" {
+		t.Fatalf("lanes: %+v", got)
+	}
+	if a := got[0].Tools; a[0].Tool != "t1" || a[0].Calls != 2 || a[0].Failed != 0 || a[1].Tool != "t2" || a[1].Failed != 1 {
+		t.Errorf("alpha tools: %+v", a)
+	}
+	if len(toolsByLane(nil, nil)) != 0 {
+		t.Error("empty")
+	}
+}

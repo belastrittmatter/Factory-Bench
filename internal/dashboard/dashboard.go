@@ -350,6 +350,31 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		}
 	}
 	res["dispatches"] = mine
+	var tcs []toolCall
+	err = store.Each(s.db, `SELECT ts, tool_name, success FROM tool_calls WHERE factory_id = ? AND attempt_id = ? ORDER BY ts`, func(r *sql.Rows) error {
+		var ts string
+		var c toolCall
+		var ok sql.NullBool
+		if err := r.Scan(&ts, &c.Tool, &ok); err != nil {
+			return err
+		}
+		c.TS = parseTS(ts)
+		if ok.Valid {
+			c.Success = &ok.Bool
+		}
+		tcs = append(tcs, c)
+		return nil
+	}, f, id)
+	if err != nil {
+		return nil, err
+	}
+	res["tools_by_lane"] = toolsByLane(mine, tcs)
+	// tool decisions as the agent reported them: a rejected tool never runs, so it has no tool call row
+	if res["tool_decisions"], err = rows(s.db, `SELECT json_extract(payload, '$.tool_name') AS tool_name, json_extract(payload, '$.decision') AS decision,
+		json_extract(payload, '$.source') AS source, count(*) AS n FROM events WHERE source = 'otlp' AND factory_id = ?1 AND type = 'otlp.tool_decision'
+		AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1, 2, 3 ORDER BY n DESC`, f, id); err != nil {
+		return nil, err
+	}
 	for _, k := range []string{"usage", "tool_calls", "api_errors", "gates"} {
 		for _, r := range res[k].([]map[string]any) {
 			r["lane"] = laneAt(mine, parseTS(r["ts"]))

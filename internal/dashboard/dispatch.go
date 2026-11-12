@@ -288,3 +288,58 @@ func laneAt(rows []dispatchRow, ts time.Time) string {
 	}
 	return lane
 }
+
+// toolCall is one tool call, for the per-lane breakdown.
+type toolCall struct {
+	TS      time.Time
+	Tool    string
+	Success *bool
+}
+
+// laneTools is one lane's tool use; Lane "" = calls made outside every dispatch.
+type laneTools struct {
+	Lane  string      `json:"lane"`
+	Calls int         `json:"calls"`
+	Tools []toolCount `json:"tools"` // most used first
+}
+
+type toolCount struct {
+	Tool   string `json:"tool"`
+	Calls  int    `json:"calls"`
+	Failed int    `json:"failed"`
+}
+
+// toolsByLane counts every tool call per lane (laneAt) and tool, lanes in order of first use.
+func toolsByLane(rows []dispatchRow, calls []toolCall) []laneTools {
+	out := []laneTools{}
+	idx := map[string]int{}
+	for _, c := range calls {
+		l := laneAt(rows, c.TS)
+		i, ok := idx[l]
+		if !ok {
+			out = append(out, laneTools{Lane: l})
+			i = len(out) - 1
+			idx[l] = i
+		}
+		lt := &out[i]
+		lt.Calls++
+		j := -1
+		for k, t := range lt.Tools {
+			if t.Tool == c.Tool {
+				j = k
+			}
+		}
+		if j < 0 {
+			lt.Tools = append(lt.Tools, toolCount{Tool: c.Tool})
+			j = len(lt.Tools) - 1
+		}
+		lt.Tools[j].Calls++
+		if c.Success != nil && !*c.Success {
+			lt.Tools[j].Failed++
+		}
+	}
+	for _, lt := range out {
+		sort.SliceStable(lt.Tools, func(a, b int) bool { return lt.Tools[a].Calls > lt.Tools[b].Calls })
+	}
+	return out
+}
