@@ -28,7 +28,35 @@ type Options struct {
 	Addr        string        // listen address; local views need a loopback one
 	Runs        string        // super-board runs dir: <date>-<name>.md manifests and <date>-<name>-workers/ logs
 	Transcripts string        // Claude Code project dir with <session id>.jsonl files
-	Stuck       time.Duration // a running attempt with no event for this long is stuck
+	Idle        time.Duration // a running attempt with no event for this long is idle; 0 = DefaultIdleTimeout
+}
+
+// DefaultIdleTimeout is how long a running attempt may go without any event before it shows as idle instead of live.
+const DefaultIdleTimeout = 10 * time.Minute
+
+// status is the state to show for an attempt: running with no event within idle (or no event at all) is "idle".
+func status(state string, lastEvent *time.Time, now time.Time, idle time.Duration) string {
+	if state == "running" && (lastEvent == nil || now.Sub(*lastEvent) > idle) {
+		return "idle"
+	}
+	return state
+}
+
+// lastEventSQL is the newest event of attempt a (any source), the input to status.
+const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
+
+// withStatus adds "status" to attempt rows that carry state and last_event.
+func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
+	for _, r := range rs {
+		var last *time.Time
+		if v, ok := r["last_event"].(string); ok {
+			if t, err := time.Parse(time.RFC3339Nano, v); err == nil {
+				last = &t
+			}
+		}
+		state, _ := r["state"].(string)
+		r["status"] = status(state, last, now, idle)
+	}
 }
 
 // OpenReadOnly opens the database without ever writing or migrating it. It refuses a schema older than v3.
@@ -61,6 +89,9 @@ func loopback(hostport string) bool {
 // Handler returns the dashboard.
 func Handler(db *sql.DB, o Options) http.Handler {
 	local := loopback(o.Addr)
+	if o.Idle <= 0 {
+		o.Idle = DefaultIdleTimeout
+	}
 	s := &server{db: db, o: o, local: local}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -73,7 +104,7 @@ func Handler(db *sql.DB, o Options) http.Handler {
 		w.Write(page)
 	})
 	mux.HandleFunc("/api/meta", s.json(func(r *http.Request) (any, error) {
-		return map[string]any{"now": time.Now().UTC(), "stuck_s": o.Stuck.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != ""}, nil
+		return map[string]any{"now": time.Now().UTC(), "idle_s": o.Idle.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != ""}, nil
 	}))
 	mux.HandleFunc("/api/live", s.json(s.live))
 	mux.HandleFunc("/api/items", s.json(func(r *http.Request) (any, error) { return report.ItemRows(db, time.Now()) }))
@@ -159,7 +190,7 @@ func rows(db *sql.DB, query string, args ...any) ([]map[string]any, error) {
 
 func secs(d time.Duration) float64 { return d.Seconds() }
 
-// live is report.LiveRows plus the attempt's role, latest usage phase, super-board lane and a stuck flag.
+// live is report.LiveRows plus the attempt's role, latest usage phase, super-board lane and its shown status (running or idle).
 func (s *server) live(r *http.Request) (any, error) {
 	now := time.Now()
 	lr, err := report.LiveRows(s.db, now)
@@ -172,7 +203,8 @@ func (s *server) live(r *http.Request) (any, error) {
 		LastEventAgeS            *float64 // nil = no event at all
 		LastToolAgeS             *float64
 		Role, Phase, Lane        *string
-		Stuck                    bool
+		Status                   string // state, or "idle" (see status)
+		Idle                     bool
 		HasWaitEvents            bool // false: human wait is unavailable, not zero
 	}
 	out := []row{}
@@ -186,7 +218,8 @@ func (s *server) live(r *http.Request) (any, error) {
 			a := secs(now.Sub(*l.LastToolAt))
 			x.LastToolAgeS = &a
 		}
-		x.Stuck = l.State == "running" && (x.LastEventAgeS == nil || now.Sub(*l.LastEvent) > s.o.Stuck)
+		x.Status = status(l.State, l.LastEvent, now, s.o.Idle)
+		x.Idle = x.Status == "idle"
 		s.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM events WHERE factory_id = ? AND type IN ('human.waiting', 'human.resumed')
 			AND json_extract(payload, '$.attempt_id') = ?)`, l.Factory, l.Attempt).Scan(&x.HasWaitEvents)
 		var role, phase sql.NullString
@@ -234,7 +267,7 @@ func (s *server) item(r *http.Request) (any, error) {
 		"attempts": `SELECT a.factory_id, a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
 			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
 			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
-			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens
+			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
 		"prs": `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
@@ -248,6 +281,7 @@ func (s *server) item(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
+	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	return res, nil
 }
 
@@ -260,7 +294,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	res := map[string]any{}
 	var err error
 	for _, q := range []struct{ key, sql string }{
-		{"attempt", `SELECT * FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2`},
+		{"attempt", `SELECT a.*, ` + lastEventSQL + ` AS last_event, EXISTS (SELECT 1 FROM events e WHERE e.factory_id = a.factory_id
+			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id) AS has_wait_events
+			FROM attempts a WHERE factory_id = ?1 AND attempt_id = ?2`},
 		{"usage", `SELECT ts, model, agent_id, phase, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"phases", `SELECT phase, count(*) AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
 			sum(cost_usd IS NULL) AS unpriced, sum(duration_ms) AS duration_ms FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY phase`},
@@ -280,6 +316,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	if a := res["attempt"].([]map[string]any); len(a) == 0 {
 		return nil, httpError{http.StatusNotFound, "no such attempt"}
 	} else {
+		withStatus(a, time.Now(), s.o.Idle)
 		res["attempt"] = a[0]
 	}
 	if s.local && s.o.Runs != "" {
@@ -295,7 +332,7 @@ func (s *server) series(r *http.Request) (any, error) {
 	var err error
 	for _, q := range []struct{ key, sql string }{
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.started_at, a.ended_at, a.human_wait_ms,
-			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title
+			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title, ` + lastEventSQL + ` AS last_event
 			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
@@ -311,5 +348,6 @@ func (s *server) series(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
+	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	return res, nil
 }

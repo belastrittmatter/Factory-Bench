@@ -233,7 +233,7 @@ const ago=s=>{const d=T(s);return d?fmtDur((Date.now()-d)/1000)+' ago':'?'};
 const shortId=s=>s.length>14?s.slice(0,11)+'…':s;
 const get=async u=>{const r=await fetch(u,{cache:'no-store'});const j=await r.json().catch(()=>({error:r.statusText}));if(!r.ok)throw new Error(j.error||r.status);return j};
 const store={get(k,d){try{return JSON.parse(localStorage.getItem('fb.'+k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem('fb.'+k,JSON.stringify(v))}catch(e){}}};
-const STATE={running:'good',waiting_for_human:'warn',completed:'plain',failed:'crit',cancelled:'plain',merged:'good',open:'info',rejected:'crit',closed:'crit',reworked:'warn',reverted:'crit',killed:'crit',success:'good',failure:'crit',timed_out:'crit',APPROVED:'good',CHANGES_REQUESTED:'crit'};
+const STATE={idle:'warn',running:'good',waiting_for_human:'warn',completed:'plain',failed:'crit',cancelled:'plain',merged:'good',open:'info',rejected:'crit',closed:'crit',reworked:'warn',reverted:'crit',killed:'crit',success:'good',failure:'crit',timed_out:'crit',APPROVED:'good',CHANGES_REQUESTED:'crit'};
 const chip=(t,k)=>`<span class="chip ${k??STATE[t]??'plain'}">${esc(String(t).replace(/_/g,' ').toLowerCase())}</span>`;
 const SER=['--s1','--s2','--s3','--s4','--s5','--s6','--s7','--s8'].map(v=>`var(${v})`);
 // color follows the entity: a fixed slot per key, in first-seen order, never by rank
@@ -350,7 +350,8 @@ V.overview=async()=>{
   const failed=ar.filter(a=>a.state==='failed').length;
   const merged=s.merged.filter(m=>keep(m)&&inR(m.merged_at)).length;
   const live=LIVE.filter(l=>keep({factory_id:l.Factory,repo:l.Repo,config_version:(atts.find(a=>a.attempt_id===l.Attempt)||{}).config_version}));
-  const stuck=live.filter(l=>l.Stuck).length;
+  // live = sent an event within the idle timeout; idle attempts never count as running
+  const running=live.filter(l=>l.Status==='running'),idle=live.filter(l=>l.Idle),waiting=live.filter(l=>l.Status==='waiting_for_human');
   const items=new Set(ar.map(a=>a.repo+'#'+a.issue)).size;
   // spend chart: hourly for 24h, else daily
   const bucket={'24h':36e5,'7d':216e5}[F.range]||864e5,hourly=bucket<864e5;
@@ -372,7 +373,7 @@ V.overview=async()=>{
   const W1=W($('#main'))-60;
   return topbar('Overview',filterBar(optsOf(s.attempts)))+
   `<div class="kpis">
-    ${kpi('Running now',live.length,stuck?`<span style="color:var(--crit)">${stuck} stuck</span>`:'none stuck',stuck?'alert':'')}
+    ${kpi('Running now',running.length,[`${idle.length} idle`,`${waiting.length} waiting`].join(' · '),idle.length?'alert':'')}
     ${kpi('Spend',esc(fmtUsd(cost))+(unp?'<span class="muted" style="font-size:15px"> +?</span>':''),`${fmtTok(tokens)} tokens`)}
     ${kpi('Attempts',ar.length,`${items} issue${items===1?'':'s'} · ${failed} failed`)}
     ${kpi('Merged issues',merged,merged?`${esc(fmtUsd(cost/merged))} per merged issue${unp?' +?':''}`:'cost per merged: n/a')}
@@ -386,15 +387,16 @@ V.overview=async()=>{
    <div class="card c6"><div class="head"><div><h3>Running now</h3><div class="hint">Refreshes every 5 s</div></div><a class="sub" href="#live">All live →</a></div>
      ${live.length?table([
        {h:'Issue',f:l=>`<b>#${l.Issue}</b> <span class="muted">${esc(l.Repo.split('/')[1])}</span>`},
-       {h:'Status',f:l=>l.Stuck?chip('stuck','crit'):chip(l.State)},
+       {h:'Status',f:l=>chip(l.Status)},
        {h:'Lane / phase',f:l=>esc(l.Lane??l.Role??'?')+(l.Phase&&l.Phase!==(l.Lane??l.Role)?` <span class="muted">/ ${esc(l.Phase)}</span>`:'')},
        {h:'Elapsed',n:1,f:l=>dur(l.ElapsedS)},{h:'Cost',n:1,f:l=>usd(l.Cost,l.Unpriced>0)},
-       {h:'Last event',n:1,f:l=>nil(l.LastEventAgeS)?U:fmtDur(l.LastEventAgeS)+' ago'}],live,{href:l=>attHref(l.Factory,l.Attempt),cls:l=>l.Stuck?'stuck':''}):'<div class="empty">Nothing running</div>'}</div>
+       {h:'Last event',n:1,f:l=>nil(l.LastEventAgeS)?U:fmtDur(l.LastEventAgeS)+' ago'}],live.filter(l=>!l.Idle),{href:l=>attHref(l.Factory,l.Attempt)}):'<div class="empty">Nothing running</div>'}
+     ${idle.length?`<div class="head" style="margin-top:14px"><div><h3>Idle</h3><div class="hint">No finish event and no event for ${esc(fmtDur(meta.idle_s))}</div></div></div><div style="display:flex;flex-wrap:wrap;gap:6px 18px">${idle.map(l=>`<a href="${attHref(l.Factory,l.Attempt)}">${chip('idle','warn')} <b class="mono">#${l.Issue}</b> <span class="muted">since ${esc(l.LastEvent?fmtWhen(l.LastEvent):'?')}</span></a>`).join('')}</div>`:''}</div>
    <div class="card c6"><h3>Tool mix</h3><div class="hint">Calls per tool, failures in red</div>${hbars(tools,v=>String(v))}</div>
    <div class="card c12"><div class="head"><div><h3>Recent attempts</h3></div><a class="sub" href="#items">All issues →</a></div>
      ${table([
       {h:'Started',f:a=>esc(fmtWhen(a.started_at))},{h:'Issue',f:a=>`<b>#${a.issue}</b> <span class="sub">${esc(a.title||a.repo)}</span>`,c:'t'},
-      {h:'Factory',f:a=>esc(a.factory_id)},{h:'State',f:a=>chip(a.state)},
+      {h:'Factory',f:a=>esc(a.factory_id)},{h:'State',f:a=>chip(a.status||a.state)},
       {h:'Duration',n:1,f:a=>dur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)},{h:'Tokens',n:1,f:a=>tok(a.tokens)},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],recent,{href:a=>attHref(a.factory_id,a.attempt_id),empty:'No attempts in range'})}</div>
   </div>`;
 };
@@ -415,15 +417,15 @@ V.live=async()=>{
   const cards=live.map((l,i)=>{
     const d=details[i],a=cfg[l.Attempt]||{};let spark='';
     if(d&&d.usage.length){let c=0;const pts=[{t:T(l.Started),v:0,tip:'start'}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} by ${fmtTime(T(u.ts))}`}}));pts.push({t:new Date(),v:c,tip:`${fmtUsd(c)} now`});spark=area(Math.min(560,W($('#main'))/Math.max(1,Math.floor(W($('#main'))/380))-40),96,pts,fmtUsd,'var(--s1)').replace('class="chart xh"','class="chart"')}
-    return `<a class="lcard ${l.Stuck?'stuck':''}" href="${attHref(l.Factory,l.Attempt)}">
-      <div class="r1"><span class="id">#${l.Issue} <span class="muted" style="font-weight:400">${esc(l.Repo)}</span></span>${l.Stuck?chip('stuck','crit'):''}${chip(l.State)}</div>
+    return `<a class="lcard ${l.Idle?'stuck':''}" href="${attHref(l.Factory,l.Attempt)}">
+      <div class="r1"><span class="id">#${l.Issue} <span class="muted" style="font-weight:400">${esc(l.Repo)}</span></span>${chip(l.Idle?'idle since '+(l.LastEvent?fmtTime(T(l.LastEvent)):'?'):l.Status,l.Idle?'warn':undefined)}</div>
       <div class="title">${esc(a.title||'untitled')}</div>
       <div class="meta" style="margin:0 0 6px">${chip((l.Lane??l.Role??'lane ?'),'info')}${l.Phase&&l.Phase!==(l.Lane??l.Role)?chip(l.Phase,'plain'):''}<span class="muted">${esc(l.Factory)} · ${esc(shortId(l.Attempt))}</span></div>
       ${spark||'<div class="empty" style="padding:22px">no usage yet</div>'}
       <div class="lstats"><div><div class="l">Elapsed</div><div class="v">${dur(l.ElapsedS)}</div></div><div><div class="l">Active</div><div class="v">${dur(l.ActiveS)}</div></div><div><div class="l">Tokens</div><div class="v">${tok(l.Tokens)}</div></div><div><div class="l">Cost</div><div class="v">${usd(l.Cost,l.Unpriced>0)}</div></div></div>
       <div class="lfoot"><span>last event ${nil(l.LastEventAgeS)?'?':fmtDur(l.LastEventAgeS)+' ago'}</span><span>${l.LastTool?esc(l.LastTool)+' · '+fmtDur(l.LastToolAgeS)+' ago':'no tool calls'}</span><span>wait ${l.HasWaitEvents?fmtDur(l.WaitS):'n/a'}</span></div></a>`}).join('');
   return topbar(`Live <span class="muted" style="font-weight:450">${live.length} running or waiting</span>`,filterBar(optsOf(s.attempts),{time:false}))+
-   (live.length?`<div class="hint muted" style="margin:-8px 0 12px">Stuck = running with no event for ${Math.round(meta.stuck_s/60)} min · refreshes every 5 s</div><div class="lgrid">${cards}</div>`:'<div class="card"><div class="empty">Nothing is running right now.</div></div>');
+   (live.length?`<div class="hint muted" style="margin:-8px 0 12px">Idle = no finish event and no event for ${esc(fmtDur(meta.idle_s))} · refreshes every 5 s</div><div class="lgrid">${cards}</div>`:'<div class="card"><div class="empty">Nothing is running right now.</div></div>');
 };
 
 V.items=async()=>{
@@ -522,7 +524,7 @@ V.item=async(repo,issue)=>{
   <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&(f.dispatches||[]).length?'Lanes from the run manifest (red = bounced back, dashed = re-dispatched), then each attempt, then GitHub events. ':'Each attempt, then GitHub events. '}Click an attempt bar to open it.</div>${gantt(w,d.attempts,d.timeline,f.dispatches)}</div>
   <div class="card c8"><h3>Events</h3><div class="hint">Every event of every attempt, from <span class="mono">report item</span>. Toggle kinds to filter.</div>${timelineHtml(d.timeline)}</div>
   <div class="c4" style="display:flex;flex-direction:column;gap:14px;min-width:0">
-   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt',f:a=>`<b>${esc(a.role||shortId(a.attempt_id))}</b><div class="muted">${esc(fmtWhen(a.started_at))}</div>`},{h:'State',f:a=>chip(a.state)},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
+   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt',f:a=>`<b>${esc(a.role||shortId(a.attempt_id))}</b><div class="muted">${esc(fmtWhen(a.started_at))}</div>`},{h:'State',f:a=>chip(a.status||a.state)},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
    <div class="card"><h3>Pull requests</h3>${d.prs.length?d.prs.map(p=>`<div style="margin:6px 0 10px"><div style="display:flex;gap:8px;align-items:center"><a href="${esc(p.url)}" target="_blank" rel="noreferrer noopener"><b>#${p.number}</b></a>${chip(p.state)}<span class="muted" style="margin-left:auto">${nil(p.additions)?'size ?':`<span style="color:var(--good)">+${p.additions}</span> <span style="color:var(--crit)">−${p.deletions}</span> · ${p.changed_files} files`}</span></div>
      <div class="muted">${p.factory_commits} factory · ${p.human_commits} human commits${p.merged_at?' · merged '+esc(fmtWhen(p.merged_at)):''}</div></div>`).join(''):'<div class="empty">No PR linked yet</div>'}
      ${d.reviews.length?`<h3 style="margin-top:10px">Reviews</h3>${d.reviews.map(r=>`<div style="display:flex;gap:8px;margin:4px 0">${chip(r.state)}<span>${esc(r.reviewer)}</span><span class="muted" style="margin-left:auto">${esc(fmtWhen(r.submitted_at))}</span></div>`).join('')}`:''}</div>
@@ -552,11 +554,11 @@ V.attempt=async(f,id)=>{
     [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
   return `<div class="crumbs"><a href="#items">Issues</a>›<a href="${itemHref(a.repo,a.issue)}">${esc(a.repo)}#${a.issue}</a>›<span>${esc(id)}</span></div>`+topbar(`Attempt <span class="mono" style="font-size:15px;font-weight:500">${esc(shortId(id))}</span>`,(local?`<button class="btn" data-open-local>${ico('lock')} Conversation</button>`:''))+
   `
-  <div class="meta">${chip(a.state)}<span>factory <b>${esc(a.factory_id)}</b></span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
+  <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
   <div class="kpis">
    ${kpi('Cost',usd(cost,unp||!d.usage.length),`${d.usage.length} sessions`)}
    ${kpi('Tokens',d.usage.length?esc(fmtTok(tokens)):U,d.usage.length?`${fmtTok(d.usage.reduce((s,u)=>s+(u.cache_read||0),0))} cache read`:'no usage reported')}
-   ${kpi('Elapsed',esc(fmtDur(el)),`active ${fmtDur(el-(a.human_wait_ms||0)/1000)}${a.ended_at?'':' · still running'}`)}
+   ${kpi('Elapsed',esc(fmtDur(el)),(a.has_wait_events?`active ${fmtDur(el-(a.human_wait_ms||0)/1000)}`:'active n/a (no wait events reported)')+(a.ended_at?'':a.status==='idle'?' · idle':' · still running'))}
    ${kpi('Tool calls',calls,`${failed} failed${calls?' · '+Math.round(failed/calls*100)+'%':''}`,failed?'':'')}
    ${kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':'')}
   </div>
@@ -622,11 +624,11 @@ async function loadLocal(kind,arg){
 
 // ---------- shell
 function renderNav(){
-  const v=(location.hash.slice(1)||'overview').split('/')[0],stuck=LIVE.filter(l=>l.Stuck).length;
+  const v=(location.hash.slice(1)||'overview').split('/')[0],idle=LIVE.filter(l=>l.Idle).length,running=LIVE.filter(l=>l.Status==='running').length;
   const sect={item:'items',attempt:'items'}[v]||v;
   const spend=LIVE.reduce((a,l)=>a+(l.Cost||0),0);
-  $('#ticker').innerHTML=`<span><span class="pulse ${LIVE.length?'':'off'}"></span><b>${LIVE.length}</b> running</span>${stuck?`<span style="color:var(--hot)"><b style="color:inherit">${stuck}</b> stuck</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
-  $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${stuck?'crit':''}">${stuck?stuck+' stuck':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
+  $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
+  $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${idle?'crit':''}">${idle?idle+' idle':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
 }
 let token=0,timer=null;
 async function render(soft){

@@ -54,7 +54,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 {"type":"assistant","timestamp":"t","message":{"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"ok"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}
 {"type":"user","timestamp":"t","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"file.go"}]}]}}
 `), 0o644)
-	o := Options{Addr: "127.0.0.1:8081", Runs: runs, Transcripts: tr, Stuck: 10 * time.Minute}
+	o := Options{Addr: "127.0.0.1:8081", Runs: runs, Transcripts: tr, Idle: DefaultIdleTimeout}
 	return &server{db: db, o: o, local: true}, Handler(db, o), dir
 }
 
@@ -77,7 +77,7 @@ func TestEndpoints(t *testing.T) {
 
 	var live []map[string]any
 	get(t, h, "/api/live", &live)
-	if len(live) != 1 || live[0]["Stuck"] != true || live[0]["Phase"] != "implement" || live[0]["HasWaitEvents"] != false {
+	if len(live) != 1 || live[0]["Status"] != "idle" || live[0]["Idle"] != true || live[0]["Phase"] != "implement" || live[0]["HasWaitEvents"] != false {
 		t.Errorf("live: %v", live)
 	}
 	if live[0]["Lane"] != nil { // dispatches are for another time window than this attempt
@@ -95,6 +95,9 @@ func TestEndpoints(t *testing.T) {
 
 	var item map[string]any
 	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	if a := item["attempts"].([]any)[0].(map[string]any); a["status"] != "idle" {
+		t.Errorf("item attempt status: %v", a)
+	}
 	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
@@ -117,13 +120,16 @@ func TestEndpoints(t *testing.T) {
 	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid {
 		t.Errorf("sessions: %v", s)
 	}
+	if a := at["attempt"].(map[string]any); a["status"] != "idle" || a["has_wait_events"].(float64) != 0 || a["last_event"] == nil {
+		t.Errorf("attempt status: %v", a)
+	}
 	if get(t, h, "/api/attempt?factory=f&id=nope", nil).Code != 404 {
 		t.Error("missing attempt")
 	}
 
 	var se map[string][]map[string]any
 	get(t, h, "/api/series", &se)
-	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" {
+	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" {
 		t.Errorf("series attempts: %v", a)
 	}
 	if u := se["usage"]; len(u) != 1 || u[0]["sessions"].(float64) != 2 || u[0]["cost_usd"].(float64) != 0.5 {
@@ -200,5 +206,25 @@ func TestLocalFiles(t *testing.T) {
 	get(t, h, "/api/local/transcript?session="+sid, &tr)
 	if len(tr.Entries) != 4 || tr.Entries[1].Text != "ok" || tr.Entries[2].Kind != "tool_use" || tr.Entries[3].Text != "file.go" {
 		t.Errorf("transcript: %+v", tr.Entries)
+	}
+}
+
+func TestStatus(t *testing.T) {
+	now := time.Date(2026, 1, 2, 12, 0, 0, 0, time.UTC)
+	ago := func(d time.Duration) *time.Time { t := now.Add(-d); return &t }
+	for _, c := range []struct {
+		state string
+		last  *time.Time
+		want  string
+	}{
+		{"running", ago(time.Minute), "running"},
+		{"running", ago(DefaultIdleTimeout + time.Second), "idle"},
+		{"running", nil, "idle"},                                        // never sent an event
+		{"waiting_for_human", ago(24 * time.Hour), "waiting_for_human"}, // a human wait is not idle
+		{"failed", ago(24 * time.Hour), "failed"},
+	} {
+		if got := status(c.state, c.last, now, DefaultIdleTimeout); got != c.want {
+			t.Errorf("status(%s, %v) = %s, want %s", c.state, c.last, got, c.want)
+		}
 	}
 }
