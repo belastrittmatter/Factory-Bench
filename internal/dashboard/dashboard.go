@@ -197,8 +197,6 @@ func rows(db *sql.DB, query string, args ...any) ([]map[string]any, error) {
 	return out, err
 }
 
-func secs(d time.Duration) float64 { return d.Seconds() }
-
 // live is report.LiveRows plus the attempt's role, latest usage phase, super-board lane and its shown status (running or idle).
 func (s *server) live(r *http.Request) (any, error) {
 	now := time.Now()
@@ -223,13 +221,13 @@ func (s *server) live(r *http.Request) (any, error) {
 	ds := rl.dispatches
 	out := []row{}
 	for _, l := range lr {
-		x := row{LiveRow: l, ElapsedS: secs(l.Elapsed), ActiveS: secs(l.Elapsed - l.Wait), WaitS: secs(l.Wait)}
+		x := row{LiveRow: l, ElapsedS: l.Elapsed.Seconds(), ActiveS: (l.Elapsed - l.Wait).Seconds(), WaitS: l.Wait.Seconds()}
 		if l.LastEvent != nil {
-			a := secs(now.Sub(*l.LastEvent))
+			a := now.Sub(*l.LastEvent).Seconds()
 			x.LastEventAgeS = &a
 		}
 		if l.LastToolAt != nil {
-			a := secs(now.Sub(*l.LastToolAt))
+			a := now.Sub(*l.LastToolAt).Seconds()
 			x.LastToolAgeS = &a
 		}
 		x.Status = status(l.State, l.LastEvent, now, s.o.Idle)

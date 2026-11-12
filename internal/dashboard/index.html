@@ -404,8 +404,6 @@ V.overview=async()=>{
   (s.attempt_phases||[]).filter(p=>inRange.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const a=aOf[p.factory_id+'/'+p.attempt_id],x=byIssue[a.repo+'#'+a.issue],k=p.phase??'unknown phase';x.ph[k]=(x.ph[k]||0)+(p.cost_usd||0)});
   const top=Object.values(byIssue).sort((p,q)=>q.cost-p.cost).slice(0,TOP_ISSUES),issuePhases=uniq(top.flatMap(x=>Object.keys(x.ph)));
   const pser=issuePhases.map(k=>({name:k,color:phaseColor(k),values:top.map(x=>x.ph[k]||0)}));
-  const issueRows=Object.values(byIssue).sort((p,q)=>q.cost-p.cost);
-  const phaseOf=u=>u.phase??'unknown phase',phases=uniq(use.map(phaseOf)).map(p=>({p,v:use.filter(u=>phaseOf(u)===p).reduce((a,u)=>a+(u.cost_usd||0),0)}));
   // tool mix
   const tm={};s.tools.filter(t=>keep(t)&&+new Date(t.day)>=lo-864e5).forEach(t=>{const x=tm[t.tool_name]=tm[t.tool_name]||{c:0,f:0,ms:0};x.c+=t.calls;x.f+=t.failed||0;x.ms+=t.duration_ms||0});
   const tools=Object.entries(tm).sort((a,b)=>b[1].c-a[1].c).slice(0,8).map(([k,x])=>({label:k,value:x.c,fail:x.f,tip:`${k}\n${x.c} calls · ${x.f} failed\n${fmtDur(x.ms/1000)} total`}));
@@ -425,7 +423,7 @@ V.overview=async()=>{
   </div>
   <div class="grid">
    <div class="card c8"><div class="head"><div><h3>Spend per issue</h3><div class="hint">Cost of attempts started in range, most expensive first, split by phase · click a bar to open the issue</div></div></div>
-     ${issueRows.length?legend(pser)+bars(W1*.64,260,top.map(x=>({label:'#'+x.issue,href:itemHref(x.repo,x.issue),tip:`#${x.issue} ${x.title||''}\n${x.repo}\n${fmtUsd(x.cost)}${x.unp?' +?':''} over ${plural(x.n,'attempt')}${x.lost?'\n'+fmtUsd(x.lost)+' on failed or cancelled attempts':''}\nclick to open`})),pser,fmtUsd)+(issueRows.length>TOP_ISSUES?`<div class="muted" style="margin-top:8px">${issueRows.length-TOP_ISSUES} more issues · <a href="#items">all issues →</a></div>`:''):'<div class="empty">No attempts in this range</div>'}</div>
+     ${top.length?legend(pser)+bars(W1*.64,260,top.map(x=>({label:'#'+x.issue,href:itemHref(x.repo,x.issue),tip:`#${x.issue} ${x.title||''}\n${x.repo}\n${fmtUsd(x.cost)}${x.unp?' +?':''} over ${plural(x.n,'attempt')}${x.lost?'\n'+fmtUsd(x.lost)+' on failed or cancelled attempts':''}\nclick to open`})),pser,fmtUsd)+(items>TOP_ISSUES?`<div class="muted" style="margin-top:8px">${items-TOP_ISSUES} more issues · <a href="#items">all issues →</a></div>`:''):'<div class="empty">No attempts in this range</div>'}</div>
    <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
      ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div></div>
    <div class="card c6"><div class="head"><div><h3>In flight</h3><div class="hint">Running or waiting for a human, same as Live · refreshes every ${REFRESH_MS/1000} s</div></div><a class="sub" href="#live">All live →</a></div>
