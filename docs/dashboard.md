@@ -4,7 +4,7 @@ Who uses it: the **operator** running a factory (is it working right now?) and t
 
 | # | As a… | I want to… | so that… | View |
 |---|---|---|---|---|
-| 1 | operator | see at a glance how many attempts run, which are stuck and what they cost so far | I intervene before a run burns money | Overview, Live |
+| 1 | operator | see at a glance how many attempts run, which went idle (no event within the idle timeout) and what they cost so far | I intervene before a run burns money | Overview, Live |
 | 2 | operator | see the spend and token burn per hour, split by model | I spot a runaway early | Overview |
 | 3 | operator | see each running attempt's lane, phase, last tool and cost curve | I know what it is doing without opening logs | Live |
 | 4 | engineer | filter everything by time range, factory, config and repo | numbers answer one question at a time | all |

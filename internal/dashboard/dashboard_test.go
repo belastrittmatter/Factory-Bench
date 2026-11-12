@@ -13,7 +13,7 @@ import (
 	"factorybench/internal/store"
 )
 
-const sid = "b2053705-3194-4266-a97a-4f0a39bd5593"
+const sid = "00000000-0000-4000-8000-000000000001"
 
 // fixture: one running attempt with an unpriced session, one failed tool call and no human wait events.
 func fixture(t *testing.T) (*server, http.Handler, string) {
@@ -30,9 +30,9 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO factories VALUES ('f', 'h', NULL, NULL, 'x')`,
 		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 7, '<b>t</b>', 'x', 'open')`,
 		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at) VALUES ('f', 'a1', 'o/r', 7, 'v1', 'running', '` + ts(30*time.Minute) + `')`,
-		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'implement')`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1)`,
-		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 'Bash', 0, 12, 'ShellError')`,
+		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","model":"m","query_source":"q1","cost_usd":0.5}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e2', 'otlp.tool_decision', '` + ts(18*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","tool_name":"T9","decision":"reject","source":"cfg"}')`,
@@ -48,11 +48,11 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 	}
 	t.Cleanup(func() { db.Close() })
 	runs, tr := filepath.Join(dir, "runs"), filepath.Join(dir, "tr")
-	os.MkdirAll(filepath.Join(runs, "2026-11-12-x-workers"), 0o755)
+	os.MkdirAll(filepath.Join(runs, "2026-01-02-x-workers"), 0o755)
 	os.MkdirAll(tr, 0o755)
-	os.WriteFile(filepath.Join(runs, "2026-11-12-x.md"), []byte("[10:00:00] dispatch lane=build issue=#7 pid=1\n[10:05:00] dispatch lane=review issue=#7 pid=2\n[10:09:00] dispatch lane=build issue=#7 pid=3\n[10:10:00] reaped lock on #7\n[10:11:00] worker on #7 (pid=3) — card moved to 'Hold'; killing\n"), 0o644)
+	os.WriteFile(filepath.Join(runs, "2026-01-02-x.md"), []byte("[10:00:00] dispatch lane=alpha issue=#7 pid=1\n[10:05:00] dispatch lane=beta issue=#7 pid=2\n[10:09:00] dispatch lane=alpha issue=#7 pid=3\n[10:10:00] reaped lock on #7\n[10:11:00] worker on #7 (pid=3) — card moved to 'Hold'; killing\n"), 0o644)
 	os.WriteFile(filepath.Join(tr, sid+".jsonl"), []byte(`{"type":"user","timestamp":"t","message":{"content":"do it"}}
-{"type":"assistant","timestamp":"t","message":{"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"ok"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}
+{"type":"assistant","timestamp":"t","message":{"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"ok"},{"type":"tool_use","name":"t1","input":{"command":"ls"}}]}}
 {"type":"user","timestamp":"t","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"file.go"}]}]}}
 `), 0o644)
 	o := Options{Addr: "127.0.0.1:8081", Runs: runs, Transcripts: tr, Idle: DefaultIdleTimeout}
@@ -78,7 +78,7 @@ func TestEndpoints(t *testing.T) {
 
 	var live []map[string]any
 	get(t, h, "/api/live", &live)
-	if len(live) != 1 || live[0]["Status"] != "idle" || live[0]["Idle"] != true || live[0]["Phase"] != "implement" || live[0]["HasWaitEvents"] != false {
+	if len(live) != 1 || live[0]["Status"] != "idle" || live[0]["Idle"] != true || live[0]["Phase"] != "p1" || live[0]["HasWaitEvents"] != false {
 		t.Errorf("live: %v", live)
 	}
 	if live[0]["Lane"] != nil { // dispatches are for another time window than this attempt
@@ -115,7 +115,7 @@ func TestEndpoints(t *testing.T) {
 	var at map[string]any
 	get(t, h, "/api/attempt?factory=f&id=a1", &at)
 	tools := at["tools"].([]any)[0].(map[string]any)
-	if tools["tool_name"] != "Bash" || tools["failed"].(float64) != 1 {
+	if tools["tool_name"] != "t1" || tools["failed"].(float64) != 1 {
 		t.Errorf("tools: %v", tools)
 	}
 	if at["usage"].([]any)[1].(map[string]any)["cost_usd"] != nil { // unpriced stays null
@@ -164,7 +164,7 @@ func TestEndpoints(t *testing.T) {
 
 	var sm summary
 	get(t, h, "/api/summary", &sm)
-	if sm.Issues != 1 || sm.WithPR != 0 || sm.CostPerMerged != nil || sm.Bounces != 1 || *sm.ReworkPerIssue != 1 { // fixture lanes go build, review, build
+	if sm.Issues != 1 || sm.WithPR != 0 || sm.CostPerMerged != nil || sm.Bounces != 1 || *sm.ReworkPerIssue != 1 { // fixture lanes go alpha, beta, alpha
 		t.Errorf("summary: %+v", sm)
 	}
 	if u := se["usage"]; u[0]["phase"] == nil && u[len(u)-1]["phase"] == nil {
@@ -203,7 +203,7 @@ func TestReadOnlyAndLocalOnly(t *testing.T) {
 	}
 	// a shared listener serves no local files
 	shared := Handler(s.db, Options{Addr: ":8081", Runs: filepath.Join(dir, "runs"), Transcripts: filepath.Join(dir, "tr")})
-	for _, u := range []string{"/api/local/transcript?session=" + sid, "/api/local/manifest?file=2026-11-12-x.md"} {
+	for _, u := range []string{"/api/local/transcript?session=" + sid, "/api/local/manifest?file=2026-01-02-x.md"} {
 		req := httptest.NewRequest("GET", u, nil)
 		w := httptest.NewRecorder()
 		shared.ServeHTTP(w, req)
@@ -223,7 +223,7 @@ func TestLocalFiles(t *testing.T) {
 			d = append(d, r)
 		}
 	}
-	if len(d) != 3 || d[1].(map[string]any)["lane"] != "review" || len(fl["notes"].([]any)) != 2 {
+	if len(d) != 3 || d[1].(map[string]any)["lane"] != "beta" || len(fl["notes"].([]any)) != 2 {
 		t.Errorf("flow: %v", fl)
 	}
 	if mv := fl["moves"].([]any); len(mv) != 1 || mv[0].(map[string]any)["State"] != "Hold" {
@@ -233,8 +233,8 @@ func TestLocalFiles(t *testing.T) {
 		t.Errorf("bar end: %v", a)
 	}
 	var m map[string]any
-	get(t, h, "/api/local/manifest?file=2026-11-12-x.md", &m)
-	if !strings.Contains(m["text"].(string), "lane=review") {
+	get(t, h, "/api/local/manifest?file=2026-01-02-x.md", &m)
+	if !strings.Contains(m["text"].(string), "lane=beta") {
 		t.Errorf("manifest: %v", m)
 	}
 	for _, u := range []string{"/api/local/manifest?file=../fb.db", "/api/local/worker?file=../../etc/passwd", "/api/local/transcript?session=../x", "/api/local/worker?file=a-workers/worker-build-1.log/../../x"} {

@@ -111,7 +111,7 @@ td{padding:9px 12px 9px 0;border-bottom:1px solid var(--line);white-space:nowrap
 th.n,td.n{text-align:right;padding-right:0;padding-left:16px}
 td.n{font-size:12.5px}
 tbody tr.click{cursor:pointer}tbody tr.click:hover td{background:var(--surface-2)}
-tr.stuck td{background:var(--crit-soft)}
+tr.idle td{background:var(--crit-soft)}
 td.t{white-space:normal;min-width:160px;max-width:380px}
 .ttl{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
 .ibar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
@@ -146,7 +146,7 @@ td.t{white-space:normal;min-width:160px;max-width:380px}
 .lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));column-gap:40px;row-gap:34px}
 .lcard{display:block;border-top:2px solid var(--ink);padding-top:12px;min-width:0}
 .lcard:hover .id{color:var(--hot)}
-.lcard.stuck{border-color:var(--hot)}
+.lcard.idle{border-color:var(--hot)}
 .lcard .r1{display:flex;gap:10px;align-items:center}.lcard .r1 .id{margin-right:auto;font-family:var(--mono);font-size:12.5px}
 .lcard .title{font-family:var(--serif);font-size:18px;line-height:1.25;margin:6px 0 10px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .lstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line);margin-top:10px}
@@ -405,7 +405,7 @@ V.overview=async()=>{
    <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Issue funnel</h3><div class="hint">All time · issues, issues with a linked PR, merged</div>${sm.Issues?hbars([['issues',sm.Issues],['with PR',sm.WithPR],['merged',sm.Merged]].map(([l,v])=>({label:l,value:v,color:'var(--ink)',tip:`${l}\n${v} of ${sm.Issues}`})),v=>String(v)):'<div class="empty">No issues yet</div>'}</div>
    <div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
      ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div></div>
-   <div class="card c6"><div class="head"><div><h3>Running now</h3><div class="hint">Refreshes every 5 s</div></div><a class="sub" href="#live">All live →</a></div>
+   <div class="card c6"><div class="head"><div><h3>Running now</h3><div class="hint">Refreshes every ${REFRESH_MS/1000} s</div></div><a class="sub" href="#live">All live →</a></div>
      ${live.length?table([
        {h:'Issue',f:l=>`<b>#${l.Issue}</b> <span class="muted">${esc(l.Repo.split('/')[1])}</span>`},
        {h:'Status',f:l=>chip(l.Status)},
@@ -438,7 +438,7 @@ V.live=async()=>{
   const cards=live.map((l,i)=>{
     const d=details[i],a=cfg[l.Attempt]||{};let spark='';
     if(d&&d.usage.length){let c=0;const pts=[{t:T(l.Started),v:0,tip:'start'}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} by ${fmtTime(T(u.ts))}`}}));pts.push({t:new Date(),v:c,tip:`${fmtUsd(c)} now`});spark=area(Math.min(560,W($('#main'))/Math.max(1,Math.floor(W($('#main'))/380))-40),96,pts,fmtUsd,'var(--s1)').replace('class="chart xh"','class="chart"')}
-    return `<a class="lcard ${l.Idle?'stuck':''}" href="${attHref(l.Factory,l.Attempt)}">
+    return `<a class="lcard ${l.Idle?'idle':''}" href="${attHref(l.Factory,l.Attempt)}">
       <div class="r1"><span class="id">#${l.Issue} <span class="muted" style="font-weight:400">${esc(l.Repo)}</span></span>${chip(l.Idle?'idle since '+(l.LastEvent?fmtTime(T(l.LastEvent)):'?'):l.Status,l.Idle?'warn':undefined)}</div>
       <div class="title">${esc(a.title||'untitled')}</div>
       <div class="meta" style="margin:0 0 6px">${chip((l.Lane??l.Role??'lane ?'),'info')}${l.Phase&&l.Phase!==(l.Lane??l.Role)?chip(l.Phase,'plain'):''}<span class="muted">${esc(l.Factory)} · ${esc(shortId(l.Attempt))}</span></div>
@@ -446,7 +446,7 @@ V.live=async()=>{
       <div class="lstats"><div><div class="l">Elapsed</div><div class="v">${dur(l.ElapsedS)}</div></div><div><div class="l">Active</div><div class="v">${dur(l.ActiveS)}</div></div><div><div class="l">Tokens</div><div class="v">${tok(l.Tokens)}</div></div><div><div class="l">Cost</div><div class="v">${usd(l.Cost,l.Unpriced>0)}</div></div></div>
       <div class="lfoot"><span>last event ${nil(l.LastEventAgeS)?'?':fmtDur(l.LastEventAgeS)+' ago'}</span><span>${l.LastTool?esc(l.LastTool)+' · '+fmtDur(l.LastToolAgeS)+' ago':'no tool calls'}</span><span>wait ${l.HasWaitEvents?fmtDur(l.WaitS):'n/a'}</span></div></a>`}).join('');
   return topbar(`Live <span class="muted" style="font-weight:450">${live.length} running or waiting</span>`,filterBar(optsOf(s.attempts),{time:false}))+
-   (live.length?`<div class="hint muted" style="margin:-8px 0 12px">Idle = no finish event and no event for ${esc(fmtDur(meta.idle_s))} · refreshes every 5 s</div><div class="lgrid">${cards}</div>`:'<div class="card"><div class="empty">Nothing is running right now.</div></div>');
+   (live.length?`<div class="hint muted" style="margin:-8px 0 12px">Idle = no finish event and no event for ${esc(fmtDur(meta.idle_s))} · refreshes every ${REFRESH_MS/1000} s</div><div class="lgrid">${cards}</div>`:'<div class="card"><div class="empty">Nothing is running right now.</div></div>');
 };
 
 V.items=async()=>{
@@ -679,6 +679,8 @@ function renderNav(){
   $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
   $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${idle?'crit':''}">${idle?idle+' idle':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
 }
+// how often Overview and Live poll the server
+const REFRESH_MS=5000;
 let token=0,timer=null;
 async function render(soft){
   const my=++token,p=(location.hash.slice(1)||'overview').split('/').map(decodeURIComponent),v=V[p[0]]?p[0]:'overview';
@@ -692,7 +694,7 @@ async function render(soft){
     if(focus&&$('#'+focus)){const el=$('#'+focus);el.focus();try{el.setSelectionRange(sel,sel)}catch(e){}}
     LAST=new Date();renderNav();
   }catch(e){if(my===token)$('#main').innerHTML=topbar('Error')+`<div class="err">${esc(e.message)}</div>`}
-  if(['overview','live'].includes(v)&&my===token)timer=setTimeout(()=>{if(!document.hidden&&!$('.drawer'))render(true);else timer=setTimeout(()=>render(true),5000)},5000);
+  if(['overview','live'].includes(v)&&my===token)timer=setTimeout(()=>{if(!document.hidden&&!$('.drawer'))render(true);else timer=setTimeout(()=>render(true),REFRESH_MS)},REFRESH_MS);
 }
 const saveF=()=>{store.set('filters',F);render(true)};
 document.addEventListener('change',e=>{const k=e.target.dataset.f;if(k){F[k]=e.target.value;if(k==='factory')F.config='';saveF()}});
