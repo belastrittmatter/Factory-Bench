@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -314,13 +315,32 @@ func (s *server) transcript(r *http.Request) (any, error) {
 			case "text":
 				out = append(out, entry{l.Timestamp, l.Type, "text", "", clip(textOf([]any{m}), 20000)})
 			case "tool_use":
-				in, _ := json.Marshal(m["input"])
 				name, _ := m["name"].(string)
-				out = append(out, entry{l.Timestamp, l.Type, "tool_use", name, clip(string(in), 4000)})
+				out = append(out, entry{l.Timestamp, l.Type, "tool_use", name, inputShape(m["input"])})
 			case "tool_result":
 				out = append(out, entry{l.Timestamp, l.Type, "tool_result", "", clip(textOf(m["content"]), 4000)})
 			}
 		}
 	}
 	return map[string]any{"session": id, "entries": out, "truncated": truncated}, nil
+}
+
+// inputShape describes a tool input by its argument names and value sizes only. Tool inputs hold shell commands and
+// file contents, which can carry secrets, so their values never leave the server, whatever the tool is called.
+func inputShape(in any) string {
+	m, ok := in.(map[string]any)
+	if !ok {
+		return "input not shown"
+	}
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, len(keys))
+	for i, k := range keys {
+		b, _ := json.Marshal(m[k])
+		parts[i] = fmt.Sprintf("%s: %d bytes", k, len(b))
+	}
+	return "input not shown · " + strings.Join(parts, ", ")
 }

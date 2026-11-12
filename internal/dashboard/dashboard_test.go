@@ -242,11 +242,14 @@ func TestLocalFiles(t *testing.T) {
 			t.Errorf("%s: %d, want 400", u, w.Code)
 		}
 	}
+	if w := get(t, h, "/api/local/transcript?session="+sid, nil); strings.Contains(w.Body.String(), `\"ls\"`) || strings.Contains(w.Body.String(), `"ls"`) {
+		t.Errorf("tool input value leaked: %s", w.Body)
+	}
 	var tr struct {
 		Entries []entry
 	}
 	get(t, h, "/api/local/transcript?session="+sid, &tr)
-	if len(tr.Entries) != 4 || tr.Entries[1].Text != "ok" || tr.Entries[2].Kind != "tool_use" || tr.Entries[3].Text != "file.go" {
+	if len(tr.Entries) != 4 || tr.Entries[1].Text != "ok" || tr.Entries[2].Kind != "tool_use" || tr.Entries[2].Text != "input not shown · command: 4 bytes" || tr.Entries[3].Text != "file.go" {
 		t.Errorf("transcript: %+v", tr.Entries)
 	}
 }
