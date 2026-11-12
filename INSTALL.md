@@ -51,7 +51,7 @@ factorybench emit attempt.finished --attempt "$A" --key finished --json '{"statu
 - **Personal data:** Claude Code includes the user's email and account ids. FactoryBench drops them on arrival.
 - **Reliability:** telemetry is not spooled.
   - **FactoryBench down:** each batch is retried for ~8 s and then dropped. Claude keeps running, and the gap shows as missing coverage.
-  - **SIGKILL:** loses the last ~5 s of telemetry. SIGTERM loses nothing.
+  - **SIGKILL:** loses the last ~5 s of telemetry. SIGTERM flushes the last batch; only a model call still in flight is lost.
 
 A working example: [scripts/claude-code-run.sh](scripts/claude-code-run.sh).
 

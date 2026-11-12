@@ -57,10 +57,10 @@ Reports only read derived tables (plus human events). `report items [--factory f
 | time in model / tool calls | sum of usage `duration_ms` / sum of tool call `duration_ms` (summed per call, so parallel subagents can exceed elapsed time) |
 | subagents / issue, API errors / attempt | `agent_runs` rows ÷ work items, `api_errors` rows ÷ attempts |
 | telemetry coverage | usage coverage: attempts with ≥ 1 usage ÷ attempts; activity coverage: attempts with ≥ 1 tool call ÷ attempts; unpriced sessions; rejected events of the factory |
-
-Tool, subagent, API error and PR size rows are left out of the scorecard when no factory has data for them.
 | gates | per gate name: failed ÷ runs from `gates`; per CI check on linked PRs: failure or timed_out ÷ executed runs (conclusion success, failure or timed_out; skipped, neutral, cancelled etc. are not runs) |
 | CI suite | per check, executed runs only (as in gates): median completed − started (negative durations dropped); flake rate = head SHAs with both a failure and a success ÷ head SHAs with an executed run |
+
+Tool, subagent, API error and PR size rows are left out of the scorecard when no factory has data for them.
 
 Not collected yet: spec items covered by E2E tests (needs a product-repo CI convention that reports them).
 
@@ -68,7 +68,7 @@ Not collected yet: spec items covered by E2E tests (needs a product-repo CI conv
 
 ![Database schema](docs/diagrams/db-schema.svg)
 
-One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
+One schema for all factories. No table per factory. The schema is `internal/store/schema.sql`, applied to a new database (`PRAGMA user_version` 0). `schema.sql` always holds the current schema; each later change is also a numbered step in `store.Open` that upgrades an existing database (v1 → v2 added `attempts.waiting_since`; v2 → v3 copied `events` to allow `source = 'otlp'`, added `tool_calls`, `agent_runs`, `api_errors`, `usage.agent_id` and the PR size columns of `prs`). A step that only touches a derived table needs nothing more than `factorybench replay` afterwards.
 
 ```sql
 -- registered factories; the API token identifies the factory
@@ -220,7 +220,7 @@ GitHub data (PRs, CI, merges, commit authors) is the same for every factory, so 
 
 - `POST /v1/events` with a JSON array of events (one or a batch) and a bearer token.
 - `factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]` does the same for shell-based factories and hook scripts (id = `<attempt>:<key>`; URL/token from `FACTORYBENCH_URL`/`FACTORYBENCH_TOKEN`). On failure it appends to a spool file (`FACTORYBENCH_SPOOL`, default `~/.factorybench/spool.jsonl`) and exits 0; `factorybench emit --flush` resends it in batches of 500, skipping (and logging) lines that aren't valid JSON. The spool is first renamed to `.sending`; that file is removed only once its events are delivered or re-spooled, and a leftover `.sending` from a crashed flush is sent first.
-- `POST /v1/logs` takes OpenTelemetry logs (OTLP/HTTP JSON) with the same bearer token; today only Claude Code's (see §6 and INSTALL.md §2). Each log record must carry the resource or record attribute `factorybench.attempt` (= `attempt_id`); records without it are rejected. Each record is stored as a raw event (`source = 'otlp'`, type `otlp.<event.name>`, id `session.id:event.sequence`, so exporter retries are stored once), with personal data and content attributes dropped first. Normalize turns `api_request` into `usage`, `tool_result` into tool calls, `subagent_completed` into subagent runs and `api_error` / `api_retries_exhausted` into API errors; other event names are kept and ignored. The lifecycle (`attempt.started`, `pr.linked`, `attempt.finished`, ...) still comes over `/v1/events`.
+- `POST /v1/logs` takes OpenTelemetry logs (OTLP/HTTP JSON) with the same bearer token; today only Claude Code's (see §6 and INSTALL.md §2). Each log record must carry the resource or record attribute `factorybench.attempt` (= `attempt_id`); records without it are rejected. Each record is stored as a raw event (`source = 'otlp'`, type `otlp.<event.name>`, id `session.id:event.sequence:event.timestamp`, so exporter retries are stored once and a resumed session, whose sequence restarts, is not), with personal data and content attributes dropped first. Normalize turns `api_request` into `usage`, `tool_result` into tool calls, `subagent_completed` into subagent runs and `api_error` / `api_retries_exhausted` into API errors; other event names are kept and ignored. The lifecycle (`attempt.started`, `pr.linked`, `attempt.finished`, ...) still comes over `/v1/events`.
 - Delivery is at-least-once: the factory retries on failure, and the `id` field deduplicates.
 - Events may arrive late or out of order. Normalization orders them by `ts`.
 
