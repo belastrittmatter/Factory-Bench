@@ -53,13 +53,14 @@ var (
 )
 
 // parseManifest adds one manifest (its clock is local time on date) to out.
-func parseManifest(date, name string, r io.Reader, out runLog) {
+func parseManifest(date, name string, r io.Reader, out runLog) error {
 	type ref struct {
 		issue int64
 		i     int
 	}
 	open := map[string]ref{} // pid -> its dispatch, until a later line names the pid
 	sc := bufio.NewScanner(r)
+	sc.Buffer(nil, maxLine)
 	for sc.Scan() {
 		l := manifestLine.FindStringSubmatch(sc.Text())
 		if l == nil {
@@ -95,6 +96,7 @@ func parseManifest(date, name string, r io.Reader, out runLog) {
 			}
 		}
 	}
+	return sc.Err()
 }
 
 // dispatchSkew is how far a dispatch line may precede its attempt's start: the manifest has whole seconds and is

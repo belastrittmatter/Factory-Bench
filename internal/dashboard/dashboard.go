@@ -214,7 +214,11 @@ func (s *server) live(r *http.Request) (any, error) {
 		Idle                     bool
 		HasWaitEvents            bool // false: human wait is unavailable, not zero
 	}
-	ds := s.manifests().dispatches
+	rl, err := s.manifests()
+	if err != nil {
+		return nil, err
+	}
+	ds := rl.dispatches
 	out := []row{}
 	for _, l := range lr {
 		x := row{LiveRow: l, ElapsedS: secs(l.Elapsed), ActiveS: secs(l.Elapsed - l.Wait), WaitS: secs(l.Wait)}
@@ -399,7 +403,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		}
 	}
 	if s.local && s.o.Runs != "" {
-		res["workers"] = s.workerLogs(res["attempt"].(map[string]any))
+		if res["workers"], err = s.workerLogs(res["attempt"].(map[string]any)); err != nil {
+			return nil, err
+		}
 	}
 	return res, nil
 }

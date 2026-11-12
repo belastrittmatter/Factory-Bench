@@ -95,7 +95,11 @@ func (s *server) summaryAPI(r *http.Request) (any, error) {
 	var lanes map[string][]string
 	if s.local && s.o.Runs != "" {
 		// shortcut: manifests name cards by issue number only; two repos with the same issue number share rework counts
-		ds := s.manifests().dispatches
+		rl, err := s.manifests()
+		if err != nil {
+			return nil, err
+		}
+		ds := rl.dispatches
 		lanes = map[string][]string{}
 		for _, u := range rows {
 			if m := itemKey.FindStringSubmatch(u.Item); m != nil {

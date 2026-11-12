@@ -20,7 +20,9 @@ const manifestFixture = `[10:00:00] dispatch lane=alpha issue=#7 pid=11 claim=x
 
 func TestParseManifest(t *testing.T) {
 	rl := newRunLog()
-	parseManifest("2026-01-02", "m.md", strings.NewReader(manifestFixture), rl)
+	if err := parseManifest("2026-01-02", "m.md", strings.NewReader(manifestFixture), rl); err != nil {
+		t.Fatal(err)
+	}
 	d := rl.dispatches[7]
 	if len(d) != 3 || len(rl.dispatches[8]) != 1 {
 		t.Fatalf("dispatches: %+v", rl.dispatches)
@@ -219,5 +221,13 @@ func TestToolsByLane(t *testing.T) {
 	}
 	if len(toolsByLane(nil, nil)) != 0 {
 		t.Error("empty")
+	}
+}
+
+// A manifest line longer than the scanner buffer is an error, not a silent end of the manifest.
+func TestParseManifestLongLine(t *testing.T) {
+	long := "[10:00:00] " + strings.Repeat("x", maxLine) + "\n[10:01:00] dispatch lane=alpha issue=#7 pid=1\n"
+	if err := parseManifest("2026-01-02", "m.md", strings.NewReader(long), newRunLog()); err == nil {
+		t.Error("no error for a line over maxLine")
 	}
 }

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -31,14 +32,17 @@ var (
 	workerHeader = regexp.MustCompile(`^=== dispatch lane=\w+ issue=#\d+ at (\S+) ===$`)
 )
 
-const maxFile = 4 << 20 // bytes served from one local file
+const (
+	maxFile = 4 << 20 // bytes served from one local file
+	maxLine = 1 << 20 // longest manifest or worker log line
+)
 
 // manifests parses every run manifest in the runs dir.
 // shortcut: the manifest's clock is local time on the date in its file name; a run crossing midnight gets wrong dates.
-func (s *server) manifests() runLog {
+func (s *server) manifests() (runLog, error) {
 	out := newRunLog()
 	if !s.local || s.o.Runs == "" {
-		return out
+		return out, nil
 	}
 	files, _ := filepath.Glob(filepath.Join(s.o.Runs, "*.md"))
 	for _, f := range files {
@@ -47,10 +51,13 @@ func (s *server) manifests() runLog {
 		if m == nil || err != nil {
 			continue
 		}
-		parseManifest(m[1], filepath.Base(f), fh, out)
+		err = parseManifest(m[1], filepath.Base(f), fh, out)
 		fh.Close()
+		if err != nil {
+			return out, fmt.Errorf("manifest %s: %w", filepath.Base(f), err)
+		}
 	}
-	return out
+	return out, nil
 }
 
 // flow returns one card's dispatches with the model calls made in each, its board moves and waits, its attempts,
@@ -117,7 +124,10 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (map[string]any, 
 	if err != nil {
 		return nil, err
 	}
-	rl := s.manifests()
+	rl, err := s.manifests()
+	if err != nil {
+		return nil, err
+	}
 	ds := rl.dispatches[n]
 	grouped := groupByDispatch(ds, wins, calls, now)
 	var lanes []string
@@ -149,7 +159,7 @@ func tsPtr(v any) *time.Time {
 }
 
 // workerLogs lists the manifests and worker logs that match an attempt: same issue, a dispatch inside its time window.
-func (s *server) workerLogs(a map[string]any) map[string]any {
+func (s *server) workerLogs(a map[string]any) (map[string]any, error) {
 	issue, _ := a["issue"].(int64)
 	start, _ := time.Parse(time.RFC3339Nano, a["started_at"].(string))
 	end := time.Now()
@@ -168,7 +178,7 @@ func (s *server) workerLogs(a map[string]any) map[string]any {
 		}
 		var hits []string
 		sc := bufio.NewScanner(fh)
-		sc.Buffer(nil, 1<<20)
+		sc.Buffer(nil, maxLine)
 		for sc.Scan() {
 			if h := workerHeader.FindStringSubmatch(sc.Text()); h != nil {
 				if t, err := time.Parse(time.RFC3339, h[1]); err == nil && !t.Before(lo) && !t.After(hi) {
@@ -177,6 +187,9 @@ func (s *server) workerLogs(a map[string]any) map[string]any {
 			}
 		}
 		fh.Close()
+		if err := sc.Err(); err != nil {
+			return nil, fmt.Errorf("worker log %s: %w", rel, err)
+		}
 		if len(hits) > 0 {
 			workers = append(workers, map[string]any{"file": filepath.ToSlash(rel), "lane": m[1], "dispatches": hits})
 		}
@@ -189,7 +202,7 @@ func (s *server) workerLogs(a map[string]any) map[string]any {
 		}
 	}
 	sort.Strings(manifests)
-	return map[string]any{"manifests": manifests, "workers": workers}
+	return map[string]any{"manifests": manifests, "workers": workers}, nil
 }
 
 // readText returns up to maxFile bytes of a file under dir, cut at a rune boundary.
@@ -330,6 +343,11 @@ func (s *server) transcript(r *http.Request) (any, error) {
 				out = append(out, entry{l.Timestamp, l.Type, "tool_result", "", clip(textOf(m["content"]), 4000)})
 			}
 		}
+	}
+	if err := sc.Err(); errors.Is(err, bufio.ErrTooLong) {
+		truncated = true
+	} else if err != nil {
+		return nil, err
 	}
 	return map[string]any{"session": id, "entries": out, "truncated": truncated}, nil
 }
