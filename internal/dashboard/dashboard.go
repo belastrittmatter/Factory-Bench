@@ -319,6 +319,29 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		withStatus(a, time.Now(), s.o.Idle)
 		res["attempt"] = a[0]
 	}
+	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
+	at := res["attempt"].(map[string]any)
+	fl, err := s.cardFlow(at["repo"].(string), at["issue"].(int64), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	mine := []dispatchRow{}
+	for _, d := range fl["dispatches"].([]dispatchRow) {
+		if d.Attempt == id {
+			mine = append(mine, d)
+		}
+	}
+	for _, x := range fl["attempts"].([]map[string]any) {
+		if x["attempt_id"] == id {
+			at["bar_end"], at["bar_state"] = x["bar_end"], x["bar_state"]
+		}
+	}
+	res["dispatches"] = mine
+	for _, k := range []string{"usage", "tool_calls", "api_errors", "gates"} {
+		for _, r := range res[k].([]map[string]any) {
+			r["lane"] = laneAt(mine, parseTS(r["ts"]))
+		}
+	}
 	if s.local && s.o.Runs != "" {
 		res["workers"] = s.workerLogs(res["attempt"].(map[string]any))
 	}

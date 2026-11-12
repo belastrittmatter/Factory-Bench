@@ -286,23 +286,41 @@ function bars(w,h,buckets,series,fmt,count){
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
 }
 // cumulative step-area over time: pts [{t:Date,v,tip}]
-function area(w,h,pts,fmt,color){
+// lane bands behind a time chart: one band per dispatch, labelled with its lane (label in text ink, swatch in lane color)
+function laneBands(rows,X,pt,ih,xmin,xmax){
+  return (rows||[]).filter(r=>r.lane).map(r=>{const x1=Math.max(xmin,X(+T(r.at))),x2=Math.min(xmax,X(+T(r.end)));if(x2<=x1)return'';const c=colorOf('lane',r.lane);
+    return `<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`}).join('');
+}
+// time axis shared by the attempt charts, so the same instant sits at the same x and gaps between runs stay gaps
+const AX={pl:44,pr:8,pb:22};
+function area(w,h,pts,fmt,color,o={}){
   if(!pts.length)return'<div class="empty">no data</div>';
-  const pl=44,pr=8,pt=8,pb=22,iw=w-pl-pr,ih=h-pt-pb;
-  const t0=+pts[0].t,t1=Math.max(+pts[pts.length-1].t,t0+1),sc=scale(Math.max(...pts.map(p=>p.v))),max=sc.max;
+  const {pl,pr,pb}=AX,pt=o.bands?20:8,iw=w-pl-pr,ih=h-pt-pb;
+  const t0=o.t0??+pts[0].t,t1=Math.max(o.t1??+pts[pts.length-1].t,t0+1),sc=scale(Math.max(...pts.map(p=>p.v))),max=sc.max;
   const X=t=>pl+(t-t0)/(t1-t0)*iw,Y=v=>pt+ih-v/max*ih;
   let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=Y(v);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
   for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtTime(new Date(t)))}</text>`}
   const d=pts.map((p,i)=>`${i?'L':'M'}${X(+p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
   const id='a'+Math.random().toString(36).slice(2,7);
   let hit='';pts.forEach((p,i)=>{const a=i?X((+pts[i-1].t+ +p.t)/2):pl,b=i<pts.length-1?X((+p.t+ +pts[i+1].t)/2):w-pr;hit+=`<rect x="${a}" y="${pt}" width="${Math.max(1,b-a)}" height="${ih}" fill="transparent" data-tip="${esc(p.tip)}" data-x="${X(+p.t)}" data-y="${Y(p.v)}"/>`});
-  return `<svg class="chart xh" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".10"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${g}
+  return `<svg class="chart xh" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".10"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${laneBands(o.bands,X,pt,ih,pl,w-pr)}${g}
    <path d="${d}L${X(t1)},${Y(pts[pts.length-1].v)}L${X(t1)},${pt+ih}L${pl},${pt+ih}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
    <line class="hl" x1="0" x2="0" y1="${pt}" y2="${pt+ih}" visibility="hidden"/><circle r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>${hit}</svg>`;
 }
 document.addEventListener('pointerover',e=>{const r=e.target.closest&&e.target.closest('svg.xh rect[data-x]');if(!r)return;const s=r.ownerSVGElement,l=s.querySelector('.hl'),c=s.querySelector('circle');
   l.setAttribute('x1',r.dataset.x);l.setAttribute('x2',r.dataset.x);c.setAttribute('cx',r.dataset.x);c.setAttribute('cy',r.dataset.y);l.setAttribute('visibility','visible');c.setAttribute('visibility','visible')});
 document.addEventListener('pointerout',e=>{const s=e.target.closest&&e.target.closest('svg.xh');if(s&&!s.contains(e.relatedTarget)){s.querySelector('.hl').setAttribute('visibility','hidden');s.querySelector('circle').setAttribute('visibility','hidden')}});
+// stacked bars placed on a time axis: items [{t,tip}], series [{name,color,values}]
+function tbars(w,h,t0,t1,items,series,fmt,bands){
+  const {pl,pr,pb}=AX,pt=bands?20:8,iw=w-pl-pr,ih=h-pt-pb;t1=Math.max(t1,t0+1);
+  const X=t=>pl+(t-t0)/(t1-t0)*iw,tot=items.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0));
+  const sc=scale(Math.max(...tot,0)),max=sc.max,bw=Math.max(1.5,Math.min(8,iw/Math.max(1,items.length)*.7));
+  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
+  for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtTime(new Date(t)))}</text>`}
+  let m='';items.forEach((it,i)=>{const x=X(+it.t)-bw/2;let y=pt+ih;series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(.5,v/max*ih);y-=hh;m+=`<rect x="${x}" y="${y}" width="${bw}" height="${hh}" fill="${s.color}"/>`});
+    m+=`<rect x="${x-2}" y="${pt}" width="${bw+4}" height="${ih}" fill="transparent" data-tip="${esc(it.tip+'\n'+series.filter(s=>s.values[i]).map(s=>s.name+': '+fmt(s.values[i])).join('\n'))}"/>`});
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${laneBands(bands,X,pt,ih,pl,w-pr)}${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
+}
 // horizontal bars with an optional failure part: rows [{label,value,fail,tip,href}]
 function hbars(rows,fmt,color){
   if(!rows.length)return'<div class="empty">no data</div>';
@@ -558,17 +576,17 @@ V.attempt=async(f,id)=>{
   const tokens=d.usage.reduce((s,u)=>s+u.input+u.output+(u.cache_read||0)+(u.cache_write||0),0);
   const calls=d.tools.reduce((s,t)=>s+t.calls,0),failed=d.tools.reduce((s,t)=>s+(t.failed||0),0);
   const el=((T(a.ended_at)||Date.now())-T(a.started_at))/1000;
-  const w=W($('#main'))-60;
+  const w=W($('#main'))-60,cw=w*.62,ax0=+T(a.started_at),ax1=+T(a.bar_end||a.ended_at)||Date.now();
   let c=0;const pts=[{t:T(a.started_at),v:0,tip:'start\n'+fmtWhen(a.started_at)}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} total\n${fmtWhen(u.ts)} · ${u.model}\nthis session ${fmtUsd(u.cost_usd)} · ${fmtTok(u.input+u.output+(u.cache_read||0)+(u.cache_write||0))} tokens`}}));
   // tokens per session, stacked by class (4 series)
   const cls=[['input','Input'],['output','Output'],['cache_read','Cache read'],['cache_write','Cache write']];
   const tser=cls.map(([k,n],i)=>({name:n,color:SER[i],values:d.usage.map(u=>u[k]||0)}));
-  const tb=d.usage.map((u,i)=>({label:fmtTime(T(u.ts)),tip:`Session ${i+1} · ${fmtWhen(u.ts)}\n${u.model}${u.phase?' · '+u.phase:''}${u.agent_id?' · subagent':''}\n${fmtUsd(u.cost_usd)} · ${fmtDur((u.duration_ms||0)/1000)}`}));
-  const ph=d.phases.map(p=>({v:p.tokens||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${p.sessions} sessions`}));
+  const tb=d.usage.map((u,i)=>({t:T(u.ts),tip:(u.lane?u.lane+' · ':'')+`Session ${i+1} · ${fmtWhen(u.ts)}\n${u.model}${u.phase?' · '+u.phase:''}${u.agent_id?' · subagent':''}\n${fmtUsd(u.cost_usd)} · ${fmtDur((u.duration_ms||0)/1000)}`}));
+  const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${p.sessions} sessions`}));
   const tl=d.tool_calls.slice().reverse();
   const local=meta.local||meta.transcripts;
   // tool call strip: one row per tool, dot per call
-  let strip='';if(tl.length){const names=d.tools.map(t=>t.tool_name).slice(0,10),t0=+T(a.started_at),t1=Math.max(+(T(a.ended_at)||Date.now()),t0+1),pl=96,X=t=>pl+(t-t0)/(t1-t0)*(w*.62-pl-8),h=names.length*22+26;
+  let strip='';if(tl.length){const names=d.tools.map(t=>t.tool_name).slice(0,10),t0=ax0,t1=Math.max(ax1,t0+1),pl=96,X=t=>pl+(t-t0)/(t1-t0)*(w*.62-pl-8),h=names.length*22+26;
     strip=`<svg class="chart" viewBox="0 0 ${w*.62} ${h}" width="${w*.62}" height="${h}">`+names.map((n,i)=>`<text x="0" y="${i*22+15}" style="fill:var(--text-2)">${esc(n.length>13?n.slice(0,12)+'…':n)}</text><line class="axis" x1="${pl}" x2="${w*.62-8}" y1="${i*22+11}" y2="${i*22+11}" style="stroke:var(--line)"/>`).join('')+
     tl.filter(t=>names.includes(t.tool_name)).map(t=>`<circle cx="${X(+T(t.ts))}" cy="${names.indexOf(t.tool_name)*22+11}" r="${t.success===0?4.5:3}" opacity="${t.success===0?1:.8}" fill="${t.success===0?'var(--crit)':'var(--ink)'}" stroke="none" data-tip="${esc(`${t.tool_name} · ${t.success===0?'failed':nil(t.success)?'result unknown':'ok'}\n${fmtWhen(t.ts)} · ${nil(t.duration_ms)?'?':t.duration_ms+' ms'}${t.error_type?'\n'+t.error_type:''}${t.agent_id?'\nsubagent '+t.agent_id:''}`)}"/>`).join('')+
     [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
@@ -583,14 +601,14 @@ V.attempt=async(f,id)=>{
    ${kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':'')}
   </div>
   <div class="grid">
-   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model session · hover for detail</div>${d.usage.length?area(w*.62,200,pts.concat(a.ended_at?[]:[{t:new Date(),v:c,tip:fmtUsd(c)+' now'}]),fmtUsd,'var(--s1)'):'<div class="empty">No usage reported</div>'}</div>
-   <div class="card c4"><h3>Phase split</h3><div class="hint">Tokens by phase (implement, verify, review)</div>${d.phases.length?segbar(ph)+legend(d.phases.map(p=>({name:`${p.phase??'unknown'} · ${fmtTok(p.tokens)}`,color:phaseColor(p.phase)}))):'<div class="empty">No phase data</div>'}
+   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the dispatches it ran in · same time axis as tokens below</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands:d.dispatches}):'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c4"><h3>Phase split</h3><div class="hint">Cost by phase, tokens second</div>${d.phases.length?segbar(ph)+`<div class="stat-list">${d.phases.map(p=>`<div><span class="chip" style="color:${phaseColor(p.phase)}"><span style="color:var(--text-2)">${esc(p.phase??'unknown')}</span></span><b>${usd(p.cost_usd,p.unpriced>0)} <span class="muted">· ${tok(p.tokens)}</span></b></div>`).join('')}</div>`:'<div class="empty">No phase data</div>'}
      <h3 style="margin-top:18px">Models</h3>${hbars(Object.entries(d.usage.reduce((m,u)=>{m[u.model]=(m[u.model]||0)+(u.cost_usd||0);return m},{})).map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}</div>
-   <div class="card c8"><h3>Tokens per session</h3><div class="hint">Stacked by token class</div>${d.usage.length?legend(tser)+bars(w*.62,180,tb,tser,fmtTok):'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c8"><h3>Tokens per session</h3><div class="hint">Stacked by token class, one bar per model call; each tooth of the saw is one dispatch</div>${d.usage.length?legend(tser)+tbars(cw,200,ax0,ax1,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Tools</h3><div class="hint">Calls per tool, failures in red</div>${hbars(d.tools.map(t=>({label:t.tool_name,value:t.calls,fail:t.failed||0,color:'var(--ink)',tip:`${t.tool_name}\n${t.calls} calls · ${t.failed??'?'} failed${t.unknown?' · '+t.unknown+' unknown':''}\n${fmtDur((t.duration_ms||0)/1000)} total`})),v=>String(v))}</div>
    <div class="card c8"><h3>Tool calls over time</h3><div class="hint">One dot per call (newest 500), failed calls in red</div>${strip||'<div class="empty">No tool calls</div>'}</div>
-   <div class="card c4"><h3>Failures</h3><div class="hint">Failed tool calls, API errors, failed gates</div>
-     ${[...d.tool_calls.filter(t=>t.success===0).map(t=>({ts:t.ts,k:'tool',t:t.tool_name+(t.error_type?' · '+t.error_type:'')})),...d.api_errors.map(e=>({ts:e.ts,k:'api',t:(e.status_code??'?')+' '+(e.error??e.kind)})),...d.gates.filter(g=>!g.passed).map(g=>({ts:g.ts,k:'gate',t:g.name+(g.reason?': '+g.reason:'')}))].sort((x,y)=>x.ts<y.ts?1:-1).slice(0,12).map(x=>`<div style="display:flex;gap:8px;margin:5px 0;align-items:baseline">${chip(x.k,'crit')}<span style="min-width:0;overflow-wrap:anywhere">${esc(x.t)}</span><span class="muted" style="margin-left:auto;white-space:nowrap">${esc(fmtTime(T(x.ts)))}</span></div>`).join('')||'<div class="empty">No failures</div>'}</div>
+   <div class="card c4"><h3>Failures</h3><div class="hint">Failed tool calls, API errors, failed gates: what, error class, lane, time</div>
+     ${[...d.tool_calls.filter(t=>t.success===0).map(t=>({ts:t.ts,k:'tool',t:t.tool_name,e:t.error_type,lane:t.lane})),...d.api_errors.map(e=>({ts:e.ts,k:'api',t:e.kind,e:[e.status_code,e.error].filter(v=>!nil(v)).join(' '),lane:e.lane})),...d.gates.filter(g=>!g.passed).map(g=>({ts:g.ts,k:'gate',t:g.name,e:g.reason,lane:g.lane}))].sort((x,y)=>x.ts<y.ts?1:-1).slice(0,12).map(x=>`<div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;margin:5px 0;align-items:baseline">${chip(x.k,'crit')}<span style="min-width:0;overflow-wrap:anywhere">${esc(x.t)}${x.e?` <span class="muted">· ${esc(x.e)}</span>`:''}</span>${x.lane?laneChip(x.lane):'<span class="muted">no lane</span>'}<span class="muted" style="white-space:nowrap">${esc(fmtTime(T(x.ts)))}</span></div>`).join('')||'<div class="empty">No failures</div>'}</div>
    ${d.agents.length?`<div class="card c12"><h3>Subagents</h3>${table([{h:'Agent',f:r=>`<span class="mono">${esc(shortId(r.agent_id))}</span>`},{h:'Parent',f:r=>r.parent_agent_id?`<span class="mono">${esc(shortId(r.parent_agent_id))}</span>`:'main'},{h:'Type',f:r=>esc(r.agent_type??'?')},{h:'Model',f:r=>esc(r.final_model??r.model??'?')},{h:'Status',f:r=>chip(r.status)},{h:'Tool calls',n:1,f:r=>r.tool_calls},{h:'Duration',n:1,f:r=>dur(nil(r.duration_ms)?null:r.duration_ms/1000)}],d.agents)}</div>`:''}
   </div>`;
 };

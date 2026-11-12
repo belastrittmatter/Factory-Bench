@@ -273,3 +273,18 @@ func barEnd(status string, ended, waitingSince, lastEvent *time.Time, now time.T
 	}
 	return now, "running"
 }
+
+// laneAt is the lane of the dispatch that was running at ts: the latest one started by ts (within dispatchSkew) that
+// had not ended more than dispatchSkew before ts. "" = no dispatch was running.
+func laneAt(rows []dispatchRow, ts time.Time) string {
+	lane := ""
+	for _, r := range rows {
+		if r.Lane != "" && !r.At.After(ts.Add(dispatchSkew)) {
+			lane = ""
+			if !ts.After(r.End.Add(dispatchSkew)) {
+				lane = r.Lane
+			}
+		}
+	}
+	return lane
+}

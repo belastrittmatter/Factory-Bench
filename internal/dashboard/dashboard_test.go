@@ -123,6 +123,9 @@ func TestEndpoints(t *testing.T) {
 	if a := at["attempt"].(map[string]any); a["status"] != "idle" || a["has_wait_events"].(float64) != 0 || a["last_event"] == nil {
 		t.Errorf("attempt status: %v", a)
 	}
+	if u := at["usage"].([]any)[0].(map[string]any); u["lane"] != "" || at["dispatches"] == nil { // the fixture's dispatches are hours away
+		t.Errorf("lanes: %v %v", u, at["dispatches"])
+	}
 	if get(t, h, "/api/attempt?factory=f&id=nope", nil).Code != 404 {
 		t.Error("missing attempt")
 	}

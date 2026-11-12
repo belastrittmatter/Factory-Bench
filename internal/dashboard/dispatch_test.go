@@ -148,3 +148,24 @@ func TestBarEnd(t *testing.T) {
 		}
 	}
 }
+
+func TestLaneAt(t *testing.T) {
+	day := time.Date(2026, 1, 2, 10, 0, 0, 0, time.UTC)
+	m := func(n int) time.Time { return day.Add(time.Duration(n) * time.Minute) }
+	rows := []dispatchRow{
+		{Lane: "alpha", At: m(0), End: m(10)},
+		{Lane: "", At: m(0), End: m(30)}, // calls outside dispatches never set a lane
+		{Lane: "beta", At: m(20), End: m(25)},
+	}
+	for _, c := range []struct {
+		min  int
+		want string
+	}{{5, "alpha"}, {15, ""}, {21, "beta"}, {40, ""}, {-5, ""}} {
+		if got := laneAt(rows, m(c.min)); got != c.want {
+			t.Errorf("laneAt(+%dm) = %q, want %q", c.min, got, c.want)
+		}
+	}
+	if laneAt(nil, m(0)) != "" {
+		t.Error("no dispatches")
+	}
+}
