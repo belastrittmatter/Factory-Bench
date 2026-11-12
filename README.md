@@ -39,4 +39,4 @@ export FACTORYBENCH_URL=http://localhost:8080 FACTORYBENCH_TOKEN=<token>
 - **[INSTALL.md](INSTALL.md)**: integrate a factory (written so a coding agent can follow it).
 - [docs/reference.md](docs/reference.md): concepts, contract rules, metric definitions, storage.
 - [spec/events.schema.json](spec/events.schema.json): the event contract, with one example per type in [spec/examples/](spec/examples/).
-- [docs/diagrams/](docs/diagrams/): issue flow, event path, attempt states, DB schema, code map.
+- [docs/diagrams/](docs/diagrams/): issue flow, event path, attempt states, DB schema, code map; regenerate with `python3 docs/diagrams/generate.py`.
