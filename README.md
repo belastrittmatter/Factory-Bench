@@ -2,7 +2,7 @@
 
 Compare AI coding factories on the same GitHub issues: what each attempt cost, how long it took, how often a human had to step in, and whether its PR got merged and stayed merged.
 
-Factories only **report raw facts** as small JSON events over HTTP: an attempt started, an agent session used N tokens, a PR was linked, the attempt ended. FactoryBench does the rest. It prices tokens, polls GitHub for PRs, CI, reviews and merges, and computes every metric. Reporting never blocks a factory: events that fail to send are spooled and resent.
+Factories only **report raw facts** as small JSON events over HTTP: an attempt started, an agent session used N tokens, a PR was linked, the attempt ended. FactoryBench does the rest. It prices tokens, polls GitHub for PRs, CI, reviews and merges, and computes every metric. Reporting never blocks a factory: events that fail to send are spooled and resent. A Claude Code factory can instead let Claude Code send its token usage, tool calls and subagents itself over OpenTelemetry (`POST /v1/logs`, no spool; see [INSTALL.md](INSTALL.md#2-claude-code-factories)).
 
 ![Architecture](docs/diagrams/architecture.svg)
 
