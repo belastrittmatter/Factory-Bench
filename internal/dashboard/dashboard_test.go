@@ -101,6 +101,9 @@ func TestEndpoints(t *testing.T) {
 	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
+	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
+		t.Errorf("units: %v", u)
+	}
 	if w := get(t, h, "/api/item?repo=o/r&issue=99", nil); w.Code != 404 {
 		t.Errorf("missing item: %d", w.Code)
 	}

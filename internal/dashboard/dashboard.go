@@ -282,6 +282,18 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
+	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
+	all, err := report.ItemRows(s.db, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	units := []report.ItemRow{}
+	for _, u := range all {
+		if u.Item == fmt.Sprintf("%s#%d", repo, n) {
+			units = append(units, u)
+		}
+	}
+	res["units"] = units
 	return res, nil
 }
 

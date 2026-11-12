@@ -112,7 +112,7 @@ th.n,td.n{text-align:right;padding-right:0;padding-left:16px}
 td.n{font-size:12.5px}
 tbody tr.click{cursor:pointer}tbody tr.click:hover td{background:var(--surface-2)}
 tr.stuck td{background:var(--crit-soft)}
-td.t{white-space:normal;min-width:220px;max-width:380px}
+td.t{white-space:normal;min-width:160px;max-width:380px}
 .ttl{overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical}
 .ibar{display:flex;align-items:center;gap:8px;justify-content:flex-end}
 .ibar i{display:block;height:3px;background:var(--ink);min-width:2px;opacity:.75}
@@ -479,14 +479,16 @@ const fixStr=v=>String(v).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).r
 const na=v=>v==='n/a'?'<span class="muted">n/a</span>':v==='?'?U:esc(fixStr(v));
 
 // timeline event classification
+// [kind, color, what the color means] of a report item line
+const GOOD='var(--s3)',BAD='var(--crit)',NEUTRAL='var(--text-3)',INFO='var(--s1)';
 function evKind(l){const t=l.Text;
-  if(/^session /.test(t))return['sessions','var(--text-3)'];if(/^subagent /.test(t))return['subagents','var(--s7)'];
-  if(/started/.test(t)&&l.Kind===0)return['lifecycle','var(--s1)'];if(/^attempt /.test(t))return['lifecycle',/failed|cancelled/.test(t)?'var(--crit)':'var(--s3)'];
-  if(/^PR linked/.test(t))return['github','var(--s1)'];if(/^gate /.test(t))return['gates',/failed/.test(t)?'var(--crit)':'var(--s3)'];
-  if(/human/.test(t))return['human','var(--s4)'];
-  if(/^check /.test(t))return['ci',/failure|timed_out/.test(t)?'var(--crit)':/success/.test(t)?'var(--s3)':'var(--text-3)'];
-  if(/^review /.test(t))return['reviews',/CHANGES_REQUESTED/.test(t)?'var(--crit)':/APPROVED/.test(t)?'var(--s3)':'var(--text-3)'];
-  if(/^PR /.test(t))return['github',/merged/.test(t)?'var(--s3)':'var(--s1)'];return['other','var(--text-3)']}
+  if(/^session /.test(t))return['sessions',NEUTRAL,'model call'];if(/^subagent /.test(t))return['subagents','var(--s7)','subagent'];
+  if(/started/.test(t)&&l.Kind===0)return['lifecycle',INFO,'started'];if(/^attempt /.test(t))return /failed|cancelled/.test(t)?['lifecycle',BAD,'failed']:['lifecycle',GOOD,'finished'];
+  if(/^PR linked/.test(t))return['github',INFO,'PR linked'];if(/^gate /.test(t))return /failed/.test(t)?['gates',BAD,'gate failed']:['gates',GOOD,'gate passed'];
+  if(/human/.test(t))return['human','var(--s4)','human'];
+  if(/^check /.test(t))return /failure|timed_out/.test(t)?['ci',BAD,'check failed']:/success/.test(t)?['ci',GOOD,'check passed']:['ci',NEUTRAL,'check other / pending'];
+  if(/^review /.test(t))return /CHANGES_REQUESTED/.test(t)?['reviews',BAD,'changes requested']:/APPROVED/.test(t)?['reviews',GOOD,'approved']:['reviews',NEUTRAL,'review comment'];
+  if(/^PR /.test(t))return /merged/.test(t)?['github',GOOD,'PR merged']:['github',INFO,'PR state'];return['other',NEUTRAL,'other']}
 // attempts are named by start order ("attempt 2"), never by their id, in every event text
 const attLabels=atts=>{const m={};atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>m[a.attempt_id]='attempt '+(i+1));return m};
 const relabel=(t,labels)=>Object.entries(labels).reduce((s,[id,l])=>s.split('attempt '+id).join(l).split(id).join(l),String(t));
@@ -504,10 +506,11 @@ function timelineHtml(tl,disp,labels){
 function dispatchEv(d,labels){
   const n=d.calls.length,span=(+T(d.end)-+T(d.at))/1000;
   const head=[laneChip(d.lane),labels[d.attempt_id]?esc(labels[d.attempt_id]):'',plural(n,'model call'),usd(n?d.cost_usd:null,d.unpriced>0),esc(fmtDur(span))+(d.end_reported?'':' <span class="muted">(end not reported)</span>')].filter(Boolean).join(' · ');
-  return `<div class="ev" style="--k:${d.lane?colorOf('lane',d.lane):'var(--text-3)'}"><div class="when">${esc(fmtWhen(d.at))}</div><div class="what">${head}</div>${d.outcome?`<div class="ex">${esc(relabel(d.outcome,labels))}</div>`:''}
+  return `<div class="ev" style="--k:${d.lane?colorOf('lane',d.lane):'var(--text-3)'};${d.retry?'opacity:.62;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)':''}"><div class="when">${esc(fmtWhen(d.at))}</div><div class="what">${d.retry?chip('retry','warn')+' ':''}${head}</div>${d.outcome?`<div class="ex">${esc(relabel(d.outcome,labels))}</div>`:''}
    ${n?`<details class="tool" style="grid-column:3;border:0"><summary>show ${plural(n,'model call')}</summary>${table([{h:'Time',f:c=>esc(fmtTime(T(c.ts)))},{h:'Model',f:c=>esc(c.model)},{h:'Phase',f:c=>esc(c.phase??'?')},{h:'Tokens',n:1,f:c=>tok(c.tokens)},{h:'Cost',n:1,f:c=>usd(c.cost_usd)},{h:'Duration',n:1,f:c=>dur(nil(c.duration_ms)?null:c.duration_ms/1000)}],d.calls)}</details>`:''}</div>`;
 }
 
+let gLegend=[];
 // gantt of attempts + PR/review/check markers
 function gantt(w,atts,tl,f){
   if(!atts.length)return'';
@@ -528,15 +531,16 @@ function gantt(w,atts,tl,f){
     lanes.forEach((ln,i)=>{m+=`<text x="0" y="${y+i*rowH+16}" style="fill:var(--text-2)">${esc(ln)}</text>`});
     const pts=flow.map(d=>({x:X(+T(d.at)),i:lanes.indexOf(d.lane),d}));let prev=null;const seen=new Set();
     pts.forEach(p=>{const py=y+p.i*rowH+12;const same=prev&&p.i===prev.i,back=prev&&!same&&seen.has(p.i);seen.add(p.i);if(prev){m+=`<path d="M${prev.x},${prev.y}H${p.x}V${py}" fill="none" stroke="${back?'var(--crit)':'var(--line-2)'}" stroke-width="${back?2:1.5}" ${same?'stroke-dasharray="3 3"':''}/>`}
-      m+=`<circle cx="${p.x}" cy="${py}" r="5" fill="${back?'var(--crit)':colorOf('lane',p.d.lane)}" stroke="var(--surface)" stroke-width="2" data-tip="${esc('dispatch to '+p.d.lane+'\n'+fmtWhen(p.d.at)+(back?'\nbounced back':same?'\nre-dispatched in the same lane':''))}"/>`;prev={...p,y:py}});
+      const dc=back?'var(--crit)':colorOf('lane',p.d.lane),dd=p.d;
+      m+=`<circle cx="${p.x}" cy="${py}" r="5" fill="${dd.retry?'var(--bg)':dc}" stroke="${dd.retry?dc:'var(--surface)'}" stroke-width="2" ${dd.retry?'opacity=".6"':''} data-tip="${esc(`dispatch to ${dd.lane}${dd.retry?' (retry: its attempt '+dd.attempt_state+')':''}\n${fmtWhen(dd.at)} · ${fmtDur((+T(dd.end)-+T(dd.at))/1000)}\n${plural(dd.calls.length,'model call')} · ${dd.calls.length?fmtUsd(dd.cost_usd)+(dd.unpriced?' +?':''):'no cost'}${dd.outcome?'\n'+dd.outcome:''}${back?'\nbounced back':same?'\nre-dispatched in the same lane':''}`)}"/>`;prev={...p,y:py}});
     y+=lanes.length*rowH;m+=`<line class="axis" x1="0" x2="${w}" y1="${y-2}" y2="${y-2}"/>`;
   }
   if(board.length){m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">board</text>`;board.forEach((b,i)=>{const x=X(+T(b.at)),room=i+1<board.length?X(+T(board[i+1].at))-x:w-x;
       m+=`<path d="M${x},${y+6}l5,7l-5,7l-5,-7z" fill="var(--hot)" data-tip="${esc(b.tip+'\n'+fmtWhen(b.at))}"/>${room>70?`<text x="${x+9}" y="${y+17}" style="fill:var(--text)">${esc(b.label)}</text>`:''}`});y+=rowH}
   atts.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle';
-    m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">${esc(a.role||shortId(a.attempt_id))}</text><rect x="${x1}" y="${y+6}" width="${Math.max(3,x2-x1)}" height="14" rx="4" fill="${SC[a.state]||'var(--text-3)'}" ${a.ended_at?'':'opacity=".75"'} data-tip="${esc(`${a.attempt_id}\n${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''} · ${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)}\n${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
+    m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">${esc(attLabels(atts)[a.attempt_id])}</text><rect x="${x1}" y="${y+6}" width="${Math.max(3,x2-x1)}" height="14" rx="4" fill="${SC[a.state]||'var(--text-3)'}" ${a.ended_at?'':'opacity=".75"'} data-tip="${esc(`${a.attempt_id}\n${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''} · ${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)}\n${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
       (open?`<line x1="${x2}" x2="${X(t1)}" y1="${y+13}" y2="${y+13}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-60)}" y="${y+4}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');y+=rowH});
-  if(ev.length){m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">GitHub</text>`;ev.forEach(l=>{const c=evKind(l)[1];m+=`<rect x="${X(+T(l.TS))-4}" y="${y+8}" width="8" height="10" rx="2" fill="${c}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
+  if(ev.length){gLegend=uniq(ev.map(l=>evKind(l)[2])).map(n=>({name:n,color:evKind(ev.find(l=>evKind(l)[2]===n))[1]}));m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">GitHub</text>`;ev.forEach(l=>{const c=evKind(l)[1];m+=`<rect x="${X(+T(l.TS))-4}" y="${y+8}" width="8" height="10" rx="2" fill="${c}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${g}${m}</svg>`;
 }
 
@@ -554,19 +558,20 @@ V.item=async(repo,issue)=>{
    ${kpi('Outcome',pr?chip(pr.state):chip('open'),d.prs.length?`${d.prs.length} PR${d.prs.length>1?'s':''}`:'no PR linked')}
    ${kpi('Attempts',d.attempts.length,`${d.attempts.filter(a=>a.state==='failed').length} failed`)}
    ${kpi('Cost',usd(cost,unp),`${fmtTok(tokens)} tokens`)}
+   ${kpi('Cost of retries',f.retry_dispatches?usd(f.retry_cost_usd):'<span class="muted">none</span>',f.retry_dispatches?`${f.retry_dispatches} retried dispatch${f.retry_dispatches===1?'':'es'}`:'no failed attempt')}
    ${kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
    ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),'first start → last end')}
-   ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`${bounces} bounce${bounces===1?'':'s'} · ${redis} re-dispatch${redis===1?'':'es'}`:'needs --runs')}
+   ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`${bounces} bounce${bounces===1?'':'s'} · ${redis} repeat${redis===1?'':'s'}`:'needs --runs')}
   </div>
   <div class="grid">
-  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Lanes from the run manifest (red = bounced back, dashed = re-dispatched), then each attempt, then GitHub events. ':'Each attempt, then GitHub events. '}Bars stop where an attempt ended, began waiting or went idle; the board row shows reported state moves and waits. Click an attempt bar to open it.</div>${gantt(w,d.attempts,d.timeline,f)}</div>
+  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Lanes from the run manifest (red = bounced back, dashed = re-dispatched), then each attempt, then GitHub events. ':'Each attempt, then GitHub events. '}Bars stop where an attempt ended, began waiting or went idle; the board row shows reported state moves and waits. Click an attempt bar to open it.</div>${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,f);return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
   <div class="card c8"><h3>Events</h3><div class="hint">Lifecycle, review and CI events from <span class="mono">report item</span>; model calls are grouped per dispatch (open a row for its calls). Toggle kinds to filter.</div>${timelineHtml(d.timeline,f.dispatches,labels)}</div>
   <div class="c4" style="display:flex;flex-direction:column;gap:14px;min-width:0">
-   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt',f:a=>`<b>${esc(a.role||shortId(a.attempt_id))}</b><div class="muted">${esc(fmtWhen(a.started_at))}</div>`},{h:'State',f:a=>chip(a.status||a.state)},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
+   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt · lanes',c:'t',f:a=>{const ls=uniq(lanes.filter(x=>x.attempt_id===a.attempt_id).map(x=>x.lane));return `<b>${esc(labels[a.attempt_id])}</b>${a.role?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span><div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:3px">${ls.length?ls.map(laneChip).join(''):'<span class="muted">no lanes reported</span>'}</div>`}},{h:'State · PR',f:a=>`${chip(a.status||a.state)}<div>${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a>`:'<span class="muted">no PR</span>'}</div>`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
    <div class="card"><h3>Pull requests</h3>${d.prs.length?d.prs.map(p=>`<div style="margin:6px 0 10px"><div style="display:flex;gap:8px;align-items:center"><a href="${esc(p.url)}" target="_blank" rel="noreferrer noopener"><b>#${p.number}</b></a>${chip(p.state)}<span class="muted" style="margin-left:auto">${nil(p.additions)?'size ?':`<span style="color:var(--good)">+${p.additions}</span> <span style="color:var(--crit)">−${p.deletions}</span> · ${p.changed_files} files`}</span></div>
      <div class="muted">${p.factory_commits} factory · ${p.human_commits} human commits${p.merged_at?' · merged '+esc(fmtWhen(p.merged_at)):''}</div></div>`).join(''):'<div class="empty">No PR linked yet</div>'}
      ${d.reviews.length?`<h3 style="margin-top:10px">Reviews</h3>${d.reviews.map(r=>`<div style="display:flex;gap:8px;margin:4px 0">${chip(r.state)}<span>${esc(r.reviewer)}</span><span class="muted" style="margin-left:auto">${esc(fmtWhen(r.submitted_at))}</span></div>`).join('')}`:''}</div>
-   <div class="card"><h3>CI checks</h3>${d.checks.length?hbars(Object.entries(d.checks.reduce((m,c)=>{const x=m[c.name]=m[c.name]||{n:0,f:0};x.n++;if(/failure|timed_out/.test(c.conclusion))x.f++;return m},{})).map(([k,x])=>({label:k,value:x.n,fail:x.f,color:'var(--s3)',tip:`${k}\n${x.n} runs · ${x.f} failed`})),v=>v+' runs'):'<div class="empty">No check runs</div>'}</div>
+   <div class="card"><h3>CI checks</h3>${d.units.map(u=>`<div class="stat-list" style="margin-bottom:8px"><div><span>first push${d.units.length>1?' · '+esc(u.Factory):''}</span><b>${u.CIFirstPush==='n/a'?'<span class="muted">n/a</span>':(u.CIFirstPush.startsWith('100%')?chip('pass','good'):chip('fail','crit'))+' <span class="muted">'+esc(u.CIFirstPush)+'</span>'}</b></div></div>`).join('')}${d.checks.length?hbars(Object.entries(d.checks.reduce((m,c)=>{const x=m[c.name]=m[c.name]||{n:0,f:0};x.n++;if(/failure|timed_out/.test(c.conclusion))x.f++;return m},{})).map(([k,x])=>({label:k,value:x.n,fail:x.f,color:'var(--s3)',tip:`${k}\n${x.n} runs · ${x.f} failed`})),v=>v+' runs'):'<div class="empty">No check runs</div>'}</div>
   </div></div>`;
 };
 
