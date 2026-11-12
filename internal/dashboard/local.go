@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -200,12 +201,22 @@ func readText(dir, rel string) (map[string]any, error) {
 		return nil, httpError{http.StatusNotFound, "no such file"}
 	}
 	defer f.Close()
-	buf := make([]byte, maxFile+1)
-	n, _ := f.Read(buf)
-	trunc := n > maxFile
-	b := buf[:min(n, maxFile)]
-	for !utf8.Valid(b) && len(b) > 0 && trunc {
-		b = b[:len(b)-1]
+	b, err := io.ReadAll(io.LimitReader(f, maxFile+1))
+	if err != nil {
+		return nil, err
+	}
+	trunc := len(b) > maxFile
+	if trunc {
+		b = b[:maxFile]
+		// drop only a rune split by the cut; invalid bytes elsewhere in the file stay as they are
+		for i := len(b) - 1; i >= 0 && i >= len(b)-utf8.UTFMax; i-- {
+			if utf8.RuneStart(b[i]) {
+				if !utf8.FullRune(b[i:]) {
+					b = b[:i]
+				}
+				break
+			}
+		}
 	}
 	return map[string]any{"name": rel, "text": string(b), "truncated": trunc}, nil
 }

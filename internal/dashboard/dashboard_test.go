@@ -317,3 +317,21 @@ func TestEmptyDatabase(t *testing.T) {
 		t.Errorf("scorecard: %d", w.Code)
 	}
 }
+
+// A truncated file keeps invalid bytes that are not at the cut and drops only a rune the cut split.
+func TestReadTextTruncates(t *testing.T) {
+	dir := t.TempDir()
+	body := append([]byte("a\xffb"), strings.Repeat("x", maxFile-4)...)
+	body = append(body, "é tail"...) // é straddles the maxFile limit
+	if err := os.WriteFile(filepath.Join(dir, "f"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	r, err := readText(dir, "f")
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := r["text"].(string)
+	if r["truncated"] != true || len(text) != maxFile-1 || !strings.HasPrefix(text, "a\xffb") || strings.HasSuffix(text, "\xc3") {
+		t.Errorf("truncated %v, len %d, head %q, tail %q", r["truncated"], len(text), text[:3], text[len(text)-3:])
+	}
+}
