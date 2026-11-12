@@ -140,8 +140,8 @@ func main() {
 }
 
 // rebuilder runs normalize.Run in one background goroutine and returns a non-blocking trigger for it.
-// Triggers that arrive during a rebuild collapse into one more rebuild, so intake never waits for normalize
-// and a burst of batches costs at most two rebuilds.
+// Triggers that arrive during a rebuild collapse into one more rebuild, so a burst of batches costs at most two rebuilds.
+// Triggering never blocks, but intake's inserts wait for a running rebuild's write lock.
 // shortcut: each rebuild is a full one (measured ~35k events/s) and intake waits for it; past the OTLP exporter's default
 // 10 s timeout (~350k events) Claude Code batches are dropped (no spool). Switch to incremental normalize before that.
 func rebuilder(db *sql.DB) func() {
