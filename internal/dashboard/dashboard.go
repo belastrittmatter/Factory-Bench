@@ -369,6 +369,12 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		return nil, err
 	}
 	res["tools_by_lane"] = toolsByLane(mine, tcs)
+	// what each model was used for, if the agent reports it (Claude Code's query_source on api_request records)
+	if res["model_purposes"], err = rows(s.db, `SELECT json_extract(payload, '$.model') AS model, json_extract(payload, '$.query_source') AS purpose,
+		count(*) AS calls, sum(json_extract(payload, '$.cost_usd')) AS cost_usd FROM events WHERE source = 'otlp' AND factory_id = ?1 AND type = 'otlp.api_request'
+		AND json_extract(payload, '$."factorybench.attempt"') = ?2 AND json_extract(payload, '$.query_source') IS NOT NULL GROUP BY 1, 2 ORDER BY calls DESC`, f, id); err != nil {
+		return nil, err
+	}
 	// tool decisions as the agent reported them: a rejected tool never runs, so it has no tool call row
 	if res["tool_decisions"], err = rows(s.db, `SELECT json_extract(payload, '$.tool_name') AS tool_name, json_extract(payload, '$.decision') AS decision,
 		json_extract(payload, '$.source') AS source, count(*) AS n FROM events WHERE source = 'otlp' AND factory_id = ?1 AND type = 'otlp.tool_decision'

@@ -34,7 +34,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1)`,
 		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 'Bash', 0, 12, 'ShellError')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
-		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `"}')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","model":"m","query_source":"q1","cost_usd":0.5}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e2', 'otlp.tool_decision', '` + ts(18*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","tool_name":"T9","decision":"reject","source":"cfg"}')`,
 	} {
 		if _, err := rw.Exec(q); err != nil {
@@ -135,6 +135,9 @@ func TestEndpoints(t *testing.T) {
 	}
 	if td := at["tool_decisions"].([]any); len(td) != 1 || td[0].(map[string]any)["decision"] != "reject" || td[0].(map[string]any)["n"].(float64) != 1 {
 		t.Errorf("tool decisions: %v", td)
+	}
+	if mp := at["model_purposes"].([]any); len(mp) != 1 || mp[0].(map[string]any)["purpose"] != "q1" || mp[0].(map[string]any)["calls"].(float64) != 1 {
+		t.Errorf("model purposes: %v", mp)
 	}
 	if get(t, h, "/api/attempt?factory=f&id=nope", nil).Code != 404 {
 		t.Error("missing attempt")
