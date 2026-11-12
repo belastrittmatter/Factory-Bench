@@ -551,7 +551,7 @@ V.item=async(repo,issue)=>{
   const [d,f]=await Promise.all([get(`/api/item?repo=${enc(repo)}&issue=${issue}`),get(`/api/flow?repo=${enc(repo)}&issue=${issue}`)]);
   const cost=d.attempts.reduce((a,x)=>a+(x.cost_usd||0),0),unp=d.attempts.some(x=>x.unpriced>0||nil(x.tokens));
   const tokens=d.attempts.reduce((a,x)=>a+(x.tokens||0),0);
-  const t0=Math.min(...d.attempts.map(a=>+T(a.started_at))),t1=Math.max(...d.attempts.map(a=>+(T(a.ended_at)||Date.now())));
+  const t0=Math.min(...d.attempts.map(a=>+T(a.started_at))),t1=Math.max(...f.attempts.map(a=>+T(a.bar_end))); // where the bars stop: waiting or idle attempts do not run to now
   const bounces=f.bounces,redis=f.redispatches,lanes=f.dispatches.filter(x=>x.lane),labels=attLabels(d.attempts);
   const pr=d.prs[0];
   const w=W($('#main'))-90;
