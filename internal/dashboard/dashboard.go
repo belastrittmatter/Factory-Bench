@@ -412,6 +412,8 @@ func (s *server) series(r *http.Request) (any, error) {
 		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,
 			sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
+		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3 ORDER BY min(u.ts)`}, // cost per attempt and phase, for the per-issue spend chart
 		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
 			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
 		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,

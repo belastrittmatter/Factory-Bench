@@ -161,6 +161,15 @@ func TestEndpoints(t *testing.T) {
 	if tl := se["tools"]; len(tl) != 1 || tl[0]["failed"].(float64) != 1 {
 		t.Errorf("series tools: %v", tl)
 	}
+	pc := 0.0 // per-attempt phase cost adds up to the usage cost
+	for _, x := range se["attempt_phases"] {
+		if c, ok := x["cost_usd"].(float64); ok {
+			pc += c
+		}
+	}
+	if pc != cost || len(se["attempt_phases"]) == 0 {
+		t.Errorf("attempt phases: %v", se["attempt_phases"])
+	}
 
 	var sm summary
 	get(t, h, "/api/summary", &sm)

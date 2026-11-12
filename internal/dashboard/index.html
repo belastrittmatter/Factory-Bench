@@ -131,6 +131,8 @@ td.t{white-space:normal;min-width:160px;max-width:380px}
 .hb .lab{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-2)}
 .hb .track{height:6px;background:var(--surface-2);display:flex;overflow:hidden;gap:1px}
 .hb .track i{display:block;height:100%}
+.mbar{display:block;height:3px;background:var(--surface-2);margin-top:4px;min-width:60px}.mbar i{display:block;height:100%}table.score td{vertical-align:top}
+.wide .hb{grid-template-columns:minmax(90px,340px) minmax(0,1fr) auto}.hb[data-href]:hover .lab{color:var(--hot)}
 .hb .val{font-family:var(--mono);font-size:12px;min-width:52px;text-align:right}
 .segbar{display:flex;height:8px;overflow:hidden;gap:2px;margin:4px 0 10px}
 .segbar i{display:block;height:100%}
@@ -146,10 +148,11 @@ td.t{white-space:normal;min-width:160px;max-width:380px}
 .lgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));column-gap:40px;row-gap:34px}
 .lcard{display:block;border-top:2px solid var(--ink);padding-top:12px;min-width:0}
 .lcard:hover .id{color:var(--hot)}
-.lcard.idle{border-color:var(--hot)}
-.lcard .r1{display:flex;gap:10px;align-items:center}.lcard .r1 .id{margin-right:auto;font-family:var(--mono);font-size:12.5px}
+.lcard.quiet{border-color:var(--warn)}
+.lcard .now{font-size:13.5px;margin:2px 0 10px}.lcard .now b{font-weight:600}
+.lcard .r1{display:flex;gap:10px;align-items:center}.lcard .r1 .fac{font-family:var(--mono);font-size:12.5px;font-weight:600}.lcard .r1 .chip{margin-left:auto}
 .lcard .title{font-family:var(--serif);font-size:18px;line-height:1.25;margin:6px 0 10px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
-.lstats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid var(--line);margin-top:10px}
+.lstats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid var(--line);margin-top:10px}
 .lstats div{min-width:0;padding:8px 0 0}.lstats .l{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-3)}.lstats .v{font-family:var(--mono);font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .lfoot{display:flex;gap:8px;justify-content:space-between;font-family:var(--mono);font-size:11px;color:var(--text-3);margin-top:10px}
 .lfoot span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -196,7 +199,7 @@ pre.log{margin:0;font:11.5px/1.55 var(--mono);white-space:pre-wrap;overflow-wrap
   .mast-in{padding:0 16px;gap:18px;overflow-x:auto}.ticker{display:none}
   main{padding:0 16px 40px}.top h1{font-size:26px}.search{width:100%}
   .kpi{padding:12px 12px 14px}.kpi:nth-child(odd){border-left:0;padding-left:0}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:24px}
-  .lstats{grid-template-columns:repeat(2,minmax(0,1fr))}.ev{grid-template-columns:62px 10px minmax(0,1fr)}
+  .lstats{grid-template-columns:repeat(3,minmax(0,1fr))}.ev{grid-template-columns:62px 10px minmax(0,1fr)}
 }
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 </style>
@@ -280,7 +283,7 @@ function bars(w,h,buckets,series,fmt,count){
     const x=pl+i*step+(step-bw)/2;let y=pt+ih;
     const lines=series.filter(s=>s.values[i]).map(s=>`${s.name}: ${fmt(s.values[i])}`);
     series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(1,v/max*ih);y-=hh;m+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(0,hh-(y>pt?1.5:0))}" rx="${Math.min(1.5,bw/4)}" fill="${s.color}"/>`});
-    m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" data-tip="${esc(b.tip+(tot[i]?'\n'+(series.length>1?'Total '+fmt(tot[i])+'\n':'')+lines.join('\n'):'\nno data'))}"/>`;
+    m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" ${b.href?`data-href="${esc(b.href)}" style="cursor:pointer"`:''} data-tip="${esc(b.tip+(tot[i]?'\n'+(series.length>1?'Total '+fmt(tot[i])+'\n':'')+lines.join('\n'):'\nno data'))}"/>`;
     if(i%every===0&&b.label!==lastLab&&(lastLab=b.label))m+=`<text x="${x+bw/2}" y="${h-6}" text-anchor="middle">${esc(b.label)}</text>`;
   });
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
@@ -291,8 +294,25 @@ function laneBands(rows,X,pt,ih,xmin,xmax){
   return (rows||[]).filter(r=>r.lane).map(r=>{const x1=Math.max(xmin,X(+T(r.at))),x2=Math.min(xmax,X(+T(r.end)));if(x2<=x1)return'';const c=colorOf('lane',r.lane);
     return `<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`}).join('');
 }
-// spans up to which the Overview spend chart uses hourly, then 6-hour buckets (days beyond)
-const SPAN={hourly:2*864e5,sixHourly:14*864e5};
+// an empty stretch at least minMs long and at least `share` of the span is cut out of a time axis and drawn as a px-wide break
+// a stretch with no events inside a chart longer than this is drawn dashed and labelled
+const QUIET_MS=3*6e4;
+const GAP={minMs:15*6e4,share:.15,px:64};
+// time axis over busy intervals [[a,b]] (ms): long stretches without data collapse into breaks, so a quiet hour does not squash the work
+function timeAxis(iv,x0,x1,tickPx=110){
+  iv=iv.filter(([a,b])=>isFinite(a)&&isFinite(b)).map(([a,b])=>[a,Math.max(a,b)]).sort((p,q)=>p[0]-q[0]);
+  const t0=iv.length?iv[0][0]:Date.now(),t1=Math.max(t0+6e4,...iv.map(p=>p[1]));
+  const gaps=[];let end=t0;for(const [a,b] of iv){if(a-end>=GAP.minMs&&a-end>=(t1-t0)*GAP.share)gaps.push([end,a]);end=Math.max(end,b)}
+  const busy=(t1-t0)-gaps.reduce((s,[a,b])=>s+b-a,0),k=Math.max(1,x1-x0-gaps.length*GAP.px)/busy;
+  const X=t=>{let x=x0,p=t0;for(const [a,b] of gaps){if(t<a)break;x+=(a-p)*k;if(t<b)return x+(t-a)/(b-a)*GAP.px;x+=GAP.px;p=b}return x+(Math.min(t,t1)-p)*k};
+  const segs=[];let p=t0;gaps.forEach(([a,b])=>{segs.push([p,a]);p=b});segs.push([p,t1]);
+  const ticks=[];segs.forEach(([a,b])=>{const n=Math.max(1,Math.floor((X(b)-X(a))/(tickPx*1.5)));for(let i=0;i<n;i++)ticks.push(a+(b-a)*i/n)});
+  if(X(t1)-X(ticks.at(-1))>=tickPx)ticks.push(t1);
+  return{X,t0,t1,gaps,ticks};
+}
+// the breaks of a timeAxis: a shaded band with the length of the stretch without data
+const gapMarks=(ax,y0,y1)=>ax.gaps.map(([a,b])=>{const x=ax.X(a),m=x+GAP.px/2;return `<rect x="${x}" y="${y0}" width="${GAP.px}" height="${y1-y0}" fill="var(--surface-2)" data-tip="${esc(`no data for ${fmtDur((b-a)/1000)}\n${fmtWhen(new Date(a).toISOString())} → ${fmtWhen(new Date(b).toISOString())}`)}"/><path d="M${x},${y0}V${y1}M${x+GAP.px},${y0}V${y1}" stroke="var(--line-2)" stroke-dasharray="2 3"/><text x="${m}" y="${y1-16}" text-anchor="middle" style="fill:var(--text-3);font-size:10px">no data</text><text x="${m}" y="${y1-4}" text-anchor="middle" style="fill:var(--text-3);font-size:10px">${esc(fmtDur((b-a)/1000).replace(/ \d+s$/,''))}</text>`}).join('');
+const axisTicks=(ax,y,fmt)=>ax.ticks.map((t,i)=>`<text x="${ax.X(t)}" y="${y}" text-anchor="${i?i===ax.ticks.length-1&&t===ax.t1?'end':'middle':'start'}">${esc(fmt(t))}</text>`).join('');
 // time axis shared by the attempt charts, so the same instant sits at the same x and gaps between runs stay gaps
 const AX={pl:44,pr:8,pb:22};
 function area(w,h,pts,fmt,color,o={}){
@@ -303,31 +323,37 @@ function area(w,h,pts,fmt,color,o={}){
   let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=Y(v);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
   for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtTime(new Date(t)))}</text>`}
   const d=pts.map((p,i)=>`${i?'L':'M'}${X(+p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
+  let quiet='';pts.forEach((p,i)=>{if(i&&+p.t-+pts[i-1].t>=QUIET_MS){const a=X(+pts[i-1].t),b=X(+p.t),y=Y(pts[i-1].v);quiet+=`<path d="M${a},${y}H${b}" stroke="var(--surface)" stroke-width="3" stroke-dasharray="5 5"/>`+(b-a>70?`<text x="${(a+b)/2}" y="${y-6}" text-anchor="middle" style="fill:var(--text-3);font-size:10px">no events ${esc(fmtDur((+p.t-+pts[i-1].t)/1000))}</text>`:'')}});
   const id='a'+Math.random().toString(36).slice(2,7);
   let hit='';pts.forEach((p,i)=>{const a=i?X((+pts[i-1].t+ +p.t)/2):pl,b=i<pts.length-1?X((+p.t+ +pts[i+1].t)/2):w-pr;hit+=`<rect x="${a}" y="${pt}" width="${Math.max(1,b-a)}" height="${ih}" fill="transparent" data-tip="${esc(p.tip)}" data-x="${X(+p.t)}" data-y="${Y(p.v)}"/>`});
   return `<svg class="chart xh" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".10"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${laneBands(o.bands,X,pt,ih,pl,w-pr)}${g}
-   <path d="${d}L${X(t1)},${Y(pts[pts.length-1].v)}L${X(t1)},${pt+ih}L${pl},${pt+ih}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>
+   <path d="${d}L${X(t1)},${Y(pts[pts.length-1].v)}L${X(t1)},${pt+ih}L${pl},${pt+ih}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>${quiet}
    <line class="hl" x1="0" x2="0" y1="${pt}" y2="${pt+ih}" visibility="hidden"/><circle r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>${hit}</svg>`;
 }
 document.addEventListener('pointerover',e=>{const r=e.target.closest&&e.target.closest('svg.xh rect[data-x]');if(!r)return;const s=r.ownerSVGElement,l=s.querySelector('.hl'),c=s.querySelector('circle');
   l.setAttribute('x1',r.dataset.x);l.setAttribute('x2',r.dataset.x);c.setAttribute('cx',r.dataset.x);c.setAttribute('cy',r.dataset.y);l.setAttribute('visibility','visible');c.setAttribute('visibility','visible')});
 document.addEventListener('pointerout',e=>{const s=e.target.closest&&e.target.closest('svg.xh');if(s&&!s.contains(e.relatedTarget)){s.querySelector('.hl').setAttribute('visibility','hidden');s.querySelector('circle').setAttribute('visibility','hidden')}});
-// stacked bars placed on a time axis: items [{t,tip}], series [{name,color,values}]
-function tbars(w,h,t0,t1,items,series,fmt,bands){
-  const {pl,pr,pb}=AX,pt=bands?20:8,iw=w-pl-pr,ih=h-pt-pb;t1=Math.max(t1,t0+1);
-  const X=t=>pl+(t-t0)/(t1-t0)*iw,tot=items.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0));
-  const sc=scale(Math.max(...tot,0)),max=sc.max,bw=Math.max(1.5,Math.min(8,iw/Math.max(1,items.length)*.7));
-  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
-  for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtTime(new Date(t)))}</text>`}
-  let m='';items.forEach((it,i)=>{const x=X(+it.t)-bw/2;let y=pt+ih;series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(.5,v/max*ih);y-=hh;m+=`<rect x="${x}" y="${y}" width="${bw}" height="${hh}" fill="${s.color}"/>`});
-    m+=`<rect x="${x-2}" y="${pt}" width="${bw+4}" height="${ih}" fill="transparent" data-tip="${esc(it.tip+'\n'+series.filter(s=>s.values[i]).map(s=>s.name+': '+fmt(s.values[i])).join('\n'))}"/>`});
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${laneBands(bands,X,pt,ih,pl,w-pr)}${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
+// one bar per model call, evenly spaced in call order (time between calls is not drawn); bands are the dispatches, labelled with their start time
+function callBars(w,h,items,series,fmt,bands){
+  const {pl,pr,pb}=AX,pt=bands?20:8,iw=w-pl-pr,ih=h-pt-pb,n=Math.max(1,items.length),step=iw/n,bw=Math.max(1.5,Math.min(14,step*.75));
+  const tot=items.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0)),sc=scale(Math.max(...tot,0)),max=sc.max,cx=i=>pl+(i+.5)*step;
+  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});
+  let bd='',lastEnd=-1e9;
+  (bands||[]).filter(r=>r.lane).forEach(r=>{const ix=items.map((_,i)=>i).filter(i=>+items[i].t>=+T(r.at)&&+items[i].t<=+T(r.end));if(!ix.length)return;
+    const x1=pl+ix[0]*step,x2=pl+(ix.at(-1)+1)*step,c=colorOf('lane',r.lane);
+    bd+=`<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`;
+    if(x1-lastEnd>=8){g+=`<text x="${x1}" y="${h-6}">${esc(fmtTime(T(r.at)))}</text>`;lastEnd=x1+44}});
+  g+='</g>';
+  if(lastEnd<0&&items.length)g=g.replace('</g>',`<text x="${pl}" y="${h-6}">${esc(fmtTime(items[0].t))}</text><text x="${w-pr}" y="${h-6}" text-anchor="end">${esc(fmtTime(items.at(-1).t))}</text></g>`);
+  let m='';items.forEach((it,i)=>{let y=pt+ih;series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(.5,v/max*ih);y-=hh;m+=`<rect x="${cx(i)-bw/2}" y="${y}" width="${bw}" height="${hh}" fill="${s.color}"/>`});
+    m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" data-tip="${esc(it.tip+'\n'+series.filter(s=>s.values[i]).map(s=>s.name+': '+fmt(s.values[i])).join('\n'))}"/>`});
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${bd}${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
 }
 // horizontal bars with an optional failure part: rows [{label,value,fail,tip,href}]
 function hbars(rows,fmt,color){
   if(!rows.length)return'<div class="empty">no data</div>';
   const max=Math.max(...rows.map(r=>r.value),1);
-  return `<div class="hbars">${rows.map(r=>`<div class="hb" data-tip="${esc(r.tip)}"><span class="lab">${esc(r.label)}</span><span class="track"><i style="width:${(r.value-(r.fail||0))/max*100}%;background:${r.color||color||'var(--ink)'}"></i>${r.fail?`<i style="width:${r.fail/max*100}%;background:var(--crit)"></i>`:''}</span><span class="val">${esc(fmt(r.value))}</span></div>`).join('')}</div>`;
+  return `<div class="hbars">${rows.map(r=>`<div class="hb" data-tip="${esc(r.tip)}" ${r.href?`data-href="${esc(r.href)}" style="cursor:pointer"`:''}><span class="lab">${esc(r.label)}</span><span class="track"><i style="width:${(r.value-(r.fail||0))/max*100}%;background:${r.color||color||'var(--ink)'}"></i>${r.fail?`<i style="width:${r.fail/max*100}%;background:var(--crit)"></i>`:''}</span><span class="val">${esc(fmt(r.value))}</span></div>`).join('')}</div>`;
 }
 function segbar(parts){const t=parts.reduce((a,p)=>a+p.v,0)||1;return `<div class="segbar">${parts.filter(p=>p.v>0).map(p=>`<i style="width:${p.v/t*100}%;background:${p.color}" data-tip="${esc(p.tip)}"></i>`).join('')}</div>`}
 const legend=items=>`<div class="legend">${items.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`;
@@ -372,24 +398,22 @@ V.overview=async()=>{
   // live = sent an event within the idle timeout; idle attempts never count as running
   const running=live.filter(l=>l.Status==='running'),idle=live.filter(l=>l.Idle),waiting=live.filter(l=>l.Status==='waiting_for_human');
   const items=new Set(ar.map(a=>a.repo+'#'+a.issue)).size;
-  // spend chart: the axis spans the hours that have usage (inside the range), the bucket follows that span
-  const hrs=use.map(u=>+new Date(u.hour+':00:00Z')),startT=hrs.length?Math.max(lo,Math.min(...hrs)):Date.now(),endT=hrs.length?Math.max(...hrs)+36e5:startT+36e5;
-  const span=endT-startT,bucket=span<=SPAN.hourly?36e5:span<=SPAN.sixHourly?216e5:864e5,hourly=bucket<864e5;
-  const day0=new Date(new Date(startT).toDateString()).getTime(),b0=day0+Math.floor((startT-day0)/bucket)*bucket;
-  const nb=Math.min(400,Math.max(1,Math.ceil((endT-b0)/bucket)));
-  const buckets=[...Array(nb)].map((_,i)=>{const d=new Date(b0+i*bucket);return{label:hourly&&(bucket===36e5||d.getHours())?fmtTime(d):fmtDay(d),tip:hourly?`${fmtDay(d)} ${fmtTime(d)}–${fmtTime(new Date(+d+bucket))}`:fmtDay(d)}});
-  const idx=t=>{const i=Math.floor((t-b0)/bucket);return i>=0&&i<nb?i:-1};
-  const phaseOf=u=>u.phase??'unknown phase',phases=uniq(use.map(phaseOf));
-  const series=phases.map(p=>({name:p,color:phaseColor(p),values:Array(nb).fill(0)}));
-  use.forEach(u=>{const i=idx(+new Date(u.hour+':00:00Z'));if(i>=0)series[phases.indexOf(phaseOf(u))].values[i]+=u.cost_usd||0});
+  // spend per issue: cost of the attempts started in range, the part spent on failed or cancelled attempts in red
+  const inRange=new Set(ar.map(a=>a.factory_id+'/'+a.attempt_id)),aOf={};ar.forEach(a=>aOf[a.factory_id+'/'+a.attempt_id]=a);
+  const byIssue={};ar.forEach(a=>{const k=a.repo+'#'+a.issue,x=byIssue[k]=byIssue[k]||{repo:a.repo,issue:a.issue,title:a.title,cost:0,lost:0,n:0,unp:false};x.cost+=a.cost_usd||0;if(['failed','cancelled'].includes(a.state))x.lost+=a.cost_usd||0;x.n++;x.unp=x.unp||a.unpriced>0||nil(a.cost_usd);x.ph=x.ph||{}});
+  (s.attempt_phases||[]).filter(p=>inRange.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const a=aOf[p.factory_id+'/'+p.attempt_id],x=byIssue[a.repo+'#'+a.issue],k=p.phase??'unknown phase';x.ph[k]=(x.ph[k]||0)+(p.cost_usd||0)});
+  const top=Object.values(byIssue).sort((p,q)=>q.cost-p.cost).slice(0,TOP_ISSUES),issuePhases=uniq(top.flatMap(x=>Object.keys(x.ph)));
+  const pser=issuePhases.map(k=>({name:k,color:phaseColor(k),values:top.map(x=>x.ph[k]||0)}));
+  const issueRows=Object.values(byIssue).sort((p,q)=>q.cost-p.cost);
+  const phaseOf=u=>u.phase??'unknown phase',phases=uniq(use.map(phaseOf)).map(p=>({p,v:use.filter(u=>phaseOf(u)===p).reduce((a,u)=>a+(u.cost_usd||0),0)}));
   // tool mix
   const tm={};s.tools.filter(t=>keep(t)&&+new Date(t.day)>=lo-864e5).forEach(t=>{const x=tm[t.tool_name]=tm[t.tool_name]||{c:0,f:0,ms:0};x.c+=t.calls;x.f+=t.failed||0;x.ms+=t.duration_ms||0});
   const tools=Object.entries(tm).sort((a,b)=>b[1].c-a[1].c).slice(0,8).map(([k,x])=>({label:k,value:x.c,fail:x.f,tip:`${k}\n${x.c} calls · ${x.f} failed\n${fmtDur(x.ms/1000)} total`}));
   // outcomes of attempts in range
   const SC={completed:'var(--s3)',running:'var(--s1)',idle:'var(--warn)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
   const parts=uniq(ar.map(a=>a.status||a.state)).map(k=>({k,v:ar.filter(a=>(a.status||a.state)===k).length})).map(p=>({...p,color:SC[p.k]||'var(--text-3)',tip:`${p.k.replace(/_/g,' ')}\n${p.v} attempts`}));
-  const recent=ar.slice().reverse().slice(0,8);
   const W1=W($('#main'))-60;
+  const recent=ar.slice().reverse().slice(0,8);
   return topbar('Overview',filterBar(optsOf(s.attempts)))+
   `<div class="kpis">
     ${kpi('Running now',running.length,[`${idle.length} idle`,`${waiting.length} waiting`].join(' · '),idle.length?'alert':'')}
@@ -400,12 +424,11 @@ V.overview=async()=>{
     ${kpi('Cost per merged',nil(sm.CostPerMerged)?'<span class="muted">n/a</span>':usd(sm.CostPerMerged,sm.CostLowerBound),sm.Merged?'all cost ÷ merged issues':'no merged issue yet')}
   </div>
   <div class="grid">
-   <div class="card c8"><div class="head"><div><h3>Spend per ${{36e5:'hour',216e5:'6 hours'}[bucket]||'day'}</h3><div class="hint">Priced model calls by phase, over the span that has data · hover a bar for the split</div></div></div>
-     ${phases.length?legend(series)+bars(W1*0.62,220,buckets,series,fmtUsd):'<div class="empty">No usage in this range</div>'}</div>
-   <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Issue funnel</h3><div class="hint">All time · issues, issues with a linked PR, merged</div>${sm.Issues?hbars([['issues',sm.Issues],['with PR',sm.WithPR],['merged',sm.Merged]].map(([l,v])=>({label:l,value:v,color:'var(--ink)',tip:`${l}\n${v} of ${sm.Issues}`})),v=>String(v)):'<div class="empty">No issues yet</div>'}</div>
-   <div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
+   <div class="card c8"><div class="head"><div><h3>Spend per issue</h3><div class="hint">Cost of attempts started in range, most expensive first, split by phase · click a bar to open the issue</div></div></div>
+     ${issueRows.length?legend(pser)+bars(W1*.64,260,top.map(x=>({label:'#'+x.issue,href:itemHref(x.repo,x.issue),tip:`#${x.issue} ${x.title||''}\n${x.repo}\n${fmtUsd(x.cost)}${x.unp?' +?':''} over ${plural(x.n,'attempt')}${x.lost?'\n'+fmtUsd(x.lost)+' on failed or cancelled attempts':''}\nclick to open`})),pser,fmtUsd)+(issueRows.length>TOP_ISSUES?`<div class="muted" style="margin-top:8px">${issueRows.length-TOP_ISSUES} more issues · <a href="#items">all issues →</a></div>`:''):'<div class="empty">No attempts in this range</div>'}</div>
+   <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
      ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div></div>
-   <div class="card c6"><div class="head"><div><h3>Running now</h3><div class="hint">Refreshes every ${REFRESH_MS/1000} s</div></div><a class="sub" href="#live">All live →</a></div>
+   <div class="card c6"><div class="head"><div><h3>In flight</h3><div class="hint">Running or waiting for a human, same as Live · refreshes every ${REFRESH_MS/1000} s</div></div><a class="sub" href="#live">All live →</a></div>
      ${live.length?table([
        {h:'Issue',f:l=>`<b>#${l.Issue}</b> <span class="muted">${esc(l.Repo.split('/')[1])}</span>`},
        {h:'Status',f:l=>chip(l.Status)},
@@ -434,17 +457,13 @@ V.live=async()=>{
   const [s]=await Promise.all([loadSeries(),loadLive()]);
   const cfg={};s.attempts.forEach(a=>cfg[a.attempt_id]=a);
   const live=LIVE.filter(l=>keep({factory_id:l.Factory,repo:l.Repo,config_version:(cfg[l.Attempt]||{}).config_version}));
-  const details=await Promise.all(live.slice(0,12).map(l=>get(`/api/attempt?factory=${enc(l.Factory)}&id=${enc(l.Attempt)}`).catch(()=>null)));
-  const cards=live.map((l,i)=>{
-    const d=details[i],a=cfg[l.Attempt]||{};let spark='';
-    if(d&&d.usage.length){let c=0;const pts=[{t:T(l.Started),v:0,tip:'start'}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} by ${fmtTime(T(u.ts))}`}}));pts.push({t:new Date(),v:c,tip:`${fmtUsd(c)} now`});spark=area(Math.min(560,W($('#main'))/Math.max(1,Math.floor(W($('#main'))/380))-40),96,pts,fmtUsd,'var(--s1)').replace('class="chart xh"','class="chart"')}
-    return `<a class="lcard ${l.Idle?'idle':''}" href="${attHref(l.Factory,l.Attempt)}">
-      <div class="r1"><span class="id">#${l.Issue} <span class="muted" style="font-weight:400">${esc(l.Repo)}</span></span>${chip(l.Idle?'idle since '+(l.LastEvent?fmtTime(T(l.LastEvent)):'?'):l.Status,l.Idle?'warn':undefined)}</div>
+  const cards=live.map(l=>{
+    const a=cfg[l.Attempt]||{},quiet=l.Status!=='running'||l.Idle,state=l.Idle?'idle':l.Status;
+    return `<a class="lcard ${quiet?'quiet':''}" href="${attHref(l.Factory,l.Attempt)}">
+      <div class="r1"><span class="fac">${esc(l.Factory)}</span>${chip(state,l.Idle?'warn':undefined)}</div>
       <div class="title">${esc(a.title||'untitled')}</div>
-      <div class="meta" style="margin:0 0 6px">${chip((l.Lane??l.Role??'lane ?'),'info')}${l.Phase&&l.Phase!==(l.Lane??l.Role)?chip(l.Phase,'plain'):''}<span class="muted">${esc(l.Factory)} · ${esc(shortId(l.Attempt))}</span></div>
-      ${spark||'<div class="empty" style="padding:22px">no usage yet</div>'}
-      <div class="lstats"><div><div class="l">Elapsed</div><div class="v">${dur(l.ElapsedS)}</div></div><div><div class="l">Active</div><div class="v">${dur(l.ActiveS)}</div></div><div><div class="l">Tokens</div><div class="v">${tok(l.Tokens)}</div></div><div><div class="l">Cost</div><div class="v">${usd(l.Cost,l.Unpriced>0)}</div></div></div>
-      <div class="lfoot"><span>last event ${nil(l.LastEventAgeS)?'?':fmtDur(l.LastEventAgeS)+' ago'}</span><span>${l.LastTool?esc(l.LastTool)+' · '+fmtDur(l.LastToolAgeS)+' ago':'no tool calls'}</span><span>wait ${l.HasWaitEvents?fmtDur(l.WaitS):'n/a'}</span></div></a>`}).join('');
+      <div class="muted" style="margin-bottom:14px">${esc(l.Repo)} #${l.Issue} · ${quiet?`${esc(state.replace(/_/g,' '))} for ${nil(l.LastEventAgeS)?'?':esc(fmtDur(l.LastEventAgeS))}`:`in ${esc(l.Lane??l.Role??'?')}`}</div>
+      <div class="lstats"><div><div class="l">Cost</div><div class="v">${usd(l.Cost,l.Unpriced>0)}</div></div><div><div class="l">Active</div><div class="v">${l.HasWaitEvents?dur(l.ActiveS):'<span class="muted">n/a</span>'}</div></div><div><div class="l">Elapsed</div><div class="v">${dur(l.ElapsedS)}</div></div></div></a>`}).join('');
   return topbar(`Live <span class="muted" style="font-weight:450">${live.length} running or waiting</span>`,filterBar(optsOf(s.attempts),{time:false}))+
    (live.length?`<div class="hint muted" style="margin:-8px 0 12px">Idle = no finish event and no event for ${esc(fmtDur(meta.idle_s))} · refreshes every ${REFRESH_MS/1000} s</div><div class="lgrid">${cards}</div>`:'<div class="card"><div class="empty">Nothing is running right now.</div></div>');
 };
@@ -514,36 +533,40 @@ function dispatchEv(d,labels){
 }
 
 let gLegend=[];
-// gantt of attempts + PR/review/check markers
+// gantt of an issue: one swimlane row per lane (a bar per dispatch), the board, each attempt, then GitHub markers
 function gantt(w,atts,tl,f){
   if(!atts.length)return'';
-  let flow=f.dispatches;const bar={};f.attempts.forEach(a=>bar[a.attempt_id]=a);
+  const bar={};f.attempts.forEach(a=>bar[a.attempt_id]=a);
   // board: state moves from the run manifest and human waits from the factory, as reported
   const board=[...(f.moves||[]).map(m=>({at:m.At,label:m.State,tip:'board state: '+m.State})),...(f.waits||[]).map(x=>({at:x.ts,label:x.type==='human.waiting'?'waiting'+(x.reason?': '+x.reason:''):'resumed',tip:x.type.replace('.',' ')+(x.reason?'\n'+x.reason:'')}))].sort((a,b)=>+T(a.at)-+T(b.at));
   const ev=tl.filter(l=>['github','reviews','ci'].includes(evKind(l)[0]));
-  flow=(flow||[]).filter(d=>d.lane);
+  const flow=(f.dispatches||[]).filter(d=>d.lane);
   const endOf=a=>+T((bar[a.attempt_id]||{}).bar_end||a.ended_at)||Date.now();
-  const ts=[...atts.flatMap(a=>[+T(a.started_at),endOf(a)]),...board.map(b=>+T(b.at)),...ev.map(l=>+T(l.TS)),...flow.flatMap(d=>[+T(d.at),+T(d.end)])];
-  const t0=Math.min(...ts),t1=Math.max(...ts,t0+6e4),pl=110,pr=10,X=t=>pl+(t-t0)/(t1-t0)*(w-pl-pr);
-  const lanes=uniq(flow.map(d=>d.lane)).sort((a,b)=>flow.findIndex(d=>d.lane===a)-flow.findIndex(d=>d.lane===b)),hasFlow=flow.length>0;
-  const rowH=26,rows=atts.length+(ev.length?1:0)+(hasFlow?lanes.length:0)+(board.length?1:0),h=rows*rowH+40;
-  const SC={completed:'var(--s3)',running:'var(--s1)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
-  let g='<g class="grid">';for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4,x=X(t);g+=`<line x1="${x}" x2="${x}" y1="6" y2="${h-22}"/><text x="${x}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtWhen(new Date(t).toISOString()))}</text>`}g+='</g>';
+  const rowsOf=f.hideAttempts?[]:atts; // the attempt page shows one attempt: its bar says nothing the page header does not
+  const pl=110,pr=10,ax=timeAxis([...rowsOf.map(a=>[+T(a.started_at),endOf(a)]),...board.map(b=>[+T(b.at),+T(b.at)]),...ev.map(l=>[+T(l.TS),+T(l.TS)]),...flow.map(d=>[+T(d.at),+T(d.end)])],pl,w-pr),X=ax.X;
+  const lanes=uniq(flow.map(d=>d.lane)).sort((a,b)=>flow.findIndex(d=>d.lane===a)-flow.findIndex(d=>d.lane===b));
+  // every row is rowH tall; marks are centred on cy(row) and row labels share its baseline
+  const rowH=34,rows=rowsOf.length+(ev.length?1:0)+lanes.length+(board.length?1:0),h=rows*rowH+40,cy=y=>y+17,lab=(y,t)=>`<text x="0" y="${cy(y)+4}" style="fill:var(--text-2)">${esc(t)}</text>`;
+  let g='<g class="grid">'+ax.ticks.map(t=>`<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${h-22}"/>`).join('')+axisTicks(ax,h-6,t=>fmtWhen(new Date(t).toISOString()))+'</g>'+gapMarks(ax,6,h-22);
   let y=8,m='';
-  if(hasFlow){
-    lanes.forEach((ln,i)=>{m+=`<text x="0" y="${y+i*rowH+16}" style="fill:var(--text-2)">${esc(ln)}</text>`});
-    const pts=flow.map(d=>({x:X(+T(d.at)),i:lanes.indexOf(d.lane),d}));let prev=null;const seen=new Set();
-    pts.forEach(p=>{const py=y+p.i*rowH+12;const same=prev&&p.i===prev.i,back=prev&&!same&&seen.has(p.i);seen.add(p.i);if(prev){m+=`<path d="M${prev.x},${prev.y}H${p.x}V${py}" fill="none" stroke="${back?'var(--crit)':'var(--line-2)'}" stroke-width="${back?2:1.5}" ${same?'stroke-dasharray="3 3"':''}/>`}
-      const dc=back?'var(--crit)':colorOf('lane',p.d.lane),dd=p.d;
-      m+=`<circle cx="${p.x}" cy="${py}" r="5" fill="${dd.retry?'var(--bg)':dc}" stroke="${dd.retry?dc:'var(--surface)'}" stroke-width="2" ${dd.retry?'opacity=".6"':''} data-tip="${esc(`dispatch to ${dd.lane}${dd.retry?' (retry: its attempt '+dd.attempt_state+')':''}\n${fmtWhen(dd.at)} · ${fmtDur((+T(dd.end)-+T(dd.at))/1000)}\n${plural(dd.calls.length,'model call')} · ${dd.calls.length?fmtUsd(dd.cost_usd)+(dd.unpriced?' +?':''):'no cost'}${dd.outcome?'\n'+dd.outcome:''}${back?'\nbounced back':same?'\nre-dispatched in the same lane':''}`)}"/>`;prev={...p,y:py}});
-    y+=lanes.length*rowH;m+=`<line class="axis" x1="0" x2="${w}" y1="${y-2}" y2="${y-2}"/>`;
+  if(lanes.length){
+    lanes.forEach((ln,i)=>{m+=lab(y+i*rowH,ln)});
+    const seen=new Set();let prev=null;
+    flow.forEach(d=>{const i=lanes.indexOf(d.lane),c=cy(y+i*rowH),x1=X(+T(d.at)),x2=Math.max(x1+4,X(+T(d.end))),col=colorOf('lane',d.lane);
+      const back=prev&&prev.lane!==d.lane&&seen.has(d.lane),again=prev&&prev.lane===d.lane;seen.add(d.lane);
+      // hand-off to another lane: a thin elbow from the end of the previous dispatch to the start of this one
+      if(prev&&!again){const mid=(prev.x2+x1)/2;m+=`<path d="M${prev.x2},${prev.c}H${mid}V${c}H${x1}" fill="none" stroke="${back?'var(--crit)':'var(--text-3)'}" stroke-width="1.5"/>`+(back?`<circle cx="${mid}" cy="${(prev.c+c)/2}" r="9" fill="var(--crit)" stroke="var(--surface)" stroke-width="2" data-tip="${esc('sent back to '+d.lane+'\nit had already worked on this card')}"/><text x="${mid}" y="${(prev.c+c)/2+4.5}" text-anchor="middle" style="fill:#fff;font-size:13px;font-weight:700;pointer-events:none">↩</text>`:'')}
+      m+=`<rect x="${x1}" y="${c-9}" width="${x2-x1}" height="18" rx="3" fill="${col}" ${d.retry?`fill-opacity=".25" stroke="${col}" stroke-width="1.5" stroke-dasharray="3 2"`:''} data-tip="${esc(`${d.lane}${d.retry?' · retry (its attempt '+d.attempt_state+')':''}\n${fmtWhen(d.at)} · ${fmtDur((+T(d.end)-+T(d.at))/1000)}\n${plural(d.calls.length,'model call')} · ${d.calls.length?fmtUsd(d.cost_usd)+(d.unpriced?' +?':''):'no cost'}${d.outcome?'\n'+d.outcome:''}${back?'\nsent back: this lane had already worked on the issue':again?'\nsame lane again, right after its previous run':''}`)}"/>`
+      prev={lane:d.lane,x2,c}});
+    y+=lanes.length*rowH;m+=`<line class="axis" x1="0" x2="${w}" y1="${y-1}" y2="${y-1}"/>`;
   }
-  if(board.length){m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">board</text>`;board.forEach((b,i)=>{const x=X(+T(b.at)),room=i+1<board.length?X(+T(board[i+1].at))-x:w-x;
-      m+=`<path d="M${x},${y+6}l5,7l-5,7l-5,-7z" fill="var(--hot)" data-tip="${esc(b.tip+'\n'+fmtWhen(b.at))}"/>${room>70?`<text x="${x+9}" y="${y+17}" style="fill:var(--text)">${esc(b.label)}</text>`:''}`});y+=rowH}
-  atts.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle';
-    m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">${esc(attLabels(atts)[a.attempt_id])}</text><rect x="${x1}" y="${y+6}" width="${Math.max(3,x2-x1)}" height="14" rx="4" fill="${SC[a.state]||'var(--text-3)'}" ${a.ended_at?'':'opacity=".75"'} data-tip="${esc(`${a.attempt_id}\n${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''} · ${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)}\n${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
-      (open?`<line x1="${x2}" x2="${X(t1)}" y1="${y+13}" y2="${y+13}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-60)}" y="${y+4}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');y+=rowH});
-  if(ev.length){gLegend=uniq(ev.map(l=>evKind(l)[2])).map(n=>({name:n,color:evKind(ev.find(l=>evKind(l)[2]===n))[1]}));m+=`<text x="0" y="${y+16}" style="fill:var(--text-2)">GitHub</text>`;ev.forEach(l=>{const c=evKind(l)[1];m+=`<rect x="${X(+T(l.TS))-4}" y="${y+8}" width="8" height="10" rx="2" fill="${c}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
+  if(board.length){m+=lab(y,'board');board.forEach((b,i)=>{const x=X(+T(b.at)),room=Math.min(i+1<board.length?X(+T(board[i+1].at))-x:w-x,...ax.gaps.map(([a])=>X(a)-x).filter(r=>r>=0)),c=cy(y);
+      m+=`<path d="M${x},${c-9}l8,9l-8,9l-8,-9z" fill="var(--hot)" data-tip="${esc(b.tip+'\n'+fmtWhen(b.at))}"/>${room>70?`<text x="${x+13}" y="${c+4}" style="fill:var(--text)">${esc(b.label)}</text>`:''}`});y+=rowH}
+  const labels=attLabels(atts),SC={completed:'var(--s3)',running:'var(--s1)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
+  rowsOf.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle',c=cy(y);
+    m+=lab(y,labels[a.attempt_id])+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
+      (open?`<line x1="${x2}" x2="${X(ax.t1)}" y1="${c}" y2="${c}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-56)}" y="${c-8}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');y+=rowH});
+  if(ev.length){gLegend=uniq(ev.map(l=>evKind(l)[2])).map(n=>({name:n,color:evKind(ev.find(l=>evKind(l)[2]===n))[1]}));m+=lab(y,'GitHub');ev.forEach(l=>{m+=`<rect x="${X(+T(l.TS))-6}" y="${cy(y)-9}" width="12" height="18" rx="2" fill="${evKind(l)[1]}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${g}${m}</svg>`;
 }
 
@@ -564,10 +587,10 @@ V.item=async(repo,issue)=>{
    ${kpi('Cost of retries',f.retry_dispatches?usd(f.retry_cost_usd):'<span class="muted">none</span>',f.retry_dispatches?`${f.retry_dispatches} retried dispatch${f.retry_dispatches===1?'':'es'}`:'no failed attempt')}
    ${kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
    ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),'first start → last end')}
-   ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`${bounces} bounce${bounces===1?'':'s'} · ${redis} repeat${redis===1?'':'s'}`:'needs --runs')}
+   ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'needs --runs')}
   </div>
   <div class="grid">
-  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Lanes from the run manifest (red = bounced back, dashed = re-dispatched), then each attempt, then GitHub events. ':'Each attempt, then GitHub events. '}Bars stop where an attempt ended, began waiting or went idle; the board row shows reported state moves and waits. Click an attempt bar to open it.</div>${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,f);return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
+  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. ':''}Then board state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>retry of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,f);return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
   <div class="card c8"><h3>Events</h3><div class="hint">Lifecycle, review and CI events from <span class="mono">report item</span>; model calls are grouped per dispatch (open a row for its calls). Toggle kinds to filter.</div>${timelineHtml(d.timeline,f.dispatches,labels)}</div>
   <div class="c4" style="display:flex;flex-direction:column;gap:14px;min-width:0">
    <div class="card"><h3>Attempts</h3>${table([{h:'Attempt · lanes',c:'t',f:a=>{const ls=uniq(lanes.filter(x=>x.attempt_id===a.attempt_id).map(x=>x.lane));return `<b>${esc(labels[a.attempt_id])}</b>${a.role?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span><div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:3px">${ls.length?ls.map(laneChip).join(''):'<span class="muted">no lanes reported</span>'}</div>`}},{h:'State · PR',f:a=>`${chip(a.status||a.state)}<div>${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a>`:'<span class="muted">no PR</span>'}</div>`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
@@ -584,7 +607,10 @@ V.attempt=async(f,id)=>{
   const tokens=d.usage.reduce((s,u)=>s+u.input+u.output+(u.cache_read||0)+(u.cache_write||0),0);
   const calls=d.tools.reduce((s,t)=>s+t.calls,0),failed=d.tools.reduce((s,t)=>s+(t.failed||0),0);
   const el=((T(a.ended_at)||Date.now())-T(a.started_at))/1000;
-  const w=W($('#main'))-60,cw=w*.62,ax0=+T(a.started_at),ax1=+T(a.bar_end||a.ended_at)||Date.now();
+  // the charts end at the last model or tool call; a long quiet tail after it (waiting, idle) is named instead of drawn
+  const endT=+T(a.ended_at)||Date.now(),lastData=Math.max(...d.usage.map(u=>+T(u.ts)),...d.tool_calls.map(t=>+T(t.ts)));
+  const w=W($('#main'))-60,cw=w*.62,ax0=+T(a.started_at),ax1=isFinite(lastData)?lastData:+T(a.bar_end||a.ended_at)||Date.now(),quiet=endT-ax1;
+  const quietNote=quiet>=GAP.minMs?`<div class="hint" style="margin:4px 0 0;text-align:right">⋯ then ${esc(fmtDur(quiet/1000))} without data${a.ended_at?' until it ended':''}${a.status==='waiting_for_human'?' · waiting for a human':a.status==='idle'?' · idle':''}</div>`:'';
   let c=0;const pts=[{t:T(a.started_at),v:0,tip:'start\n'+fmtWhen(a.started_at)}].concat(d.usage.map(u=>{c+=u.cost_usd||0;return{t:T(u.ts),v:c,tip:`${fmtUsd(c)} total\n${fmtWhen(u.ts)} · ${u.model}\nthis model call ${fmtUsd(u.cost_usd)} · ${fmtTok(u.input+u.output+(u.cache_read||0)+(u.cache_write||0))} tokens`}}));
   // tokens per session, stacked by class (4 series)
   const cls=[['input','Input'],['output','Output'],['cache_read','Cache read'],['cache_write','Cache write']];
@@ -609,11 +635,12 @@ V.attempt=async(f,id)=>{
    ${kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':'')}
   </div>
   <div class="grid">
-   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the dispatches it ran in · same time axis as tokens below</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands:d.dispatches}):'<div class="empty">No usage reported</div>'}</div>
+   ${d.dispatches.some(x=>x.lane)?`<div class="card c12"><h3>Dispatches</h3><div class="hint">Which lane worked on this attempt and when, one bar per dispatch with a line for each hand-off · bars are the same bands as in the charts below</div>${(()=>{gLegend=[];return gantt(w,[a],[],{dispatches:d.dispatches,moves:[],waits:[],attempts:[],hideAttempts:true})})()}</div>`:''}
+   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the dispatches it ran in · dashed = no events reported for a while (a long tool call or a telemetry gap)</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands:d.dispatches})+quietNote:'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Phase split</h3><div class="hint">Cost by phase, tokens second</div>${d.phases.length?segbar(ph)+`<div class="stat-list">${d.phases.map(p=>`<div><span class="chip" style="color:${phaseColor(p.phase)}"><span style="color:var(--text-2)">${esc(p.phase??'unknown')}</span></span><b>${usd(p.cost_usd,p.unpriced>0)} <span class="muted">· ${tok(p.tokens)}</span></b></div>`).join('')}</div>`:'<div class="empty">No phase data</div>'}
      <h3 style="margin-top:18px">Models</h3>${hbars(Object.entries(d.usage.reduce((m,u)=>{m[u.model]=(m[u.model]||0)+(u.cost_usd||0);return m},{})).map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}
      ${d.model_purposes.length?`<h3 style="margin-top:18px">Used for</h3><div class="hint">Purpose of each model's calls, as the agent reports it</div><div class="stat-list">${d.model_purposes.map(p=>`<div><span>${esc(p.model??'?')} <span class="muted">· ${esc(p.purpose)}</span></span><b>${plural(p.calls,'call')} <span class="muted">· ${usd(p.cost_usd)}</span></b></div>`).join('')}</div>`:''}</div>
-   <div class="card c8"><h3>Tokens per model call</h3><div class="hint">Stacked by token class, one bar per model call; each tooth of the saw is one dispatch</div>${d.usage.length?legend(tser)+tbars(cw,200,ax0,ax1,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c8"><h3>Tokens per model call</h3><div class="hint">One bar per model call in order, stacked by token class. Shaded bands are dispatches, labelled with their start time; each run rises as the context grows. Time between calls is not drawn</div>${d.usage.length?legend(tser)+callBars(cw,200,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Tools</h3><div class="hint">Calls per tool, failures in red</div>${hbars(d.tools.map(t=>({label:t.tool_name,value:t.calls,fail:t.failed||0,color:'var(--ink)',tip:`${t.tool_name}\n${t.calls} calls · ${t.failed??'?'} failed${t.unknown?' · '+t.unknown+' unknown':''}\n${fmtDur((t.duration_ms||0)/1000)} total`})),v=>String(v))}
      <h3 style="margin-top:18px">By lane</h3>${d.tools_by_lane.length?`<div class="stat-list">${d.tools_by_lane.map(l=>`<div style="align-items:baseline"><span>${laneChip(l.lane)}</span><span style="text-align:right">${l.tools.map(t=>`${esc(t.tool)} <b>${t.calls}</b>${t.failed?` <span style="color:var(--crit)">(${t.failed} failed)</span>`:''}`).join(' · ')}</span></div>`).join('')}</div>`:'<div class="empty">No tool calls</div>'}
      ${(()=>{const ran=new Set(d.tools.map(t=>t.tool_name)),gone=d.tool_decisions.filter(x=>x.decision!=='accept');return gone.length?`<h3 style="margin-top:18px">Decided but not run</h3><div class="hint">Tool decisions the agent reported that were not accepted; these never produce a tool call</div><div class="stat-list">${gone.map(x=>`<div><span>${esc(x.tool_name??'?')} <span class="muted">· ${esc(x.decision??'?')}${x.source?' by '+esc(x.source):''}${ran.has(x.tool_name)?'':' · never ran'}</span></span><b>${x.n}</b></div>`).join('')}</div>`:''})()}</div>
@@ -625,6 +652,22 @@ V.attempt=async(f,id)=>{
 };
 let CUR_ATTEMPT=null;
 
+// scorecard sections and the better direction, keyed by the report's metric names
+const SECTIONS=[['Outcome',/work items|^attempts|closed|approval|escaped/],['Cost',/cost|token/],['Speed',/time/],['Quality',/CI|failure|error|review rounds|interventions/],['Activity',/session|tool|subagent|PR size/],['Data coverage',/coverage|unpriced|rejected/]];
+const LOWER=/cost|token|time|failure|error|rounds|interventions|escaped|unpriced|rejected/,HIGHER=/approval|closed|CI passing|coverage/;
+// first number of a report value: durations to seconds, k to thousands; n/a and text give null
+function metricNum(v){v=String(v);if(/^n\/a|^\?/.test(v))return null;const d=/^(\d+h)?(\d+m(?!s))?(\d+(?:\.\d+)?s)?(?=\s|$)/.exec(v);if(d&&d[0])return d[0].replace(/(\d+(?:\.\d+)?)([hms])/g,(_,n,u)=>' '+n*{h:3600,m:60,s:1}[u]).trim().split(' ').reduce((a,b)=>a+ +b,0);
+  const m=/^[+$]?(-?\d+(?:\.\d+)?)(k|M|B)?/.exec(v.replace(/^\+/,''));return m?+m[1]*({k:1e3,M:1e6,B:1e9}[m[2]]||1):null}
+function scoreSections(sc,groups){
+  const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0];
+  const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(metricNum),ok=nums.filter(n=>n!==null),dir=LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
+    const max=Math.max(...ok.map(Math.abs),0),spread=ok.length>1&&max?(Math.max(...ok)-Math.min(...ok))/max:0,best=dir&&ok.length>1&&spread?(dir<0?Math.min(...ok):Math.max(...ok)):null;return{...r,vals,nums,max,spread,best}});
+  const secs=[...SECTIONS.map(x=>x[0]),'Other'].map(n=>[n,rows.filter(r=>secOf(r.Label)===n)]).filter(([,rs])=>rs.length);
+  const head=`<th>Metric</th>${groups.map(g=>`<th class="n"><span style="display:inline-flex;gap:6px;align-items:center"><i style="width:8px;height:8px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i>${esc(g)}</span></th>`).join('')}`;
+  return secs.map(([n,rs])=>{if(UI.diffFirst)rs=rs.slice().sort((a,b)=>b.spread-a.spread);
+    return `<div class="card c6"><h3>${n}</h3><div class="tw"><table class="score"><thead><tr>${head}</tr></thead><tbody>${rs.map(r=>`<tr><td><span class="sub">${esc(fixStr(r.Label))}</span></td>${r.vals.map((v,i)=>{const x=r.nums[i],top=r.best!==null&&x===r.best;
+      return `<td class="n">${top?'<span style="color:var(--good)">● </span>':''}${top?'<b>':''}${na(v.split(' (')[0])}${top?'</b>':''}${groups.length>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`}).join('')}</tr>`).join('')}</tbody></table></div></div>`}).join('');
+}
 V.compare=async()=>{
   const [sc,s]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries()]);
   const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+r.config_version:'');
@@ -636,7 +679,6 @@ V.compare=async()=>{
   const aser=groups.map(g=>({name:g,color:colorOf('group',g),values:days.map(d=>atts.filter(a=>gk(a)===g&&T(a.started_at).toDateString()===d).length)}));
   const b=days.map(d=>({label:fmtDay(new Date(d)),tip:fmtDay(new Date(d))}));
   const idx=sc.groups.map(g=>groups.indexOf(g));
-  const pick=['cost / merged issue','cost / issue','tokens / issue','time / issue','tool failure rate','first-pass PR approval'];
   const val=(label,gi)=>{const r=sc.rows.find(r=>r.Label===label);return r?r.Values[gi]:'n/a'};
   const w=W($('#main'))-60,half=groups.length?w/2-30:w;
   return topbar('Compare',`<div class="seg" role="group" aria-label="group by"><button class="${UI.compareBy?'':'on'}" data-by="">By factory</button><button class="${UI.compareBy?'on':''}" data-by="config">By config</button></div>`+filterBar(optsOf(s.attempts)))+
@@ -646,8 +688,9 @@ V.compare=async()=>{
   <div class="grid">
    <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>
-   <div class="card c12"><h3>Scorecard</h3><div class="hint">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>. Filters above select columns.</div>
-    ${table([{h:'Metric',f:r=>`<span class="sub">${esc(fixStr(r.Label))}</span>`},...groups.map(g=>({h:`<span style="display:inline-flex;gap:6px;align-items:center"><i style="width:8px;height:8px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i>${esc(g)}</span>`,f:r=>na(r.Values[sc.groups.indexOf(g)])}))],sc.rows.map(r=>({...r,hi:pick.includes(r.Label)})),{cls:'sticky1'})}</div>
+   <div class="card c12"><div class="head"><div><h3>Scorecard</h3><div class="hint">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>${groups.length>1?' · bar = value relative to the largest · ● best in row':' · one group in this selection: switch to By config or clear filters to compare'}</div></div>
+     ${groups.length>1?`<div class="seg" role="group" aria-label="row order"><button class="${UI.diffFirst?'':'on'}" data-diff="">Report order</button><button class="${UI.diffFirst?'on':''}" data-diff="1">Biggest difference first</button></div>`:''}</div></div>
+   ${scoreSections(sc,groups)}
   </div>`:'<div class="card"><div class="empty">No attempts match these filters</div></div>');
 };
 
@@ -673,14 +716,16 @@ async function loadLocal(kind,arg){
 
 // ---------- shell
 function renderNav(){
-  const v=(location.hash.slice(1)||'overview').split('/')[0],idle=LIVE.filter(l=>l.Idle).length,running=LIVE.filter(l=>l.Status==='running').length;
+  const v=(location.hash.slice(1)||'overview').split('/')[0],idle=LIVE.filter(l=>l.Idle).length,running=LIVE.filter(l=>l.Status==='running').length,waiting=LIVE.filter(l=>l.Status==='waiting_for_human').length;
   const sect={item:'items',attempt:'items'}[v]||v;
   const spend=LIVE.reduce((a,l)=>a+(l.Cost||0),0);
-  $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
+  $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${waiting?`<span><b>${waiting}</b> waiting</span>`:''}${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
   $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${idle?'crit':''}">${idle?idle+' idle':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
 }
 // how often Overview and Live poll the server
 const REFRESH_MS=5000;
+// issues listed in the Overview spend chart
+const TOP_ISSUES=10;
 let token=0,timer=null;
 async function render(soft){
   const my=++token,p=(location.hash.slice(1)||'overview').split('/').map(decodeURIComponent),v=V[p[0]]?p[0]:'overview';
@@ -702,13 +747,14 @@ let qT;document.addEventListener('input',e=>{
   if(e.target.id==='q'){UI.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>render(true),120)}
   if(e.target.id==='tq'){const q=e.target.value.toLowerCase();document.querySelectorAll('#ents>[data-s]').forEach(el=>el.style.display=!q||el.dataset.s.includes(q)?'':'none')}});
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files]');if(!t)return;
+  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-diff],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files]');if(!t)return;
   const d=t.dataset;
   if('range' in d){F.range=d.range;saveF()}
   else if('clear' in d){F.factory=F.config=F.repo='';saveF()}
   else if('outcome' in d){UI.outcome=d.outcome;render(true)}
   else if('sort' in d){UI.sort={k:+d.sort,d:UI.sort.k==d.sort?-UI.sort.d:-1};store.set('sort',UI.sort);render(true)}
   else if('tlk' in d){UI.tlKinds[d.tlk]=UI.tlKinds[d.tlk]===false;render(true)}
+  else if('diff' in d){UI.diffFirst=!!d.diff;render(true)}
   else if('by' in d){UI.compareBy=d.by;store.set('by',d.by);render(true)}
   else if('themetoggle' in d){const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';store.set('theme',r.dataset.theme)}
   else if('openLocal' in d)openLocal();
