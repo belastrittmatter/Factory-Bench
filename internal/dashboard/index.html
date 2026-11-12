@@ -291,6 +291,8 @@ function laneBands(rows,X,pt,ih,xmin,xmax){
   return (rows||[]).filter(r=>r.lane).map(r=>{const x1=Math.max(xmin,X(+T(r.at))),x2=Math.min(xmax,X(+T(r.end)));if(x2<=x1)return'';const c=colorOf('lane',r.lane);
     return `<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`}).join('');
 }
+// spans up to which the Overview spend chart uses hourly, then 6-hour buckets (days beyond)
+const SPAN={hourly:2*864e5,sixHourly:14*864e5};
 // time axis shared by the attempt charts, so the same instant sits at the same x and gaps between runs stay gaps
 const AX={pl:44,pr:8,pb:22};
 function area(w,h,pts,fmt,color,o={}){
@@ -349,8 +351,9 @@ const UI={q:'',outcome:'',sort:store.get('sort',{k:'',d:-1}),tlKinds:{},compareB
 // ---------- data
 let meta={},SERIES=null,LIVE=[],LAST=null;
 // models get a slot in order of first use, so a model keeps its color on every page and after new ones appear
-async function loadSeries(){SERIES=await get('/api/series');SERIES.usage.forEach(u=>colorOf('model',u.model));return SERIES}
-const PHASE={implement:'var(--s1)',verify:'var(--s2)',review:'var(--s3)'},phaseColor=p=>PHASE[p]||'var(--text-3)';
+async function loadSeries(){SERIES=await get('/api/series');SERIES.usage.forEach(u=>{colorOf('model',u.model);if(!nil(u.phase))colorOf('phase',u.phase)});return SERIES}
+// phases have no fixed colors: each takes the next palette slot in order of first appearance; unknown is muted
+const phaseColor=p=>nil(p)||p==='unknown phase'?'var(--text-3)':colorOf('phase',p);
 async function loadLive(){LIVE=await get('/api/live');renderNav();return LIVE}
 
 // ---------- views
@@ -359,49 +362,49 @@ const topbar=(title,controls)=>`<div class="top"><h1>${title}</h1>${controls||''
 const kpi=(l,v,d,cls)=>`<div class="kpi ${cls||''}"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d||'&nbsp;'}</div></div>`;
 
 V.overview=async()=>{
-  const [s]=await Promise.all([loadSeries(),loadLive()]);
+  const [s,sm]=await Promise.all([loadSeries(),get(`/api/summary?factory=${enc(F.factory)}&repo=${enc(F.repo)}`),loadLive()]);
   const lo=since(),inR=t=>+T(t)>=lo;
   const atts=s.attempts.filter(keep),ar=atts.filter(a=>inR(a.started_at));
   const use=s.usage.filter(u=>keep(u)&&+new Date(u.hour+':00:00Z')>=lo-36e5);
   const cost=use.reduce((a,u)=>a+(u.cost_usd||0),0),unp=use.some(u=>u.unpriced>0)||ar.some(a=>nil(a.sessions));
   const tokens=use.reduce((a,u)=>a+(u.tokens||0),0);
-  const failed=ar.filter(a=>a.state==='failed').length;
-  const merged=s.merged.filter(m=>keep(m)&&inR(m.merged_at)).length;
   const live=LIVE.filter(l=>keep({factory_id:l.Factory,repo:l.Repo,config_version:(atts.find(a=>a.attempt_id===l.Attempt)||{}).config_version}));
   // live = sent an event within the idle timeout; idle attempts never count as running
   const running=live.filter(l=>l.Status==='running'),idle=live.filter(l=>l.Idle),waiting=live.filter(l=>l.Status==='waiting_for_human');
   const items=new Set(ar.map(a=>a.repo+'#'+a.issue)).size;
-  // spend chart: hourly for 24h, else daily
-  const bucket={'24h':36e5,'7d':216e5}[F.range]||864e5,hourly=bucket<864e5;
-  const startT=F.range==='all'?Math.min(...use.map(u=>+new Date(u.hour+':00:00Z')),Date.now()):lo;
+  // spend chart: the axis spans the hours that have usage (inside the range), the bucket follows that span
+  const hrs=use.map(u=>+new Date(u.hour+':00:00Z')),startT=Math.max(lo,Math.min(...hrs)),endT=Math.max(...hrs)+36e5;
+  const span=endT-startT,bucket=span<=SPAN.hourly?36e5:span<=SPAN.sixHourly?216e5:864e5,hourly=bucket<864e5;
   const day0=new Date(new Date(startT).toDateString()).getTime(),b0=day0+Math.floor((startT-day0)/bucket)*bucket;
-  const nb=Math.min(400,Math.max(1,Math.ceil((Date.now()-b0)/bucket)));
+  const nb=Math.min(400,Math.max(1,Math.ceil((endT-b0)/bucket)));
   const buckets=[...Array(nb)].map((_,i)=>{const d=new Date(b0+i*bucket);return{label:hourly&&(bucket===36e5||d.getHours())?fmtTime(d):fmtDay(d),tip:hourly?`${fmtDay(d)} ${fmtTime(d)}–${fmtTime(new Date(+d+bucket))}`:fmtDay(d)}});
   const idx=t=>{const i=Math.floor((t-b0)/bucket);return i>=0&&i<nb?i:-1};
-  const models=uniq(use.map(u=>u.model));
-  const series=models.map(m=>({name:m,color:colorOf('model',m),values:Array(nb).fill(0)}));
-  use.forEach(u=>{const i=idx(+new Date(u.hour+':00:00Z'));if(i>=0)series[models.indexOf(u.model)].values[i]+=u.cost_usd||0});
+  const phaseOf=u=>u.phase??'unknown phase',phases=uniq(use.map(phaseOf));
+  const series=phases.map(p=>({name:p,color:phaseColor(p),values:Array(nb).fill(0)}));
+  use.forEach(u=>{const i=idx(+new Date(u.hour+':00:00Z'));if(i>=0)series[phases.indexOf(phaseOf(u))].values[i]+=u.cost_usd||0});
   // tool mix
   const tm={};s.tools.filter(t=>keep(t)&&+new Date(t.day)>=lo-864e5).forEach(t=>{const x=tm[t.tool_name]=tm[t.tool_name]||{c:0,f:0,ms:0};x.c+=t.calls;x.f+=t.failed||0;x.ms+=t.duration_ms||0});
   const tools=Object.entries(tm).sort((a,b)=>b[1].c-a[1].c).slice(0,8).map(([k,x])=>({label:k,value:x.c,fail:x.f,tip:`${k}\n${x.c} calls · ${x.f} failed\n${fmtDur(x.ms/1000)} total`}));
   // outcomes of attempts in range
-  const st=['completed','running','waiting_for_human','failed','cancelled'],SC={completed:'var(--s3)',running:'var(--s1)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
-  const parts=st.map(k=>({k,v:ar.filter(a=>a.state===k).length})).map(p=>({...p,color:SC[p.k],tip:`${p.k.replace(/_/g,' ')}\n${p.v} attempts`}));
+  const SC={completed:'var(--s3)',running:'var(--s1)',idle:'var(--warn)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
+  const parts=uniq(ar.map(a=>a.status||a.state)).map(k=>({k,v:ar.filter(a=>(a.status||a.state)===k).length})).map(p=>({...p,color:SC[p.k]||'var(--text-3)',tip:`${p.k.replace(/_/g,' ')}\n${p.v} attempts`}));
   const recent=ar.slice().reverse().slice(0,8);
   const W1=W($('#main'))-60;
   return topbar('Overview',filterBar(optsOf(s.attempts)))+
   `<div class="kpis">
     ${kpi('Running now',running.length,[`${idle.length} idle`,`${waiting.length} waiting`].join(' · '),idle.length?'alert':'')}
     ${kpi('Spend',esc(fmtUsd(cost))+(unp?'<span class="muted" style="font-size:15px"> +?</span>':''),`${fmtTok(tokens)} tokens`)}
-    ${kpi('Attempts',ar.length,`${items} issue${items===1?'':'s'} · ${failed} failed`)}
-    ${kpi('Merged issues',merged,merged?`${esc(fmtUsd(cost/merged))} per merged issue${unp?' +?':''}`:'cost per merged: n/a')}
-    ${kpi('Failure rate',ar.length?Math.round(failed/ar.length*100)+'%':'n/a',`${failed} of ${ar.length} attempts`)}
+    ${kpi('Issues → PR → merged',`${sm.Issues}<small> → </small>${sm.WithPR}<small> → </small>${sm.Merged}`,'all time')}
+    ${kpi('Time to PR',nil(sm.AvgToPRSeconds)?'<span class="muted">n/a</span>':esc(fmtDur(sm.AvgToPRSeconds)),nil(sm.AvgToPRSeconds)?'no PR linked yet':`average over ${plural(sm.WithPR,'issue')} with a PR`)}
+    ${kpi('Rework',nil(sm.ReworkPerIssue)?'<span class="muted">n/a</span>':sm.ReworkPerIssue.toFixed(1),nil(sm.ReworkPerIssue)?(meta.local?'no dispatches reported':'needs --runs'):`bounces per issue (${sm.Bounces} / ${sm.IssuesWithDispatches})`)}
+    ${kpi('Cost per merged',nil(sm.CostPerMerged)?'<span class="muted">n/a</span>':usd(sm.CostPerMerged,sm.CostLowerBound),sm.Merged?'all cost ÷ merged issues':'no merged issue yet')}
   </div>
   <div class="grid">
-   <div class="card c8"><div class="head"><div><h3>Spend per ${{36e5:'hour',216e5:'6 hours'}[bucket]||'day'}</h3><div class="hint">Priced sessions by model · hover a bar for the split</div></div></div>
-     ${models.length>1?legend(series):''}${models.length?bars(W1*0.62,220,buckets,series,fmtUsd):'<div class="empty">No usage in this range</div>'}</div>
-   <div class="card c4"><h3>Attempt outcomes</h3><div class="hint">${ar.length} attempts started in range</div>
-     ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div>
+   <div class="card c8"><div class="head"><div><h3>Spend per ${{36e5:'hour',216e5:'6 hours'}[bucket]||'day'}</h3><div class="hint">Priced model calls by phase, over the span that has data · hover a bar for the split</div></div></div>
+     ${phases.length?legend(series)+bars(W1*0.62,220,buckets,series,fmtUsd):'<div class="empty">No usage in this range</div>'}</div>
+   <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Issue funnel</h3><div class="hint">All time · issues, issues with a linked PR, merged</div>${sm.Issues?hbars([['issues',sm.Issues],['with PR',sm.WithPR],['merged',sm.Merged]].map(([l,v])=>({label:l,value:v,color:'var(--ink)',tip:`${l}\n${v} of ${sm.Issues}`})),v=>String(v)):'<div class="empty">No issues yet</div>'}</div>
+   <div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
+     ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div></div>
    <div class="card c6"><div class="head"><div><h3>Running now</h3><div class="hint">Refreshes every 5 s</div></div><a class="sub" href="#live">All live →</a></div>
      ${live.length?table([
        {h:'Issue',f:l=>`<b>#${l.Issue}</b> <span class="muted">${esc(l.Repo.split('/')[1])}</span>`},

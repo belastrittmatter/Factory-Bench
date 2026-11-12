@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -201,6 +202,14 @@ func TestItemRows(t *testing.T) {
 	}
 	if rows[0].ToPR == "" || rows[0].CIFirstPush == "" {
 		t.Error("empty PR columns")
+	}
+	for _, r := range rows { // the numeric fields say what the text columns say
+		if r.HasPR != (r.PRs != "") || r.Merged != (r.Outcome == "merged") || (r.ToPRSeconds == nil) != (r.ToPR == "n/a") || r.CostUSD == nil {
+			t.Errorf("%s %s numeric fields disagree with the text: %+v", r.Factory, r.Item, r)
+		}
+		if r.CostLowerBound != strings.HasSuffix(r.Cost, "+?") {
+			t.Errorf("%s %s lower bound %v, cost %q", r.Factory, r.Item, r.CostLowerBound, r.Cost)
+		}
 	}
 }
 

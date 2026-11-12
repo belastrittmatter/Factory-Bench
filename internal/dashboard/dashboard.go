@@ -115,6 +115,7 @@ func Handler(db *sql.DB, o Options) http.Handler {
 	mux.HandleFunc("/api/item", s.json(s.item))
 	mux.HandleFunc("/api/attempt", s.json(s.attempt))
 	mux.HandleFunc("/api/series", s.json(s.series))
+	mux.HandleFunc("/api/summary", s.json(s.summaryAPI))
 	mux.HandleFunc("/api/flow", s.json(s.flow))
 	mux.HandleFunc("/api/local/manifest", s.json(s.manifest))
 	mux.HandleFunc("/api/local/worker", s.json(s.worker))
@@ -371,9 +372,9 @@ func (s *server) series(r *http.Request) (any, error) {
 			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
-		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, count(*) AS sessions,
+		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,
 			sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
-			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5 ORDER BY 1`},
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
 			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
 		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,

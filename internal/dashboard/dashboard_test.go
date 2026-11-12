@@ -152,6 +152,14 @@ func TestEndpoints(t *testing.T) {
 		t.Errorf("series tools: %v", tl)
 	}
 
+	var sm summary
+	get(t, h, "/api/summary", &sm)
+	if sm.Issues != 1 || sm.WithPR != 0 || sm.CostPerMerged != nil || sm.Bounces != 1 || *sm.ReworkPerIssue != 1 { // fixture lanes go build, review, build
+		t.Errorf("summary: %+v", sm)
+	}
+	if u := se["usage"]; u[0]["phase"] == nil && u[len(u)-1]["phase"] == nil {
+		t.Errorf("usage phase: %v", u)
+	}
 	var sc struct {
 		Groups []string
 		Rows   []struct {

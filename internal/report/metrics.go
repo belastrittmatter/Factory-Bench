@@ -596,6 +596,12 @@ type ItemRow struct {
 	Item, Title, Factory, Outcome, Attempts, Tokens, Cost, Active, Elapsed string
 	Human, Escaped                                                         int
 	PRs, ToPR, ToMerge, ReviewRounds, CIFirstPush, Size                    string
+
+	// the same values as numbers, for aggregates; nil = unknown or nothing to measure
+	HasPR, Merged  bool
+	ToPRSeconds    *float64
+	CostUSD        *float64 // priced sessions; nil when nothing was priced
+	CostLowerBound bool     // some sessions unpriced or attempts without usage (the +? of Cost)
 }
 
 // ItemRows returns one row per (work item, factory), newest first, from the same units as Items.
@@ -619,7 +625,15 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 		r.PRs = strings.Join(prs, ", ")
 		if u.run.nToPR > 0 {
 			r.ToPR = dur(u.run.toPR)
+			v := u.run.toPR.Seconds()
+			r.ToPRSeconds = &v
 		}
+		r.HasPR, r.Merged = len(u.prs) > 0, u.outcome == "merged"
+		if u.cost.sessions > u.cost.nUnk {
+			v := u.cost.rep + u.cost.est
+			r.CostUSD = &v
+		}
+		r.CostLowerBound = u.cost.nUnk > 0 || u.attempts > u.withUsage
 		if u.run.nToMerge > 0 {
 			r.ToMerge = dur(u.run.toMerge)
 		}

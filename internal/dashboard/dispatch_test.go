@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"factorybench/internal/report"
 )
 
 // Synthetic lanes and states only: nothing here may match a real board.
@@ -167,5 +169,33 @@ func TestLaneAt(t *testing.T) {
 	}
 	if laneAt(nil, m(0)) != "" {
 		t.Error("no dispatches")
+	}
+}
+
+func TestSummarize(t *testing.T) {
+	f := func(v float64) *float64 { return &v }
+	rows := []report.ItemRow{
+		{Item: "o/r#1", Factory: "x", HasPR: true, Merged: true, ToPRSeconds: f(100), CostUSD: f(2)},
+		{Item: "o/r#1", Factory: "y", CostUSD: f(1)}, // same issue, another factory
+		{Item: "o/r#2", Factory: "x", HasPR: true, ToPRSeconds: f(300), CostUSD: f(3), CostLowerBound: true},
+		{Item: "o/r#3", Factory: "x"}, // no usage at all
+	}
+	s := summarize(rows, map[string][]string{"o/r#1": {"a", "b", "a"}, "o/r#2": {"a", "a"}})
+	if s.Issues != 3 || s.WithPR != 2 || s.Merged != 1 {
+		t.Errorf("funnel: %+v", s)
+	}
+	if *s.AvgToPRSeconds != 200 || *s.CostPerMerged != 6 || !s.CostLowerBound {
+		t.Errorf("time/cost: %+v", s)
+	}
+	if s.IssuesWithDispatches != 2 || s.Bounces != 1 || s.Redispatches != 1 || *s.ReworkPerIssue != .5 {
+		t.Errorf("rework: %+v", s)
+	}
+	// nothing merged, no manifests, no rows: every rate is unknown, never zero
+	e := summarize(rows[3:], nil)
+	if e.Issues != 1 || e.CostPerMerged != nil || e.AvgToPRSeconds != nil || e.ReworkPerIssue != nil {
+		t.Errorf("unknowns: %+v", e)
+	}
+	if z := summarize(nil, nil); z.Issues != 0 || z.CostPerMerged != nil {
+		t.Errorf("empty: %+v", z)
 	}
 }
