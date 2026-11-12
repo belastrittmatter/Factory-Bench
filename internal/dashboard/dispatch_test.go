@@ -43,6 +43,11 @@ func TestParseManifest(t *testing.T) {
 	if len(rl.notes[7]) != 2 {
 		t.Errorf("notes: %+v", rl.notes[7])
 	}
+	// lane names are taken as written, hyphens included
+	hy := newRunLog()
+	if err := parseManifest("2026-01-02", "m.md", strings.NewReader("[10:00:00] dispatch lane=pr-review issue=#9 pid=1\n"), hy); err != nil || len(hy.dispatches[9]) != 1 || hy.dispatches[9][0].Lane != "pr-review" {
+		t.Errorf("hyphenated lane: %v %+v", err, hy.dispatches)
+	}
 }
 
 func TestGroupByDispatch(t *testing.T) {

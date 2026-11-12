@@ -28,8 +28,8 @@ var (
 	workerName   = regexp.MustCompile(`^[\w.-]+-workers/worker-([\w-]+)-(\d+)\.log$`)
 	sessionID    = regexp.MustCompile(`^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$`)
 	manifestLine = regexp.MustCompile(`^\[(\d\d:\d\d:\d\d)\] (.*)$`)
-	dispatchLine = regexp.MustCompile(`dispatch lane=(\w+) issue=#(\d+)`)
-	workerHeader = regexp.MustCompile(`^=== dispatch lane=\w+ issue=#\d+ at (\S+) ===$`)
+	dispatchLine = regexp.MustCompile(`dispatch lane=(\S+) issue=#(\d+)`)
+	workerHeader = regexp.MustCompile(`^=== dispatch lane=\S+ issue=#\d+ at (\S+) ===$`)
 )
 
 const (
