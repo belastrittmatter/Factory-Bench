@@ -107,7 +107,13 @@ func Handler(db *sql.DB, o Options) http.Handler {
 		return map[string]any{"now": time.Now().UTC(), "idle_s": o.Idle.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != ""}, nil
 	}))
 	mux.HandleFunc("/api/live", s.json(s.live))
-	mux.HandleFunc("/api/items", s.json(func(r *http.Request) (any, error) { return report.ItemRows(db, time.Now()) }))
+	mux.HandleFunc("/api/items", s.json(func(r *http.Request) (any, error) {
+		rows, err := report.ItemRows(db, time.Now())
+		if rows == nil {
+			rows = []report.ItemRow{} // an empty list, not null
+		}
+		return rows, err
+	}))
 	mux.HandleFunc("/api/scorecard", s.json(func(r *http.Request) (any, error) {
 		groups, rows, err := report.Scorecard(db, r.URL.Query().Get("by") == "config", time.Now())
 		return map[string]any{"groups": groups, "rows": rows}, err

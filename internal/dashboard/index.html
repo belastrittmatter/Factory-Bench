@@ -373,7 +373,7 @@ V.overview=async()=>{
   const running=live.filter(l=>l.Status==='running'),idle=live.filter(l=>l.Idle),waiting=live.filter(l=>l.Status==='waiting_for_human');
   const items=new Set(ar.map(a=>a.repo+'#'+a.issue)).size;
   // spend chart: the axis spans the hours that have usage (inside the range), the bucket follows that span
-  const hrs=use.map(u=>+new Date(u.hour+':00:00Z')),startT=Math.max(lo,Math.min(...hrs)),endT=Math.max(...hrs)+36e5;
+  const hrs=use.map(u=>+new Date(u.hour+':00:00Z')),startT=hrs.length?Math.max(lo,Math.min(...hrs)):Date.now(),endT=hrs.length?Math.max(...hrs)+36e5:startT+36e5;
   const span=endT-startT,bucket=span<=SPAN.hourly?36e5:span<=SPAN.sixHourly?216e5:864e5,hourly=bucket<864e5;
   const day0=new Date(new Date(startT).toDateString()).getTime(),b0=day0+Math.floor((startT-day0)/bucket)*bucket;
   const nb=Math.min(400,Math.max(1,Math.ceil((endT-b0)/bucket)));

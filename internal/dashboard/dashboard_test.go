@@ -273,3 +273,38 @@ func TestStatus(t *testing.T) {
 		}
 	}
 }
+
+// An empty database: every list endpoint answers an empty list (never null) and every rate stays unknown.
+func TestEmptyDatabase(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fb.db")
+	rw, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rw.Close()
+	db, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	h := Handler(db, Options{Addr: "127.0.0.1:8081"})
+	for _, u := range []string{"/api/live", "/api/items"} {
+		if w := get(t, h, u, nil); w.Code != 200 || strings.TrimSpace(w.Body.String()) != "[]" {
+			t.Errorf("%s: %d %s", u, w.Code, w.Body)
+		}
+	}
+	var se map[string][]any
+	get(t, h, "/api/series", &se)
+	for k, v := range se {
+		if v == nil {
+			t.Errorf("series %s is null", k)
+		}
+	}
+	var sm summary
+	if w := get(t, h, "/api/summary", &sm); w.Code != 200 || sm.Issues != 0 || sm.AvgToPRSeconds != nil || sm.CostPerMerged != nil || sm.ReworkPerIssue != nil {
+		t.Errorf("summary: %d %+v", w.Code, sm)
+	}
+	if w := get(t, h, "/api/scorecard", nil); w.Code != 200 {
+		t.Errorf("scorecard: %d", w.Code)
+	}
+}
