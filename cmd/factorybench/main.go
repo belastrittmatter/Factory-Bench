@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"factorybench/internal/claudecode"
+	"factorybench/internal/dashboard"
 	"factorybench/internal/emit"
 	"factorybench/internal/github"
 	"factorybench/internal/intake"
@@ -28,6 +29,7 @@ import (
 const usage = `usage:
   factorybench factory add <id> --commit-email <email> [--github-login <login>] [--db fb.db]
   factorybench serve [--db fb.db] [--addr :8080] [--poll 3m [--repo owner/name ...]]
+  factorybench dashboard [--db fb.db] [--addr 127.0.0.1:8081] [--stuck 10m] [--runs <dir> --transcripts <dir>]
   factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]
   factorybench emit --flush
   factorybench reconcile [--repo owner/name ...] [--db fb.db]
@@ -70,6 +72,17 @@ func main() {
 		http.Handle("/v1/logs", intake.LogsHandler(db, rebuild))
 		log.Printf("listening on %s", *addr)
 		check((&http.Server{Addr: *addr, ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
+	case cmd == "dashboard":
+		fs, dbp := dbFlags("dashboard")
+		addr := fs.String("addr", "127.0.0.1:8081", "listen address; the conversation views need a loopback one")
+		stuck := fs.Duration("stuck", 10*time.Minute, "mark a running attempt stuck after this long without an event")
+		runs := fs.String("runs", "", "super-board runs dir (manifests and worker logs), enables the local views")
+		transcripts := fs.String("transcripts", "", "Claude Code project dir with <session>.jsonl transcripts, enables the transcript view")
+		fs.Parse(args)
+		db, err := dashboard.OpenReadOnly(*dbp)
+		check(err)
+		log.Printf("dashboard on http://%s (read-only)", *addr)
+		check((&http.Server{Addr: *addr, Handler: dashboard.Handler(db, dashboard.Options{Addr: *addr, Runs: *runs, Transcripts: *transcripts, Stuck: *stuck}), ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
 	case cmd == "emit":
 		emit.Run(args, usage)
 	case cmd == "reconcile":

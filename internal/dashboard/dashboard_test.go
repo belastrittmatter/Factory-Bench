@@ -1,0 +1,204 @@
+package dashboard
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	"factorybench/internal/store"
+)
+
+const sid = "b2053705-3194-4266-a97a-4f0a39bd5593"
+
+// fixture: one running attempt with an unpriced session, one failed tool call and no human wait events.
+func fixture(t *testing.T) (*server, http.Handler, string) {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fb.db")
+	rw, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	ts := func(ago time.Duration) string { return store.FormatTS(now.Add(-ago)) }
+	for _, q := range []string{
+		`INSERT INTO factories VALUES ('f', 'h', NULL, NULL, 'x')`,
+		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 7, '<b>t</b>', 'x', 'open')`,
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at) VALUES ('f', 'a1', 'o/r', 7, 'v1', 'running', '` + ts(30*time.Minute) + `')`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'implement')`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1)`,
+		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 'Bash', 0, 12, 'ShellError')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `"}')`,
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatal(err, q)
+		}
+	}
+	rw.Close()
+	db, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	runs, tr := filepath.Join(dir, "runs"), filepath.Join(dir, "tr")
+	os.MkdirAll(filepath.Join(runs, "2026-11-12-x-workers"), 0o755)
+	os.MkdirAll(tr, 0o755)
+	os.WriteFile(filepath.Join(runs, "2026-11-12-x.md"), []byte("[10:00:00] dispatch lane=build issue=#7 pid=1\n[10:05:00] dispatch lane=review issue=#7 pid=2\n[10:09:00] dispatch lane=build issue=#7 pid=3\n[10:10:00] reaped lock on #7\n"), 0o644)
+	os.WriteFile(filepath.Join(tr, sid+".jsonl"), []byte(`{"type":"user","timestamp":"t","message":{"content":"do it"}}
+{"type":"assistant","timestamp":"t","message":{"content":[{"type":"thinking","thinking":"secret"},{"type":"text","text":"ok"},{"type":"tool_use","name":"Bash","input":{"command":"ls"}}]}}
+{"type":"user","timestamp":"t","message":{"content":[{"type":"tool_result","content":[{"type":"text","text":"file.go"}]}]}}
+`), 0o644)
+	o := Options{Addr: "127.0.0.1:8081", Runs: runs, Transcripts: tr, Stuck: 10 * time.Minute}
+	return &server{db: db, o: o, local: true}, Handler(db, o), dir
+}
+
+func get(t *testing.T, h http.Handler, url string, out any) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest("GET", url, nil)
+	req.Host = "127.0.0.1:8081"
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if out != nil && w.Code == 200 {
+		if err := json.Unmarshal(w.Body.Bytes(), out); err != nil {
+			t.Fatalf("%s: %v: %s", url, err, w.Body)
+		}
+	}
+	return w
+}
+
+func TestEndpoints(t *testing.T) {
+	_, h, _ := fixture(t)
+
+	var live []map[string]any
+	get(t, h, "/api/live", &live)
+	if len(live) != 1 || live[0]["Stuck"] != true || live[0]["Phase"] != "implement" || live[0]["HasWaitEvents"] != false {
+		t.Errorf("live: %v", live)
+	}
+	if live[0]["Lane"] != nil { // dispatches are for another time window than this attempt
+		t.Errorf("lane %v", live[0]["Lane"])
+	}
+	if live[0]["Unpriced"].(float64) != 1 || live[0]["LastToolAgeS"] == nil {
+		t.Errorf("live cost/tool: %v", live[0])
+	}
+
+	var items []map[string]any
+	get(t, h, "/api/items", &items)
+	if len(items) != 1 || items[0]["Cost"] != "$0.50 +?" || items[0]["ToPR"] != "n/a" {
+		t.Errorf("items: %v", items)
+	}
+
+	var item map[string]any
+	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
+		t.Errorf("item: %v", item)
+	}
+	if w := get(t, h, "/api/item?repo=o/r&issue=99", nil); w.Code != 404 {
+		t.Errorf("missing item: %d", w.Code)
+	}
+	if w := get(t, h, "/api/item?repo=o/r&issue=x", nil); w.Code != 400 {
+		t.Errorf("bad issue: %d", w.Code)
+	}
+
+	var at map[string]any
+	get(t, h, "/api/attempt?factory=f&id=a1", &at)
+	tools := at["tools"].([]any)[0].(map[string]any)
+	if tools["tool_name"] != "Bash" || tools["failed"].(float64) != 1 {
+		t.Errorf("tools: %v", tools)
+	}
+	if at["usage"].([]any)[1].(map[string]any)["cost_usd"] != nil { // unpriced stays null
+		t.Errorf("unpriced session shown as a number: %v", at["usage"])
+	}
+	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid {
+		t.Errorf("sessions: %v", s)
+	}
+	if get(t, h, "/api/attempt?factory=f&id=nope", nil).Code != 404 {
+		t.Error("missing attempt")
+	}
+
+	var se map[string][]map[string]any
+	get(t, h, "/api/series", &se)
+	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" {
+		t.Errorf("series attempts: %v", a)
+	}
+	if u := se["usage"]; len(u) != 1 || u[0]["sessions"].(float64) != 2 || u[0]["cost_usd"].(float64) != 0.5 {
+		t.Errorf("series usage: %v", u)
+	}
+	if tl := se["tools"]; len(tl) != 1 || tl[0]["failed"].(float64) != 1 {
+		t.Errorf("series tools: %v", tl)
+	}
+
+	var sc struct {
+		Groups []string
+		Rows   []struct {
+			Label  string
+			Values []string
+		}
+	}
+	get(t, h, "/api/scorecard?by=config", &sc)
+	if len(sc.Groups) != 1 || sc.Groups[0] != "f v1" || sc.Rows[0].Label != "work items" || sc.Rows[0].Values[0] != "1" {
+		t.Errorf("scorecard: %+v", sc)
+	}
+}
+
+func TestReadOnlyAndLocalOnly(t *testing.T) {
+	s, h, dir := fixture(t)
+	if _, err := s.db.Exec(`DELETE FROM events`); err == nil {
+		t.Error("write through the read-only handle succeeded")
+	}
+	if w := httptest.NewRecorder(); true {
+		req := httptest.NewRequest("POST", "/api/live", nil)
+		req.Host = "127.0.0.1:8081"
+		h.ServeHTTP(w, req)
+		if w.Code != 405 {
+			t.Errorf("POST: %d", w.Code)
+		}
+	}
+	req := httptest.NewRequest("GET", "/api/live", nil)
+	req.Host = "evil.example:8081"
+	if w := httptest.NewRecorder(); func() int { h.ServeHTTP(w, req); return w.Code }() != 403 {
+		t.Error("foreign Host accepted on a loopback listener")
+	}
+	// a shared listener serves no local files
+	shared := Handler(s.db, Options{Addr: ":8081", Runs: filepath.Join(dir, "runs"), Transcripts: filepath.Join(dir, "tr")})
+	for _, u := range []string{"/api/local/transcript?session=" + sid, "/api/local/manifest?file=2026-11-12-x.md"} {
+		req := httptest.NewRequest("GET", u, nil)
+		w := httptest.NewRecorder()
+		shared.ServeHTTP(w, req)
+		if w.Code != 403 {
+			t.Errorf("%s on shared listener: %d", u, w.Code)
+		}
+	}
+}
+
+func TestLocalFiles(t *testing.T) {
+	_, h, _ := fixture(t)
+	var fl map[string]any
+	get(t, h, "/api/flow?repo=o/r&issue=7", &fl)
+	d := fl["dispatches"].([]any)
+	if len(d) != 3 || d[1].(map[string]any)["Lane"] != "review" || len(fl["notes"].([]any)) != 1 {
+		t.Errorf("flow: %v", fl)
+	}
+	var m map[string]any
+	get(t, h, "/api/local/manifest?file=2026-11-12-x.md", &m)
+	if !strings.Contains(m["text"].(string), "lane=review") {
+		t.Errorf("manifest: %v", m)
+	}
+	for _, u := range []string{"/api/local/manifest?file=../fb.db", "/api/local/worker?file=../../etc/passwd", "/api/local/transcript?session=../x", "/api/local/worker?file=a-workers/worker-build-1.log/../../x"} {
+		if w := get(t, h, u, nil); w.Code != 400 {
+			t.Errorf("%s: %d, want 400", u, w.Code)
+		}
+	}
+	var tr struct {
+		Entries []entry
+	}
+	get(t, h, "/api/local/transcript?session="+sid, &tr)
+	if len(tr.Entries) != 4 || tr.Entries[1].Text != "ok" || tr.Entries[2].Kind != "tool_use" || tr.Entries[3].Text != "file.go" {
+		t.Errorf("transcript: %+v", tr.Entries)
+	}
+}

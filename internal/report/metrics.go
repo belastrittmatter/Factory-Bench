@@ -590,3 +590,49 @@ func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) erro
 	_, err = fmt.Fprintln(w, legend+"\nopen one: factorybench report item <owner/repo#n>")
 	return err
 }
+
+// ItemRow is one row of `report items` plus the per-unit PR columns, preformatted: "?" and "n/a" are unknown, never 0.
+type ItemRow struct {
+	Item, Title, Factory, Outcome, Attempts, Tokens, Cost, Active, Elapsed string
+	Human, Escaped                                                         int
+	PRs, ToPR, ToMerge, ReviewRounds, CIFirstPush, Size                    string
+}
+
+// ItemRows returns one row per (work item, factory), newest first, from the same units as Items.
+func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
+	d, err := loadMetrics(db)
+	if err != nil {
+		return nil, err
+	}
+	var out []ItemRow
+	for _, u := range buildUnits(d, false, now) {
+		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: fmt.Sprint(u.attempts),
+			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
+			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
+		if u.failed > 0 {
+			r.Attempts += fmt.Sprintf(" (%d failed)", u.failed)
+		}
+		var prs []string
+		for _, p := range u.prs {
+			prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
+		}
+		r.PRs = strings.Join(prs, ", ")
+		if u.run.nToPR > 0 {
+			r.ToPR = dur(u.run.toPR)
+		}
+		if u.run.nToMerge > 0 {
+			r.ToMerge = dur(u.run.toMerge)
+		}
+		if u.reviewedPRs > 0 {
+			r.ReviewRounds = fmt.Sprintf("%d on %d reviewed PRs", u.changesReq, u.reviewedPRs)
+		}
+		if u.run.ciN > 0 {
+			r.CIFirstPush = rate(u.run.ciPass, u.run.ciN)
+		}
+		if u.run.sizedPRs > 0 {
+			r.Size = fmt.Sprintf("+%d -%d, %d files", u.run.added, u.run.deleted, u.run.files)
+		}
+		out = append(out, r)
+	}
+	return out, nil
+}

@@ -178,3 +178,43 @@ func TestCIStats(t *testing.T) {
 		t.Errorf("ciStats(nil) = %+v", cs)
 	}
 }
+
+func TestItemRows(t *testing.T) {
+	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
+	rows, err := ItemRows(db, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// review rounds are the hand-computed ones from TestScorecard; unknowns stay "?" / "n/a"
+	want := map[string]string{
+		"fa acme/app#10": "merged | 1 on 1 reviewed PRs | ?",
+		"fa acme/app#11": "open | 0 on 1 reviewed PRs | ?",
+		"fb acme/app#10": "rejected | 2 on 1 reviewed PRs | ?",
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("got %d rows, want %d", len(rows), len(want))
+	}
+	for _, r := range rows {
+		if got := r.Outcome + " | " + r.ReviewRounds + " | " + r.Size; got != want[r.Factory+" "+r.Item] {
+			t.Errorf("%s %s: %q, want %q", r.Factory, r.Item, got, want[r.Factory+" "+r.Item])
+		}
+	}
+	if rows[0].ToPR == "" || rows[0].CIFirstPush == "" {
+		t.Error("empty PR columns")
+	}
+}
+
+func TestScorecardRows(t *testing.T) {
+	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
+	groups, rows, err := Scorecard(db, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, r := range rows {
+		got[r.Label] = r.Values
+	}
+	if len(groups) != 2 || groups[0] != "fa" || got["review rounds / PR"][1] != "2.0 (2/1)" || got["work items"][0] != "2" {
+		t.Errorf("groups %v, rows %v", groups, got)
+	}
+}

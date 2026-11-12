@@ -1,0 +1,315 @@
+// Package dashboard serves the read-only web dashboard: a JSON API over the report code plus one embedded page.
+// It never writes to the database; the conversation views (run manifests, worker logs, Claude transcripts) read
+// local files on request and are only served on a loopback address.
+package dashboard
+
+import (
+	"database/sql"
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	_ "modernc.org/sqlite"
+
+	"factorybench/internal/report"
+	"factorybench/internal/store"
+)
+
+//go:embed index.html
+var page []byte
+
+// Options configures Handler. Empty Runs or Transcripts switch the matching local view off.
+type Options struct {
+	Addr        string        // listen address; local views need a loopback one
+	Runs        string        // super-board runs dir: <date>-<name>.md manifests and <date>-<name>-workers/ logs
+	Transcripts string        // Claude Code project dir with <session id>.jsonl files
+	Stuck       time.Duration // a running attempt with no event for this long is stuck
+}
+
+// OpenReadOnly opens the database without ever writing or migrating it. It refuses a schema older than v3.
+func OpenReadOnly(path string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)&_pragma=query_only(1)")
+	if err != nil {
+		return nil, err
+	}
+	db.SetMaxOpenConns(1) // the report code runs one query at a time
+	var v int
+	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
+		return nil, err
+	}
+	if v != 3 {
+		return nil, fmt.Errorf("database schema is v%d, want v3: run serve or replay with the current binary first", v)
+	}
+	return db, nil
+}
+
+// loopback reports whether a host or host:port is localhost or a loopback IP.
+func loopback(hostport string) bool {
+	h, _, err := net.SplitHostPort(hostport)
+	if err != nil {
+		h = hostport
+	}
+	h = strings.Trim(h, "[]")
+	return h == "localhost" || net.ParseIP(h).IsLoopback()
+}
+
+// Handler returns the dashboard.
+func Handler(db *sql.DB, o Options) http.Handler {
+	local := loopback(o.Addr)
+	s := &server{db: db, o: o, local: local}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Write(page)
+	})
+	mux.HandleFunc("/api/meta", s.json(func(r *http.Request) (any, error) {
+		return map[string]any{"now": time.Now().UTC(), "stuck_s": o.Stuck.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != ""}, nil
+	}))
+	mux.HandleFunc("/api/live", s.json(s.live))
+	mux.HandleFunc("/api/items", s.json(func(r *http.Request) (any, error) { return report.ItemRows(db, time.Now()) }))
+	mux.HandleFunc("/api/scorecard", s.json(func(r *http.Request) (any, error) {
+		groups, rows, err := report.Scorecard(db, r.URL.Query().Get("by") == "config", time.Now())
+		return map[string]any{"groups": groups, "rows": rows}, err
+	}))
+	mux.HandleFunc("/api/item", s.json(s.item))
+	mux.HandleFunc("/api/attempt", s.json(s.attempt))
+	mux.HandleFunc("/api/series", s.json(s.series))
+	mux.HandleFunc("/api/flow", s.json(s.flow))
+	mux.HandleFunc("/api/local/manifest", s.json(s.manifest))
+	mux.HandleFunc("/api/local/worker", s.json(s.worker))
+	mux.HandleFunc("/api/local/transcript", s.json(s.transcript))
+	return mux
+}
+
+type server struct {
+	db    *sql.DB
+	o     Options
+	local bool
+}
+
+// httpError is an error with a status code.
+type httpError struct {
+	code int
+	msg  string
+}
+
+func (e httpError) Error() string { return e.msg }
+
+// json wraps an API function: GET only, a loopback Host when bound to loopback (DNS rebinding), JSON out, no caching.
+func (s *server) json(f func(*http.Request) (any, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.local && !loopback(r.Host) {
+			http.Error(w, "bad host", http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodGet {
+			http.Error(w, "read-only", http.StatusMethodNotAllowed)
+			return
+		}
+		v, err := f(r)
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Type", "application/json")
+		if err != nil {
+			code := http.StatusInternalServerError
+			if e, ok := err.(httpError); ok {
+				code = e.code
+			}
+			w.WriteHeader(code)
+			v = map[string]string{"error": err.Error()}
+		}
+		json.NewEncoder(w).Encode(v)
+	}
+}
+
+// rows runs a query and returns every row as an object keyed by column; SQL NULL is JSON null, so unknown stays unknown.
+func rows(db *sql.DB, query string, args ...any) ([]map[string]any, error) {
+	out := []map[string]any{}
+	err := store.Each(db, query, func(r *sql.Rows) error {
+		cols, _ := r.Columns()
+		vals := make([]any, len(cols))
+		ptrs := make([]any, len(cols))
+		for i := range vals {
+			ptrs[i] = &vals[i]
+		}
+		if err := r.Scan(ptrs...); err != nil {
+			return err
+		}
+		m := map[string]any{}
+		for i, c := range cols {
+			if b, ok := vals[i].([]byte); ok {
+				vals[i] = string(b)
+			}
+			m[c] = vals[i]
+		}
+		out = append(out, m)
+		return nil
+	}, args...)
+	return out, err
+}
+
+func secs(d time.Duration) float64 { return d.Seconds() }
+
+// live is report.LiveRows plus the attempt's role, latest usage phase, super-board lane and a stuck flag.
+func (s *server) live(r *http.Request) (any, error) {
+	now := time.Now()
+	lr, err := report.LiveRows(s.db, now)
+	if err != nil {
+		return nil, err
+	}
+	type row struct {
+		report.LiveRow
+		ElapsedS, ActiveS, WaitS float64
+		LastEventAgeS            *float64 // nil = no event at all
+		LastToolAgeS             *float64
+		Role, Phase, Lane        *string
+		Stuck                    bool
+		HasWaitEvents            bool // false: human wait is unavailable, not zero
+	}
+	out := []row{}
+	for _, l := range lr {
+		x := row{LiveRow: l, ElapsedS: secs(l.Elapsed), ActiveS: secs(l.Elapsed - l.Wait), WaitS: secs(l.Wait)}
+		if l.LastEvent != nil {
+			a := secs(now.Sub(*l.LastEvent))
+			x.LastEventAgeS = &a
+		}
+		if l.LastToolAt != nil {
+			a := secs(now.Sub(*l.LastToolAt))
+			x.LastToolAgeS = &a
+		}
+		x.Stuck = l.State == "running" && (x.LastEventAgeS == nil || now.Sub(*l.LastEvent) > s.o.Stuck)
+		s.db.QueryRow(`SELECT EXISTS (SELECT 1 FROM events WHERE factory_id = ? AND type IN ('human.waiting', 'human.resumed')
+			AND json_extract(payload, '$.attempt_id') = ?)`, l.Factory, l.Attempt).Scan(&x.HasWaitEvents)
+		var role, phase sql.NullString
+		s.db.QueryRow(`SELECT role, (SELECT phase FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id
+			AND phase IS NOT NULL ORDER BY ts DESC LIMIT 1) FROM attempts a WHERE factory_id = ? AND attempt_id = ?`, l.Factory, l.Attempt).Scan(&role, &phase)
+		if role.Valid {
+			x.Role = &role.String
+		}
+		if phase.Valid {
+			x.Phase = &phase.String
+		}
+		if d := s.dispatches(l.Issue); len(d) > 0 {
+			var lane string
+			for _, e := range d { // the newest dispatch at or after this attempt's start
+				if !e.At.Before(l.Started.Add(-time.Minute)) {
+					lane = e.Lane
+				}
+			}
+			if lane != "" {
+				x.Lane = &lane
+			}
+		}
+		out = append(out, x)
+	}
+	return out, nil
+}
+
+func (s *server) item(r *http.Request) (any, error) {
+	repo, issue := r.URL.Query().Get("repo"), r.URL.Query().Get("issue")
+	n, err := strconv.ParseInt(issue, 10, 64)
+	if err != nil || repo == "" {
+		return nil, httpError{http.StatusBadRequest, "repo and issue required"}
+	}
+	var title sql.NullString
+	if err := s.db.QueryRow(`SELECT title FROM work_items WHERE repo = ? AND issue = ?`, repo, n).Scan(&title); err == sql.ErrNoRows {
+		return nil, httpError{http.StatusNotFound, fmt.Sprintf("no work item %s#%d", repo, n)}
+	}
+	tl, err := report.Timeline(s.db, repo, n, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	q := func(query string) ([]map[string]any, error) { return rows(s.db, query, repo, n) }
+	res := map[string]any{"timeline": tl, "title": title.String}
+	for k, query := range map[string]string{
+		"attempts": `SELECT a.factory_id, a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
+			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
+			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
+			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens
+			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
+		"prs": `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
+		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
+			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
+		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
+			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
+		"checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
+			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
+	} {
+		if res[k], err = q(query); err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+// attempt returns everything derived for one attempt: sessions (usage rows), phases, tools, subagents, errors, gates.
+func (s *server) attempt(r *http.Request) (any, error) {
+	f, id := r.URL.Query().Get("factory"), r.URL.Query().Get("id")
+	if f == "" || id == "" {
+		return nil, httpError{http.StatusBadRequest, "factory and id required"}
+	}
+	res := map[string]any{}
+	var err error
+	for _, q := range []struct{ key, sql string }{
+		{"attempt", `SELECT * FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2`},
+		{"usage", `SELECT ts, model, agent_id, phase, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
+		{"phases", `SELECT phase, count(*) AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
+			sum(cost_usd IS NULL) AS unpriced, sum(duration_ms) AS duration_ms FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY phase`},
+		{"tools", `SELECT tool_name, count(*) AS calls, sum(success = 0) AS failed, sum(success IS NULL) AS unknown, sum(duration_ms) AS duration_ms
+			FROM tool_calls WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY tool_name ORDER BY calls DESC`},
+		{"tool_calls", `SELECT ts, agent_id, tool_name, success, duration_ms, error_type FROM tool_calls WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts DESC, rowid DESC LIMIT 500`},
+		{"agents", `SELECT agent_id, parent_agent_id, agent_type, is_async, model, final_model, tool_calls, duration_ms, status, started_at FROM agent_runs WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY started_at`},
+		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
+		{"gates", `SELECT ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
+		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events FROM events
+			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
+	} {
+		if res[q.key], err = rows(s.db, q.sql, f, id); err != nil {
+			return nil, err
+		}
+	}
+	if a := res["attempt"].([]map[string]any); len(a) == 0 {
+		return nil, httpError{http.StatusNotFound, "no such attempt"}
+	} else {
+		res["attempt"] = a[0]
+	}
+	if s.local && s.o.Runs != "" {
+		res["workers"] = s.workerLogs(res["attempt"].(map[string]any))
+	}
+	return res, nil
+}
+
+// series is everything the overview and compare charts filter client-side: every attempt with its usage summed,
+// usage per hour and model, merges, and tool calls per day and tool. All carry factory, config and repo.
+func (s *server) series(r *http.Request) (any, error) {
+	res := map[string]any{}
+	var err error
+	for _, q := range []struct{ key, sql string }{
+		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.started_at, a.ended_at, a.human_wait_ms,
+			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title
+			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
+			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
+			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
+		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, count(*) AS sessions,
+			sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5 ORDER BY 1`},
+		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
+			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
+		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,
+			sum(t.duration_ms) AS duration_ms FROM tool_calls t JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5`},
+	} {
+		if res[q.key], err = rows(s.db, q.sql); err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
