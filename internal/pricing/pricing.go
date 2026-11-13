@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 )
 
@@ -61,11 +62,16 @@ func at(ts string) version {
 	return v
 }
 
+var thinkingLevel = regexp.MustCompile(`-(minimal|low|medium|high)$`)
+
 // Estimate prices one session at the prices in effect at ts and returns the price version used.
 // ok is false when the model, or a token class it used, has no price.
 func Estimate(ts, model string, input, output int64, cacheRead, cacheWrite *int64) (usd float64, priceVersion string, ok bool) {
 	v := at(ts)
 	m, found := v.t.Models[model]
+	if !found { // agents like Antigravity append the thinking level, which doesn't change the per-token price
+		m, found = v.t.Models[thinkingLevel.ReplaceAllString(model, "")]
+	}
 	if !found {
 		return 0, "", false
 	}
