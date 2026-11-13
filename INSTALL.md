@@ -57,7 +57,7 @@ Send the same lifecycle events, plus one `usage` event per model after every age
 
 ```bash
 factorybench emit usage --attempt "$A" --key usage:1 \
-  --json '{"model":"gemini-3-pro","input":20000,"output":3000,"cache_read":40000,"duration_ms":151000}'
+  --json '{"model":"gemini-3.1-pro-preview","input":20000,"output":3000,"cache_read":40000,"duration_ms":151000}'
 ```
 
 - **Deltas, not totals.** `agy` totals are cumulative across turns: subtract what you already sent.
