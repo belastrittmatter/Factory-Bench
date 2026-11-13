@@ -1,5 +1,7 @@
-// Package dashboard serves the read-only web dashboard: a JSON API over the report code plus one embedded page.
-// It never writes to the database; the conversation views (run manifests, worker logs, Claude transcripts) read
+// Package dashboard serves the web dashboard: a JSON API over the report code plus one embedded page.
+// It reads through a read-only handle and never migrates the database. The only writes are the Factories page's
+// (register a factory, issue or revoke its token, edit its identity), on a separate handle, only on a loopback address
+// (see factories.go). The conversation views (run manifests, worker logs, Claude transcripts) read
 // local files on request and are only served on a loopback address.
 package dashboard
 
@@ -30,6 +32,7 @@ type Options struct {
 	Runs        string        // super-board runs dir: <date>-<name>.md manifests and <date>-<name>-workers/ logs
 	Transcripts string        // Claude Code project dir with <session id>.jsonl files
 	Idle        time.Duration // a running attempt with no event for this long is idle; 0 = DefaultIdleTimeout
+	Admin       *sql.DB       // writable handle for managing factories (OpenWritable); nil, or a non-loopback Addr, = read-only
 }
 
 // DefaultIdleTimeout is how long a running attempt may go without any event before it shows as idle instead of live.
@@ -62,23 +65,34 @@ func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
 
 // OpenReadOnly opens the database without ever writing or migrating it. It refuses any schema but store.SchemaVersion.
 func OpenReadOnly(path string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro&_pragma=busy_timeout(5000)&_pragma=query_only(1)")
+	return openAt(path, "mode=ro&_pragma=busy_timeout(5000)&_pragma=query_only(1)")
+}
+
+// OpenWritable opens the database for the Factories page's writes. Like OpenReadOnly it never migrates.
+func OpenWritable(path string) (*sql.DB, error) {
+	return openAt(path, "mode=rw&_pragma=busy_timeout(5000)")
+}
+
+func openAt(path, params string) (*sql.DB, error) {
+	db, err := sql.Open("sqlite", "file:"+path+"?"+params)
 	if err != nil {
 		return nil, err
 	}
 	db.SetMaxOpenConns(1) // the report code runs one query at a time
 	var v int
 	if err := db.QueryRow("PRAGMA user_version").Scan(&v); err != nil {
+		db.Close()
 		return nil, err
 	}
 	if v != store.SchemaVersion {
+		db.Close()
 		return nil, fmt.Errorf("database schema is v%d, want v%d: run serve or replay with the current binary first", v, store.SchemaVersion)
 	}
 	return db, nil
 }
 
-// loopback reports whether a host or host:port is localhost or a loopback IP.
-func loopback(hostport string) bool {
+// Loopback reports whether a host or host:port is localhost or a loopback IP.
+func Loopback(hostport string) bool {
 	h, _, err := net.SplitHostPort(hostport)
 	if err != nil {
 		h = hostport
@@ -89,11 +103,14 @@ func loopback(hostport string) bool {
 
 // Handler returns the dashboard.
 func Handler(db *sql.DB, o Options) http.Handler {
-	local := loopback(o.Addr)
+	local := Loopback(o.Addr)
 	if o.Idle <= 0 {
 		o.Idle = DefaultIdleTimeout
 	}
 	s := &server{db: db, o: o, local: local}
+	if local {
+		s.admin = o.Admin
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
@@ -105,7 +122,7 @@ func Handler(db *sql.DB, o Options) http.Handler {
 		w.Write(page)
 	})
 	mux.HandleFunc("/api/meta", s.json(func(r *http.Request) (any, error) {
-		return map[string]any{"now": time.Now().UTC(), "idle_s": o.Idle.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != ""}, nil
+		return map[string]any{"now": time.Now().UTC(), "idle_s": o.Idle.Seconds(), "local": local && o.Runs != "", "transcripts": local && o.Transcripts != "", "manage": s.admin != nil}, nil
 	}))
 	mux.HandleFunc("/api/live", s.json(s.live))
 	mux.HandleFunc("/api/items", s.json(func(r *http.Request) (any, error) {
@@ -127,11 +144,13 @@ func Handler(db *sql.DB, o Options) http.Handler {
 	mux.HandleFunc("/api/local/manifest", s.json(s.manifest))
 	mux.HandleFunc("/api/local/worker", s.json(s.worker))
 	mux.HandleFunc("/api/local/transcript", s.json(s.transcript))
+	s.factoryRoutes(mux)
 	return mux
 }
 
 type server struct {
 	db    *sql.DB
+	admin *sql.DB // nil = managing factories is off
 	o     Options
 	local bool
 }
@@ -146,13 +165,17 @@ func (e httpError) Error() string { return e.msg }
 
 // json wraps an API function: GET only, a loopback Host when bound to loopback (DNS rebinding), JSON out, no caching.
 func (s *server) json(f func(*http.Request) (any, error)) http.HandlerFunc {
+	return s.serve(http.MethodGet, f)
+}
+
+func (s *server) serve(method string, f func(*http.Request) (any, error)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if s.local && !loopback(r.Host) {
+		if s.local && !Loopback(r.Host) {
 			http.Error(w, "bad host", http.StatusForbidden)
 			return
 		}
-		if r.Method != http.MethodGet {
-			http.Error(w, "read-only", http.StatusMethodNotAllowed)
+		if r.Method != method {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 		v, err := f(r)

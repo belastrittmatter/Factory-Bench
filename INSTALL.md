@@ -86,7 +86,7 @@ No stderr output means both were accepted. On the FactoryBench host: `factoryben
 
 | Symptom | Fix |
 |---|---|
-| `401 Unauthorized: invalid token` | Wrong or missing `FACTORYBENCH_TOKEN`. Ask the operator; it can't be shown again. |
+| `401 Unauthorized: invalid token` | Wrong, missing or revoked `FACTORYBENCH_TOKEN`. Ask the operator; it can't be shown again, but the operator can issue a new one on the dashboard's Factories page, which stops the old one working. |
 | `rejected by FactoryBench` on stderr | The payload breaks the contract; the message names the field. Fix it and re-send with **the same key**. |
 | Spool keeps growing | Sends fail (stderr says why). Fix that, then `factorybench emit --flush`. |
 | Nothing arrives, no errors | `FACTORYBENCH_URL` is unset in the factory's environment. |

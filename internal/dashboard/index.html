@@ -132,6 +132,14 @@ td.t{white-space:normal;min-width:160px;max-width:380px}
 .hb .track{height:6px;background:var(--surface-2);display:flex;overflow:hidden;gap:1px}
 .hb .track i{display:block;height:100%}
 .mbar{display:block;height:3px;background:var(--surface-2);margin-top:4px;min-width:60px}.mbar i{display:block;height:100%}table.score td{vertical-align:top}
+.cmpbar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;margin:0 0 18px;font-size:12px}
+table.cmp{table-layout:fixed;border-top:1px solid var(--ink)}table.cmp col.lab{width:220px}
+table.cmp th.gh{text-transform:none;letter-spacing:0;white-space:normal;vertical-align:top;padding:12px 16px 12px 0;color:var(--text);font-family:inherit;font-size:13px;border-bottom:1px solid var(--ink)}
+.ghc{display:flex;gap:8px;align-items:flex-start}.ghc>i{flex:none;width:9px;height:9px;margin-top:5px}.ghc>div{flex:1;min-width:0}.ghc b{display:block;font-weight:600}.ghc .mono{display:block;color:var(--text-2);overflow-wrap:break-word;font-size:11.5px}.ghc .iconbtn{height:20px}
+table.cmp tr.sec th{padding:22px 0 6px;color:var(--text);border-bottom:1px solid var(--line-2)}
+table.cmp td{white-space:normal;overflow-wrap:anywhere;padding:9px 16px 9px 0;font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums;vertical-align:top}
+table.cmp td.sub{font-family:inherit;font-size:13px}table.cmp td:not(.sub){padding-left:10px}table.cmp td.best{font-weight:600;background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good)}
+@media (max-width:700px){table.cmp col.lab{width:100px}.ghc .iconbtn{width:18px}}
 .wide .hb{grid-template-columns:minmax(90px,340px) minmax(0,1fr) auto}.hb[data-href]:hover .lab{color:var(--hot)}
 .hb .val{font-family:var(--mono);font-size:12px;min-width:52px;text-align:right}
 .segbar{display:flex;height:8px;overflow:hidden;gap:2px;margin:4px 0 10px}
@@ -194,6 +202,18 @@ pre.log{margin:0;font:11.5px/1.55 var(--mono);white-space:pre-wrap;overflow-wrap
 .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px 22px;font-size:12.5px;color:var(--text-3);margin:-4px 0 22px}.meta b{color:var(--text);font-weight:500}
 .err{border-top:2px solid var(--crit);color:var(--crit);padding:12px 0}
 
+/* factories */
+.act{border:0;background:none;padding:2px 0 2px 14px;cursor:pointer;color:var(--text-3);font-family:var(--mono);font-size:11.5px}
+.act:hover{color:var(--hot)}.act.danger:hover{color:var(--crit)}
+.btn.danger{border-color:var(--crit);color:var(--crit)}.btn.danger:hover{background:var(--crit);color:#fff}
+.btn:disabled{opacity:.5;cursor:default}
+.field{display:flex;flex-direction:column;gap:4px;margin:0 0 18px}
+.field span{font-family:var(--mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--text-3)}
+.field input{border:0;border-bottom:1px solid var(--line-2);background:transparent;padding:5px 2px;border-radius:0;font-family:var(--mono);font-size:13px}
+.field input:focus{outline:0;border-color:var(--ink)}.field input[readonly]{color:var(--text-3)}
+.formrow{display:flex;gap:14px;align-items:center;margin-top:16px}
+pre.secret{margin:12px 0 0;padding:12px 14px;background:var(--surface-2);font:13px/1.5 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere;user-select:all}
+
 @media (max-width:1100px){.c8,.c6,.c4{grid-column:span 12}}
 @media (max-width:760px){
   .mast-in{padding:0 16px;gap:18px;overflow-x:auto}.ticker{display:none}
@@ -248,6 +268,8 @@ const ICON={
  live:'<path d="M3 12h4l3-8 4 16 3-8h4"/>',
  items:'<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
  compare:'<path d="M12 3v18M5 8l-3 4 3 4M19 8l3 4-3 4"/>',
+ factories:'<path d="M3 21V10l6 4V10l6 4V3h6v18z"/>',
+ plus:'<path d="M12 5v14M5 12h14"/>',
  theme:'<path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/>',
  close:'<path d="M6 6l12 12M18 6L6 18"/>',
  lock:'<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'};
@@ -656,41 +678,94 @@ const LOWER=/cost|token|time|failure|error|rounds|interventions|escaped|unpriced
 // first number of a report value: durations to seconds, k to thousands; n/a and text give null
 function metricNum(v){v=String(v);if(/^n\/a|^\?/.test(v))return null;const d=/^(\d+h)?(\d+m(?!s))?(\d+(?:\.\d+)?s)?(?=\s|$)/.exec(v);if(d&&d[0])return d[0].replace(/(\d+(?:\.\d+)?)([hms])/g,(_,n,u)=>' '+n*{h:3600,m:60,s:1}[u]).trim().split(' ').reduce((a,b)=>a+ +b,0);
   const m=/^[+$]?(-?\d+(?:\.\d+)?)(k|M|B)?/.exec(v.replace(/^\+/,''));return m?+m[1]*({k:1e3,M:1e6,B:1e9}[m[2]]||1):null}
-function scoreSections(sc,groups){
-  const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0];
+// one table, a column per picked group, a row per metric, section rows between; same numbers as report factories
+function scoreTable(sc,groups){
+  const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0],n=groups.length;
   const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(metricNum),ok=nums.filter(n=>n!==null),dir=LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
-    const max=Math.max(...ok.map(Math.abs),0),spread=ok.length>1&&max?(Math.max(...ok)-Math.min(...ok))/max:0,best=dir&&ok.length>1&&spread?(dir<0?Math.min(...ok):Math.max(...ok)):null;return{...r,vals,nums,max,spread,best}});
-  const secs=[...SECTIONS.map(x=>x[0]),'Other'].map(n=>[n,rows.filter(r=>secOf(r.Label)===n)]).filter(([,rs])=>rs.length);
-  const head=`<th>Metric</th>${groups.map(g=>`<th class="n"><span style="display:inline-flex;gap:6px;align-items:center"><i style="width:8px;height:8px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i>${esc(g)}</span></th>`).join('')}`;
-  return secs.map(([n,rs])=>{if(UI.diffFirst)rs=rs.slice().sort((a,b)=>b.spread-a.spread);
-    return `<div class="card c6"><h3>${n}</h3><div class="tw"><table class="score"><thead><tr>${head}</tr></thead><tbody>${rs.map(r=>`<tr><td><span class="sub">${esc(fixStr(r.Label))}</span></td>${r.vals.map((v,i)=>{const x=r.nums[i],top=r.best!==null&&x===r.best;
-      return `<td class="n">${top?'<span style="color:var(--good)">● </span>':''}${top?'<b>':''}${na(v.split(' (')[0])}${top?'</b>':''}${groups.length>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`}).join('')}</tr>`).join('')}</tbody></table></div></div>`}).join('');
+    const max=Math.max(...ok.map(Math.abs),0),spread=ok.length>1&&max?(Math.max(...ok)-Math.min(...ok))/max:0,best=dir&&ok.length>1&&spread?(dir<0?Math.min(...ok):Math.max(...ok)):null;return{...r,vals,nums,max,spread,best,dir}});
+  const secs=[...SECTIONS.map(x=>x[0]),'Other'].map(s=>[s,rows.filter(r=>secOf(r.Label)===s)]).filter(([,rs])=>rs.length);
+  const head=groups.map(g=>{const [f,...c]=g.split(' ');return `<th class="gh"><div class="ghc"><i style="background:${colorOf('group',g)}"></i><div><b>${esc(f)}</b>${c.length?`<span class="mono">${esc(c.join(' ')).replace(/[+@]/g,'$&<wbr>')}</span>`:''}</div>${n>1?`<button class="iconbtn" data-cmprm="${esc(g)}" aria-label="Remove ${esc(g)}">${ico('close')}</button>`:''}</div></th>`}).join('');
+  const cell=(r,v,i)=>{const x=r.nums[i],top=r.best!==null&&x===r.best;
+    return `<td class="${top?'best':''}">${na(v.split(' (')[0])}${n>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`};
+  return `<table class="cmp"><colgroup><col class="lab">${groups.map(()=>'<col>').join('')}</colgroup><thead><tr><th></th>${head}</tr></thead>${secs.map(([s,rs])=>{if(UI.diffFirst)rs=rs.slice().sort((a,b)=>b.spread-a.spread);
+    return `<tbody><tr class="sec"><th colspan="${n+1}">${s}</th></tr>${rs.map(r=>`<tr><td class="sub">${esc(fixStr(r.Label))}${r.dir?`<span class="muted"> ${r.dir<0?'↓':'↑'}</span>`:''}</td>${r.vals.map((v,i)=>cell(r,v,i)).join('')}</tr>`).join('')}</tbody>`}).join('')}</table>`;
 }
+// how many groups Compare shows before you pick
+const CMP_DEFAULT=3;
+let CMP=[];
 V.compare=async()=>{
   const [sc,s]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries()]);
   const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+r.config_version:'');
+  const avail=sc.groups.filter(g=>uniq(s.attempts.filter(keep).map(gk)).includes(g));
+  let groups=store.get('pick.'+UI.compareBy,[]).filter(g=>avail.includes(g));
+  if(!groups.length)groups=avail.slice(0,CMP_DEFAULT);
+  CMP=groups;
+  const rest=avail.filter(g=>!groups.includes(g)),what=UI.compareBy?'config':'factory';
   const use=s.usage.filter(u=>keep(u)&&+new Date(u.hour+':00:00Z')>=lo-36e5);
-  const groups=sc.groups.filter(g=>uniq(s.attempts.filter(keep).map(gk)).includes(g));
   const days=uniq(use.map(u=>new Date(u.hour+':00:00Z').toDateString())).sort((a,b)=>new Date(a)-new Date(b));
   const series=groups.map(g=>({name:g,color:colorOf('group',g),values:days.map(d=>use.filter(u=>gk(u)===g&&new Date(u.hour+':00:00Z').toDateString()===d).reduce((a,u)=>a+(u.cost_usd||0),0))}));
   const atts=s.attempts.filter(a=>keep(a)&&+T(a.started_at)>=lo);
   const aser=groups.map(g=>({name:g,color:colorOf('group',g),values:days.map(d=>atts.filter(a=>gk(a)===g&&T(a.started_at).toDateString()===d).length)}));
   const b=days.map(d=>({label:fmtDay(new Date(d)),tip:fmtDay(new Date(d))}));
-  const idx=sc.groups.map(g=>groups.indexOf(g));
-  const val=(label,gi)=>{const r=sc.rows.find(r=>r.Label===label);return r?r.Values[gi]:'n/a'};
-  const w=W($('#main'))-60,half=groups.length?w/2-30:w;
+  const half=W($('#main'))/2-50;
   return topbar('Compare',`<div class="seg" role="group" aria-label="group by"><button class="${UI.compareBy?'':'on'}" data-by="">By factory</button><button class="${UI.compareBy?'on':''}" data-by="config">By config</button></div>`+filterBar(optsOf(s.attempts)))+
-  (groups.length?`<div class="kpis" style="grid-template-columns:repeat(auto-fit,minmax(260px,1fr))">${groups.map(g=>{const gi=sc.groups.indexOf(g);return `<div class="kpi"><div class="l"><i style="width:9px;height:9px;border-radius:2px;background:${colorOf('group',g)};display:inline-block"></i><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g)}</span></div>
-     <div class="v" style="font-size:20px">${na(val('cost / merged issue',gi).split(' (')[0])}<span class="muted" style="font-size:12px;font-weight:450"> per merged issue</span></div>
-     <div class="d">${esc(val('work items',gi))} issue${val('work items',gi)==='1'?'':'s'} · ${esc(val('attempts',gi))} · ${esc(val('cost total',gi).split(' (')[0])}</div></div>`}).join('')}</div>
-  <div class="grid">
+  (groups.length?`<div class="cmpbar">${rest.length?`<select class="sel" data-cmpadd aria-label="Add a ${what}"><option value="">+ Add ${what} (${rest.length} more)</option>${rest.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('')}</select>`:`<span class="muted">All ${plural(avail.length,what)} shown</span>`}
+     ${groups.length>1?`<div class="seg" role="group" aria-label="row order"><button class="${UI.diffFirst?'':'on'}" data-diff="">Report order</button><button class="${UI.diffFirst?'on':''}" data-diff="1">Biggest difference first</button></div>`:''}
+     <span class="muted">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>${groups.length>1?' · <span style="background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good);padding:0 4px 0 7px">green</span> = best in row · ↓ lower is better, ↑ higher · bar = relative to the largest':avail.length<2?` · only one ${what} here${UI.compareBy?'':': switch to By config to compare its configs'}`:''}</span></div>
+   <div class="tw">${scoreTable(sc,groups)}</div>
+  <div class="grid" style="margin-top:40px">
    <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>
-   <div class="card c12"><div class="head"><div><h3>Scorecard</h3><div class="hint">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>${groups.length>1?' · bar = value relative to the largest · ● best in row':' · one group in this selection: switch to By config or clear filters to compare'}</div></div>
-     ${groups.length>1?`<div class="seg" role="group" aria-label="row order"><button class="${UI.diffFirst?'':'on'}" data-diff="">Report order</button><button class="${UI.diffFirst?'on':''}" data-diff="1">Biggest difference first</button></div>`:''}</div></div>
-   ${scoreSections(sc,groups)}
   </div>`:'<div class="card"><div class="empty">No attempts match these filters</div></div>');
 };
+const cmpPick=f=>{store.set('pick.'+UI.compareBy,f(CMP));render(true)};
+
+// ---------- factories: register, issue and revoke tokens (writes only on a loopback dashboard, meta.manage)
+let FACTORIES=[];
+V.factories=async()=>{
+  FACTORIES=await get('/api/factories');
+  const m=meta.manage,act=FACTORIES.filter(f=>f.active).length;
+  const btn=(k,f,l)=>`<button class="act${k==='revoke'?' danger':''}" data-fact="${k}" data-id="${esc(f.id)}">${l}</button>`;
+  const cols=[
+    {h:'Factory',f:f=>`<b class="mono">${esc(f.id)}</b>`},
+    {h:'Token',f:f=>!f.active?chip('revoked','crit'):f.events?chip('connected','good'):chip('no events yet','plain')},
+    {h:'Commit email',f:f=>f.commit_email?esc(f.commit_email):U},
+    {h:'GitHub login',f:f=>f.github_login?esc(f.github_login):'<span class="muted">none</span>'},
+    {h:'Events',n:1,f:f=>esc(f.events)},{h:'Attempts',n:1,f:f=>esc(f.attempts)},
+    {h:'Last event',n:1,f:f=>f.last_event?esc(ago(f.last_event)):'<span class="muted">never</span>'},
+    {h:'Registered',n:1,f:f=>esc(fmtWhen(f.created_at))}];
+  if(m)cols.push({h:'',n:1,f:f=>btn('edit',f,'Edit')+btn('rotate',f,f.active?'New token':'Reactivate')+(f.active?btn('revoke',f,'Revoke'):'')});
+  return topbar(`Factories <span class="muted">${act} active · ${FACTORIES.length-act} revoked</span>`,m?`<button class="btn" data-fact="add">${ico('plus')}Add factory</button>`:'')+
+   `<div class="hint muted" style="margin:-8px 0 12px">${m?'Each factory sends events with its own token. Only a hash of it is kept, so a token is shown once.':'Read-only: this dashboard is shared on the network. Run it on a loopback address to register factories or issue tokens.'}</div>
+   <div class="card" style="padding-top:0">${table(cols,FACTORIES,{empty:m?'No factories yet. Add one to get a token it can send events with.':'No factories yet'})}</div>`;
+};
+function factDrawer(title,body,banner){
+  $('#drawer-root').innerHTML=`<div class="scrim" data-close></div><div class="drawer" role="dialog" aria-label="${esc(title)}"><header><h3>${esc(title)}</h3><button class="iconbtn" data-close aria-label="Close">${ico('close')}</button></header>${banner||''}<div class="body">${body}<div id="facterr"></div></div></div>`;
+  const el=$('.drawer input:not([readonly])')||$('.drawer .btn');if(el)el.focus();
+}
+const field=(name,label,val,o={})=>`<label class="field"><span>${label}</span><input name="${name}" value="${esc(val||'')}" ${o.ro?'readonly':''} ${o.req?'required':''} placeholder="${esc(o.ph||'')}" autocomplete="off" spellcheck="false"></label>`;
+function factForm(kind,f={}){
+  const add=kind==='add';
+  factDrawer(add?'Add factory':'Edit · '+f.id,`<form id="factform" data-kind="${kind}">${field('id','Factory id',f.id,{ro:!add,req:1,ph:'claude-a'})}${field('commit_email','Commit email',f.commit_email,{req:1,ph:'bot@example.com'})}${field('github_login','GitHub login · optional',f.github_login,{ph:'my-bot'})}
+   <div class="hint muted">${add?'The commit email and GitHub login tell the factory\'s commits and closes apart from human ones.':'Saving rebuilds the derived tables, because factory vs human commits depend on these.'}</div>
+   <div class="formrow"><button class="btn" type="submit">${add?'Create and show token':'Save'}</button><button class="clear" type="button" data-close>Cancel</button></div></form>`);
+}
+function factConfirm(kind,f){
+  const rot=kind==='rotate',id=esc(f.id);
+  factDrawer(`${rot?(f.active?'New token':'Reactivate'):'Revoke'} · ${f.id}`,`<p>${rot?(f.active?`<b>Issue a new token for ${id}?</b> The current token stops working right away, so update the factory's <span class="mono">FACTORYBENCH_TOKEN</span>.`:`<b>Reactivate ${id}?</b> You get a new token to give the factory.`):`<b>Revoke ${id}'s token?</b> Its events are kept, but anything it sends from now on is refused until you issue a new token.`}</p>
+   <div class="formrow"><button class="btn ${rot?'':'danger'}" data-factgo="${kind}" data-id="${id}">${rot?'Issue token':'Revoke token'}</button><button class="clear" data-close>Cancel</button></div>`);
+}
+const showToken=(id,t)=>factDrawer('Token · '+id,`<p>Give it to the factory as <span class="mono">FACTORYBENCH_TOKEN</span>. Lost it? Issue a new token; the old one stops working at once.</p><pre class="secret" id="tokv">${esc(t)}</pre>
+   <div class="formrow"><button class="btn" data-copy>Copy</button><button class="clear" data-close>Done</button></div>`,`<div class="lock">${ico('lock')} SHOWN ONCE · only a hash of the token is stored</div>`);
+async function factRun(path,body,done){
+  const b=$('.drawer .btn');if(b)b.disabled=true;
+  try{const r=await fetch('/api/factories/'+path,{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json','X-FactoryBench':'1'},body:JSON.stringify(body)});
+    const j=await r.json().catch(()=>({error:r.statusText}));if(!r.ok)throw new Error(j.error||r.status);done(j);render(true)}
+  catch(e){$('#facterr').innerHTML=`<div class="err" style="margin-top:16px">${esc(e.message)}</div>`;if(b)b.disabled=false}
+}
+document.addEventListener('submit',e=>{if(e.target.id!=='factform')return;e.preventDefault();
+  const fd=Object.fromEntries(new FormData(e.target)),k=e.target.dataset.kind;
+  factRun(k==='add'?'add':'update',fd,j=>k==='add'?showToken(fd.id.trim(),j.token):$('#drawer-root').innerHTML='')});
 
 // ---------- local conversation drawer
 async function openLocal(){
@@ -717,11 +792,13 @@ function renderNav(){
   const v=(location.hash.slice(1)||'overview').split('/')[0],idle=LIVE.filter(l=>l.Idle).length,running=LIVE.filter(l=>l.Status==='running').length,waiting=LIVE.filter(l=>l.Status==='waiting_for_human').length;
   const sect={item:'items',attempt:'items'}[v]||v;
   const spend=LIVE.reduce((a,l)=>a+(l.Cost||0),0);
-  $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${waiting?`<span><b>${waiting}</b> waiting</span>`:''}${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>read-only</span>`;
-  $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${idle?'crit':''}">${idle?idle+' idle':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
+  $('#ticker').innerHTML=`<span><span class="pulse ${running?'':'off'}"></span><b>${running}</b> running</span>${waiting?`<span><b>${waiting}</b> waiting</span>`:''}${idle?`<span style="color:var(--hot)"><b style="color:inherit">${idle}</b> idle</span>`:''}<span><b>${esc(fmtUsd(spend))}</b> in flight</span><span>${LAST?'updated '+esc(fmtTime(LAST)):'connecting'}</span><span>${meta.manage?'factories editable':'read-only'}</span>`;
+  $('#nav').innerHTML=[['overview','Overview'],['live','Live',LIVE.length?`<span class="badge ${idle?'crit':''}">${idle?idle+' idle':LIVE.length}</span>`:''],['items','Issues'],['compare','Compare'],['factories','Factories']].map(([k,l,b])=>`<a href="#${k}" class="${sect===k?'on':''}" ${sect===k?'aria-current="page"':''}>${ico(k)}<span class="lbl">${l}</span>${b||''}</a>`).join('');
 }
-// how often Overview and Live poll the server
+// how often every view polls the server
 const REFRESH_MS=5000;
+// a refresh re-renders the view, so wait while the user is reading a drawer, an expanded section or an open dropdown
+const busy=()=>document.hidden||$('.drawer')||$('#main details[open]')||document.activeElement?.tagName==='SELECT';
 // issues listed in the Overview spend chart
 const TOP_ISSUES=10;
 let token=0,timer=null;
@@ -737,27 +814,31 @@ async function render(soft){
     if(focus&&$('#'+focus)){const el=$('#'+focus);el.focus();try{el.setSelectionRange(sel,sel)}catch(e){}}
     LAST=new Date();renderNav();
   }catch(e){if(my===token)$('#main').innerHTML=topbar('Error')+`<div class="err">${esc(e.message)}</div>`}
-  if(['overview','live'].includes(v)&&my===token)timer=setTimeout(()=>{if(!document.hidden&&!$('.drawer'))render(true);else timer=setTimeout(()=>render(true),REFRESH_MS)},REFRESH_MS);
+  if(my===token){const tick=()=>{if(busy())timer=setTimeout(tick,REFRESH_MS);else render(true)};timer=setTimeout(tick,REFRESH_MS)}
 }
 const saveF=()=>{store.set('filters',F);render(true)};
-document.addEventListener('change',e=>{const k=e.target.dataset.f;if(k){F[k]=e.target.value;if(k==='factory')F.config='';saveF()}});
+document.addEventListener('change',e=>{if('cmpadd' in e.target.dataset&&e.target.value){const v=e.target.value;cmpPick(c=>[...c,v])}const k=e.target.dataset.f;if(k){F[k]=e.target.value;if(k==='factory')F.config='';saveF()}});
 let qT;document.addEventListener('input',e=>{
   if(e.target.id==='q'){UI.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>render(true),120)}
   if(e.target.id==='tq'){const q=e.target.value.toLowerCase();document.querySelectorAll('#ents>[data-s]').forEach(el=>el.style.display=!q||el.dataset.s.includes(q)?'':'none')}});
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-diff],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files]');if(!t)return;
+  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-diff],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files],[data-fact],[data-factgo],[data-copy],[data-cmprm]');if(!t)return;
   const d=t.dataset;
   if('range' in d){F.range=d.range;saveF()}
   else if('clear' in d){F.factory=F.config=F.repo='';saveF()}
   else if('outcome' in d){UI.outcome=d.outcome;render(true)}
   else if('sort' in d){UI.sort={k:+d.sort,d:UI.sort.k==d.sort?-UI.sort.d:-1};store.set('sort',UI.sort);render(true)}
   else if('tlk' in d){UI.tlKinds[d.tlk]=UI.tlKinds[d.tlk]===false;render(true)}
+  else if('cmprm' in d)cmpPick(c=>c.filter(g=>g!==d.cmprm));
   else if('diff' in d){UI.diffFirst=!!d.diff;render(true)}
   else if('by' in d){UI.compareBy=d.by;store.set('by',d.by);render(true)}
   else if('themetoggle' in d){const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';store.set('theme',r.dataset.theme)}
   else if('openLocal' in d)openLocal();
   else if('close' in d)$('#drawer-root').innerHTML='';
   else if('load' in d)loadLocal(d.load,d.arg);
+  else if('fact' in d){const f=FACTORIES.find(x=>x.id===d.id);d.fact==='add'||d.fact==='edit'?factForm(d.fact,f):factConfirm(d.fact,f)}
+  else if('factgo' in d)factRun(d.factgo,{id:d.id},j=>d.factgo==='rotate'?showToken(d.id,j.token):$('#drawer-root').innerHTML='');
+  else if('copy' in d){const v=$('#tokv');(navigator.clipboard?navigator.clipboard.writeText(v.textContent):Promise.reject()).then(()=>t.textContent='Copied',()=>getSelection().selectAllChildren(v))}
   else if('files' in d){$('#files').style.display='';$('#conv').innerHTML=''}
   else if('href' in d&&!e.target.closest('a'))location.hash=d.href.slice(1);
 });

@@ -29,7 +29,7 @@ import (
 const usage = `usage:
   factorybench factory add <id> --commit-email <email> [--github-login <login>] [--db fb.db]
   factorybench serve [--db fb.db] [--addr :8080] [--poll 3m [--repo owner/name ...]]
-  factorybench dashboard [--db fb.db] [--addr 127.0.0.1:8081] [--idle 10m] [--runs <dir> --transcripts <dir>]
+  factorybench dashboard [--db fb.db] [--addr 127.0.0.1:8081] [--idle 10m] [--runs <dir> --transcripts <dir>]   (on loopback it also manages factories)
   factorybench emit <type> --attempt <id> --key <k> --json '<payload>' [--ts <rfc3339>]
   factorybench emit --flush
   factorybench reconcile [--repo owner/name ...] [--db fb.db]
@@ -81,8 +81,16 @@ func main() {
 		fs.Parse(args)
 		db, err := dashboard.OpenReadOnly(*dbp)
 		check(err)
-		log.Printf("dashboard on http://%s (read-only)", *addr)
-		check((&http.Server{Addr: *addr, Handler: dashboard.Handler(db, dashboard.Options{Addr: *addr, Runs: *runs, Transcripts: *transcripts, Idle: *idle}), ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
+		o := dashboard.Options{Addr: *addr, Runs: *runs, Transcripts: *transcripts, Idle: *idle}
+		mode := "read-only: shared on the network, managing factories is off"
+		// managing factories mints tokens and there is no login, so only a loopback dashboard may write
+		if dashboard.Loopback(*addr) {
+			o.Admin, err = dashboard.OpenWritable(*dbp)
+			check(err)
+			mode = "read-only, except managing factories"
+		}
+		log.Printf("dashboard on http://%s (%s)", *addr, mode)
+		check((&http.Server{Addr: *addr, Handler: dashboard.Handler(db, o), ReadHeaderTimeout: 10 * time.Second}).ListenAndServe())
 	case cmd == "emit":
 		emit.Run(args, usage)
 	case cmd == "reconcile":
