@@ -293,6 +293,26 @@ func StageKind(role, parentRole, parentState string) string {
 	return ""
 }
 
+// StageAttempt is what Stages needs of an attempt. Run identifies its run (factory and work item).
+type StageAttempt struct{ Factory, ID, Parent, Role, State, Run string }
+
+// Stages applies StageKind to every attempt against its parent of the same factory ("" without one) and returns
+// the runs that have a handoff. The one place the rule is applied, for the reports and the dashboard alike.
+func Stages(as []StageAttempt) (kinds []string, staged map[string]bool) {
+	byID := map[string]StageAttempt{}
+	for _, a := range as {
+		byID[a.Factory+"\x00"+a.ID] = a
+	}
+	kinds, staged = make([]string, len(as)), map[string]bool{}
+	for i, a := range as {
+		if p, ok := byID[a.Factory+"\x00"+a.Parent]; ok && a.Parent != "" {
+			kinds[i] = StageKind(a.Role, p.Role, p.State)
+		}
+		staged[a.Run] = staged[a.Run] || kinds[i] == "handoff"
+	}
+	return kinds, staged
+}
+
 // stagesText is the stage and retry count of staged runs, e.g. "2 stages · 1 retry".
 func stagesText(stages, retries int) string {
 	r := fmt.Sprintf("%d retries", retries)
@@ -305,18 +325,15 @@ func stagesText(stages, retries int) string {
 func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	var units []*unit
 	byKey := map[string]*unit{}
-	byID := map[string]*mAtt{}
-	for _, a := range d.atts {
-		byID[a.factory+"\x00"+a.id] = a
-	}
 	run := func(a *mAtt) string { return fmt.Sprintf("%s\x00%s#%d", a.factory, a.repo, a.issue) }
-	staged, firstConfig := map[string]bool{}, map[string]string{}
-	for _, a := range d.atts { // ordered by start, so a run's first attempt comes first
-		a.stage = ""
-		if p := byID[a.factory+"\x00"+a.parent.String]; a.parent.Valid && p != nil {
-			a.stage = StageKind(a.role, p.role, p.state)
-		}
-		staged[run(a)] = staged[run(a)] || a.stage == "handoff"
+	in := make([]StageAttempt, len(d.atts))
+	for i, a := range d.atts {
+		in[i] = StageAttempt{a.factory, a.id, a.parent.String, a.role, a.state, run(a)}
+	}
+	kinds, staged := Stages(in)
+	firstConfig := map[string]string{}
+	for i, a := range d.atts { // ordered by start, so a run's first attempt comes first
+		a.stage = kinds[i]
 		if _, ok := firstConfig[run(a)]; !ok {
 			firstConfig[run(a)] = a.config
 		}
@@ -343,6 +360,9 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	}
 	for _, u := range units {
 		u.compute(d, now)
+		if !byConfig { // escalations only mean something when configs are columns
+			u.escalations = nil
+		}
 	}
 	sort.SliceStable(units, func(i, j int) bool {
 		if a, b := units[i].item.firstSeen, units[j].item.firstSeen; a != b {
@@ -571,9 +591,15 @@ func (u *unit) prStats(d *metricsData, first time.Time, linked string, handoff t
 			u.run.added, u.run.deleted, u.run.files = u.run.added+p.add.Int64, u.run.deleted+p.del.Int64, u.run.files+p.files.Int64
 		}
 		// shortcut: the first push is the head SHA of the earliest-started check run; pushes without checks are invisible
+		early := map[string]bool{} // SHAs checked before the handoff: an earlier stage pushed them, even if a check runs later
+		for _, c := range d.checks[p.key] {
+			if !handoff.IsZero() && c.started != "" && parse(c.started).Before(handoff) {
+				early[c.sha] = true
+			}
+		}
 		var sha, at string
 		for _, c := range d.checks[p.key] {
-			if c.started != "" && (at == "" || c.started < at) && (handoff.IsZero() || !parse(c.started).Before(handoff)) {
+			if c.started != "" && (at == "" || c.started < at) && !early[c.sha] && (handoff.IsZero() || !parse(c.started).Before(handoff)) {
 				sha, at = c.sha, c.started
 			}
 		}

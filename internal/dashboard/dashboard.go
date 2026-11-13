@@ -68,19 +68,14 @@ func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
 func withStages(rs []map[string]any) {
 	str := func(v any) string { s, _ := v.(string); return s }
 	run := func(r map[string]any) string { return fmt.Sprint(r["factory_id"], "\x00", r["repo"], "#", r["issue"]) }
-	byID, staged := map[string]map[string]any{}, map[string]bool{}
-	for _, r := range rs {
-		byID[str(r["factory_id"])+"\x00"+str(r["attempt_id"])] = r
+	in := make([]report.StageAttempt, len(rs))
+	for i, r := range rs {
+		in[i] = report.StageAttempt{Factory: str(r["factory_id"]), ID: str(r["attempt_id"]), Parent: str(r["parent_attempt_id"]),
+			Role: str(r["role"]), State: str(r["state"]), Run: run(r)}
 	}
-	for _, r := range rs {
-		r["stage"] = ""
-		if p := byID[str(r["factory_id"])+"\x00"+str(r["parent_attempt_id"])]; p != nil && r["parent_attempt_id"] != nil {
-			r["stage"] = report.StageKind(str(r["role"]), str(p["role"]), str(p["state"]))
-		}
-		staged[run(r)] = staged[run(r)] || r["stage"] == "handoff"
-	}
-	for _, r := range rs {
-		r["staged"] = staged[run(r)]
+	kinds, staged := report.Stages(in)
+	for i, r := range rs {
+		r["stage"], r["staged"] = kinds[i], staged[run(r)]
 	}
 }
 

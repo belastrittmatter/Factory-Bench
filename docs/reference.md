@@ -39,7 +39,7 @@ Shown by `report items` (one row per unit) and `report factories [--by config]` 
 
 | Metric | Definition |
 |---|---|
-| attempts | attempts (failed: state `failed`). On staged runs also stages and retries, and failed counts only failed attempts that were retried or ended the run, e.g. `3 attempts · 2 stages · 1 retry (2 failed)` |
+| attempts | attempts (failed: state `failed`). On staged runs also stages and retries, and failed counts only failed attempts that were retried or ended the run, e.g. `3 attempts · 2 stages · 1 retry (2 failed)`; `report item` lists the others as `failed, then handed off` |
 | escalations | `--by config`: configs a staged run switched to after its first one, with the number of runs |
 | tokens / issue | input + output + cache read + cache write over all usage ÷ work items; `+?` when an attempt has no usage |
 | time / issue | per unit, elapsed = first attempt start → last attempt end (now if open), active = elapsed − human wait; averaged over work items |
@@ -53,7 +53,7 @@ Shown by `report items` (one row per unit) and `report factories [--by config]` 
 | human interventions / issue | `human.waiting` + `human.steering` + human commits on linked PRs + human CHANGES_REQUESTED reviews, ÷ work items |
 | escaped defects | human CHANGES_REQUESTED reviews and human commits dated after the unit's last attempt ended, shown as `k on m/n PRs` |
 | time to first PR / to merge | per unit, first attempt start → first `pr.linked` / first merge of its PRs; averaged over units that have one. Marked as not comparable on staged runs, where an early stage may open the PR: compare time to merge |
-| CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (that of the earliest-started run) all succeeded ÷ linked PRs with such runs. On staged runs the earliest run started at or after the first handoff: an earlier stage's push may fail CI on purpose |
+| CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (that of the earliest-started run) all succeeded ÷ linked PRs with such runs. On staged runs the earliest run started at or after the first handoff, on a SHA that had no run before it: an earlier stage's push may fail CI on purpose, even when its check starts late |
 | PR size / cost per changed line | additions, deletions, changed files of sized linked PRs, averaged per PR; cost of units with a sized PR ÷ their additions + deletions |
 | tool calls / issue, tool mix, tool failure rate | tool calls ÷ work items; the 3 most used tools; failed ÷ calls that report success or failure |
 | time in model / tool calls | sum of usage `duration_ms` / sum of tool call `duration_ms` (parallel subagents can exceed elapsed time) |

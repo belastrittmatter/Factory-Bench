@@ -35,7 +35,7 @@ acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outc
   11-12 00:00          check lint on PR #20: pending                                                     
   totals  fa             2 attempts · 2 stages · 0 retries (2 completed) · 3 sessions · tokens 5.0k in / 900 out / 2.0k cache · 14m0s active / 21m0s elapsed · 1 human waits (7m0s) · $0.05 reported · usage coverage 2/2 attempts
   totals  fb             2 attempts (1 completed, 1 failed) · 2 sessions · tokens 2.6k in / 500 out / ? cache · 13m0s active / 13m0s elapsed · 0 human waits (0s) · $0.03 reported +? · usage coverage 1/2 attempts
-  totals  all factories  4 attempts · 2 stages · 0 retries (3 completed, 1 failed) · 5 sessions · tokens 7.6k in / 1.4k out / 2.0k cache · 21m0s elapsed (wall clock) · 1 human waits (7m0s) · $0.08 reported +? · usage coverage 3/4 attempts
+  totals  all factories  4 attempts · fa: 2 stages · 0 retries (3 completed, 1 failed) · 5 sessions · tokens 7.6k in / 1.4k out / 2.0k cache · 21m0s elapsed (wall clock) · 1 human waits (7m0s) · $0.08 reported +? · usage coverage 3/4 attempts
 
 acme/app#11 "Fix typo in docs" [docs]   outcome open · survival n/a
   11-11 11:00  fa      attempt p3 started                                                            role plan · config fa@2

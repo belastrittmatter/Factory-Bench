@@ -439,7 +439,7 @@ V.overview=async()=>{
     ${kpi('Running now',running.length,[`${idle.length} idle`,`${waiting.length} waiting`].join(' · '),idle.length?'alert':'')}
     ${kpi('Spend',esc(fmtUsd(cost))+(unp?'<span class="muted" style="font-size:15px"> +?</span>':''),`${fmtTok(tokens)} tokens`)}
     ${kpi('Issues → PR → merged',`${sm.Issues}<small> → </small>${sm.WithPR}<small> → </small>${sm.Merged}`,'all time')}
-    ${kpi('Time to PR',nil(sm.AvgToPRSeconds)?'<span class="muted">n/a</span>':esc(fmtDur(sm.AvgToPRSeconds)),nil(sm.AvgToPRSeconds)?'no PR linked yet':`average over ${plural(sm.WithPR,'issue')} with a PR`)}
+    ${kpi('Time to PR',nil(sm.AvgToPRSeconds)?'<span class="muted">n/a</span>':esc(fmtDur(sm.AvgToPRSeconds)),nil(sm.AvgToPRSeconds)?'no PR linked yet':`average over ${plural(sm.WithPR,'issue')} with a PR`+(sm.StagedToPR?` · <span data-tip="${esc('A staged factory opens its PR in an early stage, so its time to PR does not compare with single-session factories. Compare time to merge instead.')}">${sm.StagedToPR} staged, not comparable</span>`:''))}
     ${kpi('Rework',nil(sm.ReworkPerIssue)?'<span class="muted">n/a</span>':sm.ReworkPerIssue.toFixed(1),nil(sm.ReworkPerIssue)?(meta.local?'no dispatches reported':'needs --runs'):`bounces per issue (${sm.Bounces} / ${sm.IssuesWithDispatches})`)}
     ${kpi('Cost per merged',nil(sm.CostPerMerged)?'<span class="muted">n/a</span>':usd(sm.CostPerMerged,sm.CostLowerBound),sm.Merged?'all cost ÷ merged issues':'no merged issue yet')}
   </div>
@@ -517,7 +517,8 @@ V.items=async()=>{
    <div class="muted" style="margin-top:8px">? unknown · n/a nothing to measure · +? lower bound</div>`;
 };
 // report strings use 1234.5k and 44m37s; show them in the page's number style (1.23M, 44m 37s)
-const fixStr=v=>String(v).replace(/\bsession(\(s\)|s)?\b/g,(m,pl)=>'model call'+(pl||'')).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
+// report text says session for a model call; "single session" (a factory type) is not one
+const fixStr=v=>String(v).replace(/(?<!single[ -])\bsession(\(s\)|s)?\b/g,(m,pl)=>'model call'+(pl||'')).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
 const na=v=>v==='n/a'?'<span class="muted">n/a</span>':v==='?'?U:esc(fixStr(v));
 
 // timeline event classification
@@ -532,7 +533,11 @@ function evKind(l){const t=l.Text;
   if(/^review /.test(t))return /CHANGES_REQUESTED/.test(t)?['reviews',BAD,'changes requested']:/APPROVED/.test(t)?['reviews',GOOD,'approved']:['reviews',NEUTRAL,'review comment'];
   if(/^PR /.test(t))return /merged/.test(t)?['github',GOOD,'PR merged']:['github',INFO,'PR state'];return['other',NEUTRAL,'other']}
 // attempts are named by start order ("attempt 2"), never by their id, in every event text; on a staged run by role ("build (retry)")
-const attLabels=atts=>{const m={},n={};atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>{const r=a.stage==='retry'?(n[a.role]=(n[a.role]||0)+1):0;m[a.attempt_id]=a.staged&&a.role?a.role+(r?` (retry${r>1?' '+r:''})`:''):'attempt '+(i+1)});return m};
+// on a staged run by role, numbered per factory: "build", "build (retry)", "build (retry 2)"; a same-role rerun after a
+// completed attempt is "build (again)"; with several staged factories on the issue the factory is named too
+const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=>a.factory_id)).length>1;
+  atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>{if(!(a.staged&&a.role)){m[a.attempt_id]='attempt '+(i+1);return}
+    const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
 // staged or single session for one factory's attempts on an issue, as a chip: "staged · plan → build" or "single session"
 const runType=as=>as.some(a=>a.staged)?`<span class="chip plain" data-tip="${esc(STAGED_TIP)}">staged · ${esc(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?').filter((r,i,x)=>r!==x[i-1]).join(' → '))}</span>`:`<span class="chip plain" data-tip="${esc(STAGED_TIP)}">single session</span>`;
@@ -575,7 +580,8 @@ function gantt(w,atts,tl,f){
   const lanes=uniq(flow.map(d=>d.lane)).sort((a,b)=>flow.findIndex(d=>d.lane===a)-flow.findIndex(d=>d.lane===b));
   // every row is rowH tall; marks are centred on cy(row) and row labels share its baseline
   // a retry on a staged run is drawn in its stage's row, so every row is one stage
-  const rowOf={};let nRows=0;rowsOf.forEach(a=>{rowOf[a.attempt_id]=a.staged&&a.stage==='retry'&&a.parent_attempt_id in rowOf?rowOf[a.parent_attempt_id]:nRows++});
+  const roleOf={};rowsOf.forEach(a=>roleOf[a.attempt_id]=a.role);
+  const rowOf={};let nRows=0;rowsOf.forEach(a=>{rowOf[a.attempt_id]=a.staged&&a.parent_attempt_id in rowOf&&roleOf[a.parent_attempt_id]===a.role?rowOf[a.parent_attempt_id]:nRows++});
   const rowH=34,rows=nRows+(ev.length?1:0)+lanes.length+(board.length?1:0),h=rows*rowH+40,cy=y=>y+17,lab=(y,t)=>`<text x="0" y="${cy(y)+4}" style="fill:var(--text-2)">${esc(t)}</text>`;
   let g='<g class="grid">'+ax.ticks.map(t=>`<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${h-22}"/>`).join('')+axisTicks(ax,h-6,t=>fmtWhen(new Date(t).toISOString()))+'</g>'+gapMarks(ax,6,h-22);
   let y=8,m='';
@@ -618,10 +624,10 @@ V.item=async(repo,issue)=>{
   `<div class="meta">${facs.map(fc=>`<span>${facs.length>1?`factory <b>${esc(fc)}</b> `:''}${runType(fAtts(fc))}</span>`).join('')}</div>
   <div class="kpis">
    ${kpi('Outcome',pr?chip(pr.state):chip('open'),d.prs.length?`${d.prs.length} PR${d.prs.length>1?'s':''}`:'no PR linked')}
-   ${(()=>{const st=d.units.filter(u=>u.Staged),sum=k=>st.reduce((n,u)=>n+u[k],0),failed=d.units.reduce((n,u)=>n+(u.Staged?u.Failed:d.attempts.filter(a=>a.factory_id===u.Factory&&a.state==='failed').length),0);
+   ${(()=>{const st=d.units.filter(u=>u.Staged),sum=k=>st.reduce((n,u)=>n+(u[k]||0),0),failed=d.units.reduce((n,u)=>n+(u.Staged?u.Failed||0:d.attempts.filter(a=>a.factory_id===u.Factory&&a.state==='failed').length),0);
      return st.length?kpi('Attempts',d.attempts.length,`<span data-tip="${esc('Stage: a handoff to the next role of the same try\nRetry: same role again after a failed or cancelled attempt\nFailed: retried, or the last attempt of its run')}">${plural(sum('Stages'),'stage')} · ${sum('Retries')} retr${sum('Retries')===1?'y':'ies'} · ${failed} failed</span>`):kpi('Attempts',d.attempts.length,`${d.attempts.filter(a=>a.state==='failed').length} failed`)})()}
    ${kpi('Cost',usd(cost,unp),`${fmtTok(tokens)} tokens`)}
-   ${(()=>{const fa=d.attempts.filter(a=>a.state==='failed'||a.state==='cancelled');return kpi('Cost of failed attempts',fa.length?usd(fa.reduce((n,a)=>n+(a.cost_usd||0),0),fa.some(a=>a.unpriced>0)):'<span class="muted">none</span>',fa.length?plural(fa.length,'failed attempt'):'no failed attempt')})()}
+   ${(()=>{const fa=d.attempts.filter(a=>a.state==='failed'||a.state==='cancelled');return kpi('Cost of failed attempts',fa.length?usd(fa.reduce((n,a)=>n+(a.cost_usd||0),0),fa.some(a=>a.unpriced>0)):'<span class="muted">none</span>',fa.length?[['failed','failed'],['cancelled','cancelled']].map(([st,w])=>{const k=fa.filter(a=>a.state===st).length;return k?`${k} ${w}`:''}).filter(Boolean).join(' · '):'no failed attempt')})()}
    ${kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
    ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),'first start → last end')}
    ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'needs --runs')}
@@ -719,7 +725,9 @@ const CMP_DEFAULT=3;
 let CMP=[];
 V.compare=async()=>{
   const [sc,s]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries()]);
-  const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+r.config_version:'');
+  // by config, a staged run's attempts stay under the config it started with, like the scorecard; usage rows keep their own
+  const runOf=a=>a.factory_id+' '+a.repo+'#'+a.issue,firstCfg={};s.attempts.forEach(a=>{if(!(runOf(a) in firstCfg))firstCfg[runOf(a)]=a.config_version});
+  const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+(r.staged?firstCfg[runOf(r)]:r.config_version):'');
   const avail=sc.groups.filter(g=>uniq(s.attempts.filter(keep).map(gk)).includes(g));
   let groups=store.get('pick.'+UI.compareBy,[]).filter(g=>avail.includes(g));
   if(!groups.length)groups=avail.slice(0,CMP_DEFAULT);
@@ -741,11 +749,12 @@ V.compare=async()=>{
    <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>
    <div class="card c12"><h3>Cost per stage</h3><div class="hint">Priced model calls of attempts started in the selected range · staged factories by attempt role, single-session factories by usage phase</div>${groups.map(g=>{
-     const ga=atts.filter(a=>gk(a)===g),staged=ga.some(a=>a.staged),ids=new Set(ga.map(a=>a.factory_id+'/'+a.attempt_id)),sums={};
-     if(staged)ga.forEach(a=>{const k=a.role||'no role';sums[k]=(sums[k]||0)+(a.cost_usd||0)});
-     else(s.attempt_phases||[]).filter(p=>ids.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const k=p.phase??'unknown phase';sums[k]=(sums[k]||0)+(p.cost_usd||0)});
-     const parts=Object.entries(sums).map(([k,v])=>({name:k,v,color:staged?colorOf('stage',k):phaseColor(k),tip:`${g} · ${k}\n${fmtUsd(v)}`}));
-     return `<div style="margin:10px 0"><div style="display:flex;gap:8px;align-items:baseline"><b>${esc(g)}</b><span class="muted">${staged?'by role':'by phase'}</span></div>${parts.some(p=>p.v>0)?segbar(parts)+legend(parts.map(p=>({name:`${p.name} ${fmtUsd(p.v)}`,color:p.color}))):'<div class="empty">No priced calls in range</div>'}</div>`}).join('')}</div>
+     const ga=atts.filter(a=>gk(a)===g),st=ga.filter(a=>a.staged),ids=new Set(ga.filter(a=>!a.staged).map(a=>a.factory_id+'/'+a.attempt_id)),sums={},kind={};
+     st.forEach(a=>{const k=a.role||'no role';sums[k]=(sums[k]||0)+(a.cost_usd||0);kind[k]='stage'});
+     (s.attempt_phases||[]).filter(p=>ids.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const k=p.phase??'unknown phase';sums[k]=(sums[k]||0)+(p.cost_usd||0);kind[k]=kind[k]||'phase'});
+     const parts=Object.entries(sums).map(([k,v])=>({name:k,v,color:kind[k]==='stage'?colorOf('stage',k):phaseColor(k),tip:`${g} · ${k}\n${fmtUsd(v)}`}));
+     const how=st.length===ga.length?'by role':st.length?'staged runs by role, single-session runs by phase':'by phase';
+     return `<div style="margin:10px 0"><div style="display:flex;gap:8px;align-items:baseline"><b>${esc(g)}</b><span class="muted">${how}</span></div>${parts.some(p=>p.v>0)?segbar(parts)+legend(parts.map(p=>({name:`${p.name} ${fmtUsd(p.v)}`,color:p.color}))):'<div class="empty">No priced calls in range</div>'}</div>`}).join('')}</div>
   </div>`:'<div class="card"><div class="empty">No attempts match these filters</div></div>');
 };
 const cmpPick=f=>{store.set('pick.'+UI.compareBy,f(CMP));render(true)};

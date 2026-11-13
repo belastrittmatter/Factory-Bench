@@ -24,7 +24,6 @@ $ report factories
 metric                       fs
 work items                   1
 attempts                     3 (2 failed) · 2 stages · 1 retry in 1 staged run
-escalations                  fs@1+opus (1 run)
 sessions                     3
 tokens / issue               7.2k
 time / issue                 35m0s active / 35m0s elapsed
