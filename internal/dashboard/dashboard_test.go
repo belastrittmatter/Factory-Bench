@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -406,5 +407,23 @@ func TestFactories(t *testing.T) {
 	var meta struct{ Manage bool }
 	if get(t, h, "/api/meta", &meta); !meta.Manage {
 		t.Error("meta.manage off on loopback with Admin")
+	}
+}
+
+func TestWithStages(t *testing.T) {
+	row := func(f, id, role, state string, parent any) map[string]any {
+		return map[string]any{"factory_id": f, "attempt_id": id, "repo": "o/r", "issue": int64(1), "role": role, "state": state, "parent_attempt_id": parent}
+	}
+	rs := []map[string]any{
+		row("s", "p", "plan", "completed", nil), row("s", "b1", "build", "failed", "p"), row("s", "b2", "build", "failed", "b1"),
+		row("x", "a1", "build", "failed", nil), row("x", "a2", "build", "completed", "a1"), // single session: a retry, not staged
+	}
+	withStages(rs)
+	var got []string
+	for _, r := range rs {
+		got = append(got, fmt.Sprint(r["attempt_id"], ":", r["stage"], ":", r["staged"]))
+	}
+	if g := strings.Join(got, " "); g != "p::true b1:handoff:true b2:retry:true a1::false a2:retry:false" {
+		t.Errorf("got %s", g)
 	}
 }

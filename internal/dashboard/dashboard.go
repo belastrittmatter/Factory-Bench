@@ -63,6 +63,27 @@ func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
 	}
 }
 
+// withStages adds "stage" (report.StageKind against the parent: handoff, retry or "") and "staged" (the factory's run on
+// the issue has a handoff) to attempt rows that carry factory_id, attempt_id, repo, issue, role, state and parent_attempt_id.
+func withStages(rs []map[string]any) {
+	str := func(v any) string { s, _ := v.(string); return s }
+	run := func(r map[string]any) string { return fmt.Sprint(r["factory_id"], "\x00", r["repo"], "#", r["issue"]) }
+	byID, staged := map[string]map[string]any{}, map[string]bool{}
+	for _, r := range rs {
+		byID[str(r["factory_id"])+"\x00"+str(r["attempt_id"])] = r
+	}
+	for _, r := range rs {
+		r["stage"] = ""
+		if p := byID[str(r["factory_id"])+"\x00"+str(r["parent_attempt_id"])]; p != nil && r["parent_attempt_id"] != nil {
+			r["stage"] = report.StageKind(str(r["role"]), str(p["role"]), str(p["state"]))
+		}
+		staged[run(r)] = staged[run(r)] || r["stage"] == "handoff"
+	}
+	for _, r := range rs {
+		r["staged"] = staged[run(r)]
+	}
+}
+
 // OpenReadOnly opens the database without ever writing or migrating it. It refuses any schema but store.SchemaVersion.
 func OpenReadOnly(path string) (*sql.DB, error) {
 	return openAt(path, "mode=ro&_pragma=busy_timeout(5000)&_pragma=query_only(1)")
@@ -309,7 +330,7 @@ func (s *server) item(r *http.Request) (any, error) {
 	q := func(query string) ([]map[string]any, error) { return rows(s.db, query, repo, n) }
 	res := map[string]any{"timeline": tl, "title": title.String}
 	for k, query := range map[string]string{
-		"attempts": `SELECT a.factory_id, a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
+		"attempts": `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
 			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
 			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
 			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens, ` + lastEventSQL + ` AS last_event
@@ -327,6 +348,7 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
+	withStages(res["attempts"].([]map[string]any))
 	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
 	all, err := report.ItemRows(s.db, time.Now())
 	if err != nil {
@@ -444,7 +466,7 @@ func (s *server) series(r *http.Request) (any, error) {
 	res := map[string]any{}
 	var err error
 	for _, q := range []struct{ key, sql string }{
-		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.started_at, a.ended_at, a.human_wait_ms,
+		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
 			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title, ` + lastEventSQL + ` AS last_event
 			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
@@ -464,5 +486,6 @@ func (s *server) series(r *http.Request) (any, error) {
 		}
 	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
+	withStages(res["attempts"].([]map[string]any))
 	return res, nil
 }
