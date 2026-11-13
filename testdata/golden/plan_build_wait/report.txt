@@ -4,22 +4,22 @@ acme/app#1   outcome open · survival n/a
   11-11 09:03      PR linked https://github.com/acme/app/pull/7                                           
   11-11 09:03      waiting for human (plan_review)                                                        
   11-11 09:04      attempt p1 completed                                                                   4m0s, $0.03 est.
-  11-11 09:12      attempt b1 started (build, parent p1, inferred)                                        config fake@1.0
+  11-11 09:12      attempt b1 started (build, handoff, parent p1, inferred)                               config fake@1.0
   11-11 09:12      resumed by human (plan_approved)                                                       waited 9m0s
   11-11 09:18      session b1 claude-sonnet-5-5: 3.0k in / ? cache read / ? cache write / 900 out         5m0s session, $0.02 est. (prices 2026-11-11)
   11-11 09:20      attempt b1 completed                                                                   8m0s, $0.02 est.
-  totals  fa  2 attempts (2 completed) · 2 sessions · tokens 5.0k in / 1.4k out / 13.0k cache · 11m0s active / 20m0s elapsed · 1 human waits (9m0s) · $0.05 est. · usage coverage 2/2 attempts
+  totals  fa  2 attempts · 2 stages · 0 retries (2 completed) · 2 sessions · tokens 5.0k in / 1.4k out / 13.0k cache · 11m0s active / 20m0s elapsed · 1 human waits (9m0s) · $0.05 est. · usage coverage 2/2 attempts
 
 $ report items
-item        title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR  escaped
-acme/app#1         fa       open     2         19.4k   $0.05  11m0s   20m0s    1      -   0
+item        title  factory  outcome  attempts                           tokens  cost   active  elapsed  human  PR  escaped
+acme/app#1         fa       open     2 attempts · 2 stages · 0 retries  19.4k   $0.05  11m0s   20m0s    1      -   0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 open one: factorybench report item <owner/repo#n>
 
 $ report factories
 metric                       fa
 work items                   1
-attempts                     2 (0 failed)
+attempts                     2 (0 failed) · 2 stages · 0 retries in 1 staged run
 sessions                     2
 tokens / issue               19.4k
 time / issue                 11m0s active / 20m0s elapsed
@@ -33,7 +33,7 @@ first-pass PR approval       n/a
 review rounds / PR           n/a
 human interventions / issue  1.0 (1/1)
 escaped defects              n/a (no PRs)
-time to first PR             3m0s (1 issues)
+time to first PR             3m0s (1 issues) · 1 staged: not comparable, see time to merge
 usage coverage               100% (2/2) attempts
 activity coverage            0% (0/2) attempts
 unpriced sessions            0

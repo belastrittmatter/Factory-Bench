@@ -8,7 +8,7 @@ acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outc
   11-11 10:06          attempt c2 started (build, parent c1)                                             config fb@2
   11-11 10:06  fa      human steering (comment)                                                          
   11-11 10:09  fb      session c2 claude-haiku-5-5: 2.0k in / ? cache read / ? cache write / 400 out     $0.02 reported
-  11-11 10:10  fa      attempt b1 started (build, parent p1)                                             config fa@1
+  11-11 10:10  fa      attempt b1 started (build, handoff, parent p1)                                    config fa@1
   11-11 10:10  fb      gate build passed                                                                 
   11-11 10:10  fa      resumed by human (plan_approved)                                                  waited 7m0s
   11-11 10:11  fb      session c2 claude-haiku-5-5: 600 in / ? cache read / ? cache write / 100 out      $0.01 reported
@@ -33,16 +33,16 @@ acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outc
   11-11 12:00          PR acme/app#20 merged                                                             1 factory / 1 human commits
   11-12 00:00          PR acme/app#21 closed (as of now)                                                 1 factory / 0 human commits
   11-12 00:00          check lint on PR #20: pending                                                     
-  totals  fa             2 attempts (2 completed) · 3 sessions · tokens 5.0k in / 900 out / 2.0k cache · 14m0s active / 21m0s elapsed · 1 human waits (7m0s) · $0.05 reported · usage coverage 2/2 attempts
+  totals  fa             2 attempts · 2 stages · 0 retries (2 completed) · 3 sessions · tokens 5.0k in / 900 out / 2.0k cache · 14m0s active / 21m0s elapsed · 1 human waits (7m0s) · $0.05 reported · usage coverage 2/2 attempts
   totals  fb             2 attempts (1 completed, 1 failed) · 2 sessions · tokens 2.6k in / 500 out / ? cache · 13m0s active / 13m0s elapsed · 0 human waits (0s) · $0.03 reported +? · usage coverage 1/2 attempts
-  totals  all factories  4 attempts (3 completed, 1 failed) · 5 sessions · tokens 7.6k in / 1.4k out / 2.0k cache · 21m0s elapsed (wall clock) · 1 human waits (7m0s) · $0.08 reported +? · usage coverage 3/4 attempts
+  totals  all factories  4 attempts · 2 stages · 0 retries (3 completed, 1 failed) · 5 sessions · tokens 7.6k in / 1.4k out / 2.0k cache · 21m0s elapsed (wall clock) · 1 human waits (7m0s) · $0.08 reported +? · usage coverage 3/4 attempts
 
 acme/app#11 "Fix typo in docs" [docs]   outcome open · survival n/a
   11-11 11:00  fa      attempt p3 started (plan)                                                     config fa@2
   11-11 11:01          session p3 claude-haiku-5-5: 500 in / ? cache read / ? cache write / 100 out  $0.01 reported
   11-11 11:02          waiting for human (plan_review)                                               
   11-11 11:03          attempt p3 completed                                                          3m0s, $0.01 reported
-  11-11 11:10          attempt b3 started (build, parent p3)                                         config fa@2
+  11-11 11:10          attempt b3 started (build, handoff, parent p3)                                config fa@2
   11-11 11:10          resumed by human (plan_approved)                                              waited 8m0s
   11-11 11:12          session b3 mystery-model: 900 in / ? cache read / ? cache write / 200 out     unknown (1 session(s) unpriced)
   11-11 11:14          PR linked https://github.com/acme/app/pull/22                                 
@@ -51,40 +51,40 @@ acme/app#11 "Fix typo in docs" [docs]   outcome open · survival n/a
   11-11 11:22          check test on PR #22: success                                                 
   11-11 11:30          review by alice: APPROVED                                                     
   11-12 00:00          PR acme/app#22 open (as of now)                                               1 factory / 0 human commits
-  totals  fa  2 attempts (2 completed) · 2 sessions · tokens 1.4k in / 300 out / ? cache · 7m0s active / 15m0s elapsed · 1 human waits (8m0s) · $0.01 reported + unknown (1 session(s) unpriced) · usage coverage 2/2 attempts
+  totals  fa  2 attempts · 2 stages · 0 retries (2 completed) · 2 sessions · tokens 1.4k in / 300 out / ? cache · 7m0s active / 15m0s elapsed · 1 human waits (8m0s) · $0.01 reported + unknown (1 session(s) unpriced) · usage coverage 2/2 attempts
 
 $ report items
-item         title                                     factory  outcome   attempts      tokens   cost      active  elapsed  human  PR          escaped
-acme/app#11  Fix typo in docs                          fa       open      2             1.7k     $0.01 +?  7m0s    15m0s    1      #22 open    0
-acme/app#10  Add retry with backoff to the upstream …  fa       merged    2             7.9k     $0.05     14m0s   21m0s    4      #20 merged  2
-acme/app#10  Add retry with backoff to the upstream …  fb       rejected  2 (1 failed)  3.1k +?  $0.03 +?  13m0s   13m0s    2      #21 closed  2
+item         title                                     factory  outcome   attempts                           tokens   cost      active  elapsed  human  PR          escaped
+acme/app#11  Fix typo in docs                          fa       open      2 attempts · 2 stages · 0 retries  1.7k     $0.01 +?  7m0s    15m0s    1      #22 open    0
+acme/app#10  Add retry with backoff to the upstream …  fa       merged    2 attempts · 2 stages · 0 retries  7.9k     $0.05     14m0s   21m0s    4      #20 merged  2
+acme/app#10  Add retry with backoff to the upstream …  fb       rejected  2 (1 failed)                       3.1k +?  $0.03 +?  13m0s   13m0s    2      #21 closed  2
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 open one: factorybench report item <owner/repo#n>
 
 $ report factories
-metric                       fa                             fb
-work items                   2                              1
-attempts                     4 (0 failed)                   2 (1 failed)
-sessions                     5                              2
-tokens / issue               4.8k                           3.1k +? (1 attempt(s) without usage)
-time / issue                 10m30s active / 18m0s elapsed  13m0s active / 13m0s elapsed
-cost total                   $0.06 reported +?              $0.03 reported +? (1 attempt(s) without usage)
-cost / issue                 $0.03 +?                       $0.03 +?
-cost / merged issue          $0.06 +? (1 merged)            n/a (0 merged)
-verification tokens / PR     1.1k (2.2k / 2 PRs)            700 (700 / 1 PRs)
-issues closed by agent       50% (1/2)                      0% (0/1)
-first-pass plan approval     50% (1/2)                      n/a
-first-pass PR approval       50% (1/2)                      0% (0/1)
-review rounds / PR           0.5 (1/2)                      2.0 (2/1)
-human interventions / issue  2.5 (5/2)                      2.0 (2/1)
-escaped defects              2 on 1/2 PRs                   2 on 1/1 PRs
-time to first PR             17m0s (2 issues)               12m0s (1 issues)
-time to merge                2h0m0s (1 merged)              n/a
-CI passing on first push     50% (1/2) PRs                  0% (0/1) PRs
-usage coverage               100% (4/4) attempts            50% (1/2) attempts
-activity coverage            0% (0/4) attempts              0% (0/2) attempts
-unpriced sessions            1                              0
-rejected events              1                              0
+metric                       fa                                                              fb
+work items                   2                                                               1
+attempts                     4 (0 failed) · 4 stages · 0 retries in 2 staged runs            2 (1 failed)
+sessions                     5                                                               2
+tokens / issue               4.8k                                                            3.1k +? (1 attempt(s) without usage)
+time / issue                 10m30s active / 18m0s elapsed                                   13m0s active / 13m0s elapsed
+cost total                   $0.06 reported +?                                               $0.03 reported +? (1 attempt(s) without usage)
+cost / issue                 $0.03 +?                                                        $0.03 +?
+cost / merged issue          $0.06 +? (1 merged)                                             n/a (0 merged)
+verification tokens / PR     1.1k (2.2k / 2 PRs)                                             700 (700 / 1 PRs)
+issues closed by agent       50% (1/2)                                                       0% (0/1)
+first-pass plan approval     50% (1/2)                                                       n/a
+first-pass PR approval       50% (1/2)                                                       0% (0/1)
+review rounds / PR           0.5 (1/2)                                                       2.0 (2/1)
+human interventions / issue  2.5 (5/2)                                                       2.0 (2/1)
+escaped defects              2 on 1/2 PRs                                                    2 on 1/1 PRs
+time to first PR             17m0s (2 issues) · 2 staged: not comparable, see time to merge  12m0s (1 issues)
+time to merge                2h0m0s (1 merged)                                               n/a
+CI passing on first push     50% (1/2) PRs                                                   0% (0/1) PRs
+usage coverage               100% (4/4) attempts                                             50% (1/2) attempts
+activity coverage            0% (0/4) attempts                                               0% (0/2) attempts
+unpriced sessions            1                                                               0
+rejected events              1                                                               0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 
 Gates (defects caught)
