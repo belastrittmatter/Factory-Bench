@@ -50,7 +50,8 @@ type Payload struct {
 	ReportedCostUSD *float64 `json:"reported_cost_usd"`
 	DurationMS      *int64   `json:"duration_ms"`
 	Phase           string   `json:"phase"`
-	// usage and activity: which subagent, if any (none = the main agent)
+	// usage and activity: which subagent, if any (none = the main agent). On activity, Phase (with AgentID) is the
+	// phase of that subagent's usage rows that have none of their own.
 	Agent         string `json:"agent"`
 	AgentID       string `json:"agent_id"`
 	ParentAgentID string `json:"parent_agent_id"`
@@ -131,6 +132,10 @@ func Validate(raw []byte) (Event, Payload, error) {
 		case p.ReportedCostUSD != nil && *p.ReportedCostUSD < 0:
 			return e, p, errors.New("payload.reported_cost_usd must be >= 0")
 		case p.Phase != "" && !Phases[p.Phase]:
+			return e, p, errors.New("payload.phase must be implement, verify, or review")
+		}
+	case "activity":
+		if p.Phase != "" && !Phases[p.Phase] {
 			return e, p, errors.New("payload.phase must be implement, verify, or review")
 		}
 	case "gate":

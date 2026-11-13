@@ -57,6 +57,7 @@
         "summary": { "type": "string" },
         "failed": { "type": "boolean", "description": "The tool call failed." },
         "duration_ms": { "$ref": "#/$defs/count" },
+        "phase": { "enum": ["implement", "verify", "review"], "description": "With agent_id: the phase of that subagent's usage (its Claude Code OTLP tokens included) where the usage has none of its own. The first phase sent for an agent wins." },
         "agent": { "$ref": "#/$defs/agent" },
         "agent_id": { "$ref": "#/$defs/agent_id" },
         "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }

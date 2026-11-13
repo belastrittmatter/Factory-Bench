@@ -223,7 +223,10 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
 				Phase: str(p.Phase), Agent: str(p.AgentID)}, p.ReportedCostUSD))
 		case "activity":
-			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			r := runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
+			if r != nil && r.Phase == nil && contract.Phases[p.Phase] {
+				r.Phase = ptr(p.Phase)
+			}
 			if p.Tool != "" {
 				var ok *bool
 				if p.Failed != nil {
@@ -254,6 +257,16 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	}
 	for _, id := range gh.checkOrder {
 		d.Checks = append(d.Checks, gh.checks[id])
+	}
+	// A usage row without a phase of its own takes its subagent's, if an activity event gave it one. This is how a
+	// factory that runs every stage in one Claude Code process (one OTEL_RESOURCE_ATTRIBUTES for all its subagents)
+	// phases its OTLP tokens. It is applied after all events, so it doesn't matter which arrived first.
+	for i := range d.Usage {
+		if u := &d.Usage[i]; u.Phase == nil && u.Agent != nil {
+			if r := runs.runs[u.Factory+"\x00"+u.Attempt+"\x00"+*u.Agent]; r != nil {
+				u.Phase = r.Phase
+			}
+		}
 	}
 	d.AgentRuns = runs.finish(attempts, d.ToolCalls)
 	prStates := map[string]map[string]bool{} // work item -> states of its linked PRs

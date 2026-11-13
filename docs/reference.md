@@ -24,7 +24,7 @@ Fields and types: [spec/events.schema.json](../spec/events.schema.json), one exa
 - **Token classes don't overlap.** `input` is non-cached input; `cache_read` and `cache_write` are separate; `reasoning` is a subset of `output`, for information.
 - **Unknown is missing, not zero.** No usage known, no `usage` event; the attempt then lowers usage coverage. Report usage for failed and cancelled sessions too.
 - **`reported_cost_usd` only if the provider reported it.** Otherwise FactoryBench estimates cost from its price table.
-- **`phase`** (`implement`, `verify`, `review`) is optional; sessions without it count as unknown, not as implement.
+- **`phase`** (`implement`, `verify`, `review`) is optional; sessions without it count as unknown, not as implement. An `activity` with `agent_id` and `phase` gives that phase to the subagent's usage rows that have none, OTLP ones included; the first phase sent for an agent wins, and arrival order doesn't matter. A phase set on the usage itself (or `factorybench.phase` on OTLP) always wins.
 - **Raw facts only.** Factories never compute metrics, costs or outcomes. Events may arrive late or out of order; normalization orders them by `ts`.
 - New optional fields are fine within `factorybench/v1`; anything breaking is `v2`.
 

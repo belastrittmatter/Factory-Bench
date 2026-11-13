@@ -43,6 +43,7 @@ factorybench emit attempt.finished --attempt "$A" --key finished --json '{"statu
 
 - Claude Code (≥ 2.1.310) then sends its tokens, cost, tool calls, subagents and API errors itself. Send **no `usage` or `activity`** for Claude.
 - Optional: tag each `claude` call with its phase, `OTEL_RESOURCE_ATTRIBUTES="factorybench.attempt=$A,factorybench.phase=verify"` (`implement`, `verify` or `review`). Untagged calls are not counted in "verification tokens / PR" (n/a if none are tagged).
+- If one `claude` process runs several phases as subagents (a workflow or orchestrator), the environment can't tell them apart. Send one `activity` per subagent instead, without `tool`, with its OTLP agent id and phase: `--key agent:<agent_id> --json '{"agent_id":"a68a8689dd0cb9b33","agent":"tester","phase":"verify"}'`. Its tokens then get that phase, and `agent` names it in the Subagents table. Use a `ts` no later than the subagent's start so `agent` wins over Claude Code's generic type.
 - Set the variables in the `claude` process environment; Claude Code ignores them in `.claude/settings.json`. Keep `OTEL_EXPORTER_OTLP_COMPRESSION` unset (only uncompressed JSON is accepted).
 - Leave `OTEL_LOG_USER_PROMPTS`, `OTEL_LOG_TOOL_DETAILS` and `OTEL_LOG_RAW_API_BODIES` unset. FactoryBench drops the user's email and account ids on arrival.
 - Change `factory_config_version` whenever anything that could change results changes (factory, Claude Code version, model, config).

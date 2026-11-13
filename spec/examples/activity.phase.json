@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "cc-4f1e:agent:a68a8689dd0cb9b33",
+  "type": "activity",
+  "ts": "2026-11-13T08:14:29.344Z",
+  "attempt_id": "cc-4f1e",
+  "payload": { "agent": "Build: test S1", "agent_id": "a68a8689dd0cb9b33", "phase": "verify", "summary": "stage Build, test S1" }
+}
