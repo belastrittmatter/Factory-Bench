@@ -26,6 +26,9 @@ type card struct {
 	elapsed, active                                                       time.Duration
 	human, escaped, escapedPRs, planN, planPass, prN, prPass, reviewedPRs int
 	changesReq, rejected                                                  int
+	stagedRuns, stages, retries                                           int
+	escalations                                                           []string // "config (n runs)" in first-seen order
+	escalated                                                             map[string]int
 	hasLogin                                                              bool
 	run                                                                   runStats
 }
@@ -53,6 +56,20 @@ func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
 			c.prs += len(u.prs)
 			c.verifyTok += u.verifyTok
 			c.phasedPR += u.phased
+		}
+		if u.staged {
+			c.stagedRuns++
+			c.stages += u.stages
+			c.retries += u.retries
+		}
+		for _, cfg := range u.escalations {
+			if c.escalated == nil {
+				c.escalated = map[string]int{}
+			}
+			if c.escalated[cfg] == 0 {
+				c.escalations = append(c.escalations, cfg)
+			}
+			c.escalated[cfg]++
 		}
 		c.attempts += u.attempts
 		c.failed += u.failed
@@ -101,7 +118,20 @@ var scorecard = []struct {
 	val   func(c *card) string
 }{
 	{"work items", func(c *card) string { return fmt.Sprint(c.items) }},
-	{"attempts", func(c *card) string { return fmt.Sprintf("%d (%d failed)", c.attempts, c.failed) }},
+	{"attempts", func(c *card) string {
+		s := fmt.Sprintf("%d (%d failed)", c.attempts, c.failed)
+		if c.stagedRuns > 0 {
+			s += fmt.Sprintf(" · %s in %s", stagesText(c.stages, c.retries), plural(c.stagedRuns, "staged run"))
+		}
+		return s
+	}},
+	{"escalations", func(c *card) string { // later configs of staged runs, which stay under the config they started with
+		var es []string
+		for _, cfg := range c.escalations {
+			es = append(es, fmt.Sprintf("%s (%s)", cfg, plural(c.escalated[cfg], "run")))
+		}
+		return strings.Join(es, ", ")
+	}},
 	{"sessions", func(c *card) string { return fmt.Sprint(c.sessions) }},
 	{"tokens / issue", func(c *card) string {
 		if c.withUsage == 0 {
@@ -176,7 +206,11 @@ var scorecard = []struct {
 		if c.run.nToPR == 0 {
 			return ""
 		}
-		return fmt.Sprintf("%s (%d issues)", dur(c.run.toPR/time.Duration(c.run.nToPR)), c.run.nToPR)
+		s := fmt.Sprintf("%s (%d issues)", dur(c.run.toPR/time.Duration(c.run.nToPR)), c.run.nToPR)
+		if c.run.stagedToPR > 0 {
+			s += fmt.Sprintf(" · %d staged: not comparable, see time to merge", c.run.stagedToPR)
+		}
+		return s
 	}},
 	{"time to merge", func(c *card) string {
 		if c.run.nToMerge == 0 {

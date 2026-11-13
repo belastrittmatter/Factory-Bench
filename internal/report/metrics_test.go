@@ -89,7 +89,7 @@ func TestScorecard(t *testing.T) {
 func loadGolden(t *testing.T, path string) *sql.DB {
 	var gc struct {
 		Factories map[string]json.RawMessage `json:"factories"` // id -> commit email, or id -> {"commit_email", "github_login"}
-		Batches []struct {
+		Batches   []struct {
 			Factory string            `json:"factory"`
 			Events  []json.RawMessage `json:"events"`
 		} `json:"batches"`
@@ -194,8 +194,8 @@ func TestItemRows(t *testing.T) {
 	}
 	// review rounds are the hand-computed ones from TestScorecard; unknowns stay "?" / "n/a"
 	want := map[string]string{
-		"fa acme/app#10": "merged | 1 on 1 reviewed PRs | ? | 20m0s | 0% (0/1)",
-		"fa acme/app#11": "open | 0 on 1 reviewed PRs | ? | 14m0s | 100% (1/1)",
+		"fa acme/app#10": "merged | 1 on 1 reviewed PRs | ? | 20m0s (staged run: not comparable, see time to merge) | 0% (0/1)", // plan -> build
+		"fa acme/app#11": "open | 0 on 1 reviewed PRs | ? | 14m0s (staged run: not comparable, see time to merge) | 100% (1/1)",
 		"fb acme/app#10": "rejected | 2 on 1 reviewed PRs | ? | 12m0s | 0% (0/1)",
 	}
 	if len(rows) != len(want) {
