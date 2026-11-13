@@ -1,0 +1,168 @@
+{
+  "derived": {
+    "agent_runs": [],
+    "api_errors": [],
+    "attempts": [
+      {
+        "attempt_id": "b1",
+        "config_version": "fs@1+gemini",
+        "ended_at": "2026-11-11T10:19:00.000Z",
+        "factory_id": "fs",
+        "human_wait_ms": 0,
+        "issue": 29,
+        "parent_attempt_id": "p1",
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:16:00.000Z",
+        "state": "failed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "b2",
+        "config_version": "fs@1+opus",
+        "ended_at": "2026-11-11T10:35:00.000Z",
+        "factory_id": "fs",
+        "human_wait_ms": 0,
+        "issue": 29,
+        "parent_attempt_id": "b1",
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "build",
+        "started_at": "2026-11-11T10:30:00.000Z",
+        "state": "failed",
+        "waiting_since": null
+      },
+      {
+        "attempt_id": "p1",
+        "config_version": "fs@1+gemini",
+        "ended_at": "2026-11-11T10:13:00.000Z",
+        "factory_id": "fs",
+        "human_wait_ms": 0,
+        "issue": 29,
+        "parent_attempt_id": null,
+        "pr_url": "https://github.com/acme/app/pull/30",
+        "repo": "acme/app",
+        "role": "plan",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      }
+    ],
+    "checks": [
+      {
+        "completed_at": "2026-11-11T10:14:00Z",
+        "conclusion": "failure",
+        "head_sha": "s1",
+        "name": "test",
+        "pr_number": 30,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:12:30Z"
+      },
+      {
+        "completed_at": "2026-11-11T10:22:00Z",
+        "conclusion": "success",
+        "head_sha": "s2",
+        "name": "test",
+        "pr_number": 30,
+        "repo": "acme/app",
+        "started_at": "2026-11-11T10:20:00Z"
+      }
+    ],
+    "gates": [],
+    "pr_commits": [],
+    "prs": [
+      {
+        "additions": null,
+        "branch": "agent/pr-30",
+        "changed_files": null,
+        "deletions": null,
+        "factory_commits": 0,
+        "human_commits": 0,
+        "merged_at": null,
+        "number": 30,
+        "repo": "acme/app",
+        "state": "open",
+        "url": "https://github.com/acme/app/pull/30"
+      }
+    ],
+    "reviews": [],
+    "tool_calls": [],
+    "usage": [
+      {
+        "agent_id": null,
+        "attempt_id": "b1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.02,
+        "duration_ms": null,
+        "factory_id": "fs",
+        "input": 2000,
+        "model": "claude-haiku-5-5",
+        "output": 400,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:18:00.000Z"
+      },
+      {
+        "agent_id": null,
+        "attempt_id": "b2",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.04,
+        "duration_ms": null,
+        "factory_id": "fs",
+        "input": 3000,
+        "model": "claude-haiku-5-5",
+        "output": 500,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:34:00.000Z"
+      },
+      {
+        "agent_id": null,
+        "attempt_id": "p1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "reported",
+        "cost_usd": 0.01,
+        "duration_ms": null,
+        "factory_id": "fs",
+        "input": 1000,
+        "model": "claude-haiku-5-5",
+        "output": 300,
+        "phase": null,
+        "price_version": null,
+        "reasoning": null,
+        "ts": "2026-11-11T10:10:00.000Z"
+      }
+    ],
+    "work_items": [
+      {
+        "closed_at": null,
+        "closed_by": null,
+        "corrects": null,
+        "first_seen": "2026-11-11T10:00:00.000Z",
+        "issue": 29,
+        "issue_state": null,
+        "outcome": "open",
+        "repo": "acme/app",
+        "survival": null,
+        "task_type": null,
+        "title": null
+      }
+    ]
+  },
+  "rejected_stored": null,
+  "responses": [
+    {
+      "accepted": 10,
+      "duplicates": 0,
+      "rejected": []
+    }
+  ]
+}

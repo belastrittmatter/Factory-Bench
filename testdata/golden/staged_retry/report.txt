@@ -1,0 +1,58 @@
+acme/app#29   outcome open · survival n/a
+  11-11 10:00  fs      attempt p1 started (plan)                                                      config fs@1+gemini
+  11-11 10:10          session p1 claude-haiku-5-5: 1.0k in / ? cache read / ? cache write / 300 out  $0.01 reported
+  11-11 10:12          PR linked https://github.com/acme/app/pull/30                                  
+  11-11 10:13          attempt p1 completed                                                           13m0s, $0.01 reported
+  11-11 10:14  github  check test on PR #30: failure                                                  
+  11-11 10:16  fs      attempt b1 started (build, handoff, parent p1, inferred)                       config fs@1+gemini
+  11-11 10:18          session b1 claude-haiku-5-5: 2.0k in / ? cache read / ? cache write / 400 out  $0.02 reported
+  11-11 10:19          attempt b1 failed                                                              3m0s, $0.02 reported
+  11-11 10:22  github  check test on PR #30: success                                                  
+  11-11 10:30  fs      attempt b2 started (build, retry, parent b1, inferred)                         config fs@1+opus
+  11-11 10:34          session b2 claude-haiku-5-5: 3.0k in / ? cache read / ? cache write / 500 out  $0.04 reported
+  11-11 10:35          attempt b2 failed                                                              5m0s, $0.04 reported
+  11-12 00:00  github  PR acme/app#30 open (as of now)                                                0 factory / 0 human commits
+  totals  fs  3 attempts · 2 stages · 1 retry (1 completed, 2 failed) · 3 sessions · tokens 6.0k in / 1.2k out / ? cache · 35m0s active / 35m0s elapsed · 0 human waits (0s) · $0.07 reported · usage coverage 3/3 attempts
+
+$ report items
+item         title  factory  outcome  attempts                                    tokens  cost   active  elapsed  human  PR        escaped
+acme/app#29         fs       open     3 attempts · 2 stages · 1 retry (2 failed)  7.2k    $0.07  35m0s   35m0s    0      #30 open  0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fs
+work items                   1
+attempts                     3 (2 failed) · 2 stages · 1 retry in 1 staged run
+escalations                  fs@1+opus (1 run)
+sessions                     3
+tokens / issue               7.2k
+time / issue                 35m0s active / 35m0s elapsed
+cost total                   $0.07 reported
+cost / issue                 $0.07
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       0% (0/1)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              0 on 0/1 PRs
+time to first PR             12m0s (1 issues) · 1 staged: not comparable, see time to merge
+CI passing on first push     100% (1/1) PRs
+usage coverage               100% (3/3) attempts
+activity coverage            0% (0/3) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source  gate  failed / runs
+  fs       CI      test  50% (1/2)
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  fs       test   1m45s           0% (0/2)
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event
