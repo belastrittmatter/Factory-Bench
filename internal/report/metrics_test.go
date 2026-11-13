@@ -88,10 +88,7 @@ func TestScorecard(t *testing.T) {
 // loadGolden stores a golden case's events directly (contract rows hold the whole raw event) and normalizes them.
 func loadGolden(t *testing.T, path string) *sql.DB {
 	var gc struct {
-		Factories map[string]struct {
-			CommitEmail string `json:"commit_email"`
-			GitHubLogin string `json:"github_login"`
-		} `json:"factories"`
+		Factories map[string]json.RawMessage `json:"factories"` // id -> commit email, or id -> {"commit_email", "github_login"}
 		Batches []struct {
 			Factory string            `json:"factory"`
 			Events  []json.RawMessage `json:"events"`
@@ -112,7 +109,16 @@ func loadGolden(t *testing.T, path string) *sql.DB {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for id, f := range gc.Factories {
+	for id, raw := range gc.Factories {
+		var f struct {
+			CommitEmail string `json:"commit_email"`
+			GitHubLogin string `json:"github_login"`
+		}
+		if json.Unmarshal(raw, &f) != nil {
+			if err := json.Unmarshal(raw, &f.CommitEmail); err != nil {
+				t.Fatal(err)
+			}
+		}
 		if _, err := store.AddFactory(db, id, f.CommitEmail, f.GitHubLogin); err != nil {
 			t.Fatal(err)
 		}
