@@ -12,8 +12,9 @@ Who uses it: the **operator** running a factory (is it working right now?) and t
 | 6 | engineer | open one issue and see its attempts on a time axis, PRs, reviews, CI and every event | I understand what happened, in order | Item |
 | 7 | engineer | open one attempt and see cost over time, phase split, tool mix, failed tool calls, subagents and API errors | I see where the time and money went | Attempt |
 | 8 | engineer | see a card's lane moves (Build → QA → Review → Done) and its bounces back | I find cards that loop | Item (flow) |
-| 9 | engineer | compare factories and config versions side by side with the same numbers as `report factories` | I decide which config to keep | Compare |
+| 9 | engineer | pick the factories or config versions to compare and see them side by side, best value per metric marked, with the same numbers as `report factories` | I decide which config to keep | Compare |
 | 10 | engineer | see cost, attempts and merges per day per config | I see trends after a config change | Compare |
 | 11 | operator | read the transcript, worker log and run manifest of one attempt, only on this machine | I debug a run without leaking prompts | Attempt (local only) |
+| 12 | operator | register a factory, issue it a new token, revoke one and fix its commit email or login, only on this machine | I onboard a factory or cut one off without the CLI | Factories (writes local only) |
 
 Rules: unknown is `?`, never 0; nothing to measure is `n/a`; a lower bound is `+?`. Text from GitHub and transcripts is always plain text.

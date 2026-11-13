@@ -346,3 +346,65 @@ func TestLiveLane(t *testing.T) {
 		t.Errorf("live lane: %v", live)
 	}
 }
+
+func TestFactories(t *testing.T) {
+	s, _, dir := fixture(t)
+	admin, err := OpenWritable(filepath.Join(dir, "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { admin.Close() })
+	o := s.o
+	o.Admin = admin
+	h := Handler(s.db, o)
+	post := func(h http.Handler, host, path, body string, header bool) *httptest.ResponseRecorder {
+		req := httptest.NewRequest("POST", path, strings.NewReader(body))
+		req.Host = host
+		if header {
+			req.Header.Set("X-FactoryBench", "1")
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w
+	}
+	add := `{"id":"fb2","commit_email":"Bot@x.io","github_login":"Bot"}`
+	if w := post(h, "127.0.0.1:8081", "/api/factories/add", add, false); w.Code != 403 {
+		t.Errorf("add without header: %d", w.Code)
+	}
+	if w := post(h, "evil.example", "/api/factories/add", add, true); w.Code != 403 {
+		t.Errorf("add from a foreign Host: %d", w.Code)
+	}
+	shared := Handler(s.db, Options{Addr: ":8081", Admin: admin}) // Admin is ignored off loopback
+	if w := post(shared, "example.com", "/api/factories/add", add, true); w.Code != 403 {
+		t.Errorf("add on a shared listener: %d", w.Code)
+	}
+	var tok struct{ Token string }
+	w := post(h, "127.0.0.1:8081", "/api/factories/add", add, true)
+	if json.Unmarshal(w.Body.Bytes(), &tok); w.Code != 200 || !strings.HasPrefix(tok.Token, "fbt_") {
+		t.Fatalf("add: %d %s", w.Code, w.Body)
+	}
+	if w := post(h, "127.0.0.1:8081", "/api/factories/add", add, true); w.Code != 400 {
+		t.Errorf("duplicate add: %d", w.Code)
+	}
+	if w := post(h, "127.0.0.1:8081", "/api/factories/update", `{"id":"fb2","commit_email":"nope"}`, true); w.Code != 400 {
+		t.Errorf("bad email: %d", w.Code)
+	}
+	if w := post(h, "127.0.0.1:8081", "/api/factories/revoke", `{"id":"nope"}`, true); w.Code != 404 {
+		t.Errorf("revoke unknown: %d", w.Code)
+	}
+	if w := post(h, "127.0.0.1:8081", "/api/factories/revoke", `{"id":"fb2"}`, true); w.Code != 200 {
+		t.Errorf("revoke: %d %s", w.Code, w.Body)
+	}
+	if id, _ := store.FactoryByToken(admin, tok.Token); id != "" {
+		t.Error("revoked token still works")
+	}
+	var list []Factory
+	get(t, h, "/api/factories", &list)
+	if len(list) != 2 || list[1].ID != "fb2" || list[1].Active || list[1].CommitEmail != "bot@x.io" || list[0].Events != 1 || list[0].Attempts != 1 {
+		t.Errorf("list: %+v", list)
+	}
+	var meta struct{ Manage bool }
+	if get(t, h, "/api/meta", &meta); !meta.Manage {
+		t.Error("meta.manage off on loopback with Admin")
+	}
+}

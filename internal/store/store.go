@@ -7,6 +7,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -121,22 +122,75 @@ func InsertEvent(db *sql.DB, source, factoryID, id, typ, ts, payload string, rej
 
 func hash(token string) string { s := sha256.Sum256([]byte(token)); return hex.EncodeToString(s[:]) }
 
+// ErrNoFactory is returned for a factory id that is not registered.
+var ErrNoFactory = errors.New("no such factory")
+
+// newToken returns a fresh API token and the hash that is stored for it.
+func newToken() (token, tokenHash string, err error) {
+	b := make([]byte, 24)
+	if _, err := rand.Read(b); err != nil {
+		return "", "", err
+	}
+	token = "fbt_" + hex.EncodeToString(b)
+	return token, hash(token), nil
+}
+
+func lowerOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	l := strings.ToLower(s)
+	return &l
+}
+
 // AddFactory registers a factory and returns its API token; only the token's hash is stored.
 // githubLogin may be empty (stored as NULL).
 func AddFactory(db *sql.DB, id, commitEmail, githubLogin string) (string, error) {
-	b := make([]byte, 24)
-	if _, err := rand.Read(b); err != nil {
+	token, h, err := newToken()
+	if err != nil {
 		return "", err
 	}
-	token := "fbt_" + hex.EncodeToString(b)
-	var login *string
-	if githubLogin != "" {
-		l := strings.ToLower(githubLogin)
-		login = &l
-	}
-	_, err := db.Exec(`INSERT INTO factories (factory_id, token_hash, commit_email, github_login, created_at) VALUES (?, ?, ?, ?, ?)`,
-		id, hash(token), strings.ToLower(commitEmail), login, Now())
+	_, err = db.Exec(`INSERT INTO factories (factory_id, token_hash, commit_email, github_login, created_at) VALUES (?, ?, ?, ?, ?)`,
+		id, h, strings.ToLower(commitEmail), lowerOrNil(githubLogin), Now())
 	return token, err
+}
+
+// RotateToken gives a factory a new API token; the old one (or a revoked state) stops applying at once.
+func RotateToken(db *sql.DB, id string) (string, error) {
+	token, h, err := newToken()
+	if err != nil {
+		return "", err
+	}
+	return token, updateOne(db, `UPDATE factories SET token_hash = ? WHERE factory_id = ?`, h, id)
+}
+
+// RevokeToken stops a factory's token from working. Its events stay. An empty hash matches no token,
+// because hash always returns 64 hex digits.
+func RevokeToken(db *sql.DB, id string) error {
+	return updateOne(db, `UPDATE factories SET token_hash = '' WHERE factory_id = ?`, id)
+}
+
+// Revoked reports whether a stored token hash is the revoked marker.
+func Revoked(tokenHash string) bool { return tokenHash == "" }
+
+// UpdateFactory changes a factory's commit email and GitHub login. Derived tables use both,
+// so callers rebuild them (normalize.Run) afterwards.
+func UpdateFactory(db *sql.DB, id, commitEmail, githubLogin string) error {
+	return updateOne(db, `UPDATE factories SET commit_email = ?, github_login = ? WHERE factory_id = ?`,
+		strings.ToLower(commitEmail), lowerOrNil(githubLogin), id)
+}
+
+func updateOne(db *sql.DB, query string, args ...any) error {
+	res, err := db.Exec(query, args...)
+	if err != nil {
+		return err
+	}
+	if n, err := res.RowsAffected(); err != nil {
+		return err
+	} else if n == 0 {
+		return ErrNoFactory
+	}
+	return nil
 }
 
 // FactoryByToken returns the factory id for a token, or "" if the token is unknown.

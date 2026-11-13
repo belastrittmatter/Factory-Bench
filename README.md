@@ -33,11 +33,11 @@ export FACTORYBENCH_URL=http://localhost:8080 FACTORYBENCH_TOKEN=<token>
 ./factorybench report items
 ./factorybench report factories
 
-# dashboard: read-only, never writes to or migrates the database, safe next to `serve`
+# dashboard: never migrates the database, safe next to `serve`; on loopback it also manages factories
 ./factorybench dashboard --db fb.db --addr 127.0.0.1:8081
 ```
 
-The dashboard (Overview, Live, Issues, issue and attempt detail with lane flow, Compare; see [docs/dashboard.md](docs/dashboard.md)) uses the same report code as the CLI. It binds to loopback by default; `--addr :8090` shares it on the network without a login, so use it on a trusted network only. Two optional local views read files on request and are served only on a loopback address: `--runs <super-board runs dir>` (run manifests, worker logs, lane flow) and `--transcripts <Claude project dir>` (transcripts, matched through the `session.id` on the attempt's OTLP events). They contain prompts and code and are never stored. Tool inputs are never shown, only their argument names and sizes. A running attempt with no event for `--idle` (default 10m) shows as idle; lanes, board states and dispatch outcomes are read from the manifests as they are written, with no list of lane names built in.
+The dashboard (Overview, Live, Issues, issue and attempt detail with lane flow, Compare, Factories; see [docs/dashboard.md](docs/dashboard.md)) uses the same report code as the CLI. It reads through a read-only handle; its only writes are on the Factories page (register a factory, issue a new token, revoke one, edit its commit email and login), and only when bound to a loopback address. Tokens are shown once and only their hash is stored. It binds to loopback by default; `--addr :8090` shares it on the network without a login, so use it on a trusted network only. Two optional local views read files on request and are served only on a loopback address: `--runs <super-board runs dir>` (run manifests, worker logs, lane flow) and `--transcripts <Claude project dir>` (transcripts, matched through the `session.id` on the attempt's OTLP events). They contain prompts and code and are never stored. Tool inputs are never shown, only their argument names and sizes. A running attempt with no event for `--idle` (default 10m) shows as idle; lanes, board states and dispatch outcomes are read from the manifests as they are written, with no list of lane names built in.
 
 ## Docs
 

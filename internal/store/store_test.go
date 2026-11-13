@@ -81,3 +81,38 @@ func TestOpenMigrates(t *testing.T) {
 		})
 	}
 }
+func TestTokenLifecycle(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	who := func(tok string) string {
+		id, err := FactoryByToken(db, tok)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	old, err := AddFactory(db, "fa", "Bot@x.io", "")
+	if err != nil || who(old) != "fa" {
+		t.Fatalf("add: %v", err)
+	}
+	fresh, err := RotateToken(db, "fa")
+	if err != nil || who(old) != "" || who(fresh) != "fa" {
+		t.Fatalf("rotate: old still works or new does not (%v)", err)
+	}
+	if err := RevokeToken(db, "fa"); err != nil || who(fresh) != "" || who("") != "" {
+		t.Fatalf("revoke: token still works (%v)", err)
+	}
+	if err := UpdateFactory(db, "fa", "New@x.io", "Bot"); err != nil {
+		t.Fatal(err)
+	}
+	var email, login string
+	db.QueryRow(`SELECT commit_email, github_login FROM factories WHERE factory_id = 'fa'`).Scan(&email, &login)
+	if email != "new@x.io" || login != "bot" {
+		t.Errorf("update stored %q %q", email, login)
+	}
+	if err := RevokeToken(db, "nope"); err != ErrNoFactory {
+		t.Errorf("revoke unknown: %v", err)
+	}
+}
