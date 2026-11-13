@@ -7,8 +7,9 @@ What the code and [spec/](../spec/) don't say. Integration steps are in [INSTALL
 - **Factory**: a system that turns GitHub issues into PRs with AI agents. Registered once (`factorybench factory add`), identified by its API token. The server sets `factory_id` from the token, never from the request body.
 - **Work item**: one GitHub issue (`repo` + `issue`). Several factories on the same issue share one work item.
 - **Attempt**: one factory run on one work item, as the factory defines it (e.g. a `plan` run, then a `build` run). A retry is a new attempt. A follow-up attempt links to its parent through `parent_attempt_id`; if omitted, FactoryBench links it to the latest earlier attempt of the same factory and work item.
+- **Stage, handoff, retry, staged run**: some factories split one try at an issue into several attempts, one per stage (e.g. `plan` writes failing tests and opens the PR, then `build` implements). An attempt with a parent (explicit or inferred) is a **handoff** to a new stage when both it and its parent have a `role` and the roles differ, and a **retry** when it has its parent's role and the parent failed or was cancelled. A **run** is one factory on one work item; a run with at least one handoff is a **staged run** and has one stage more than its handoffs. Runs without a handoff (single-session factories, whose reruns keep their role or send none) are reported exactly as before. A spelling change of a free-text role (`build` → `implement`) counts as a handoff.
 - **`factory_config_version`**: an opaque string per attempt (e.g. `myfactory@0.1.0+agy@1.5.4+cfg:3e1a9c`). Change it whenever anything that could change results changes; `report factories --by config` splits on it.
-- **Unit**: one factory (or factory + config) on one work item. Every metric is built from units. Its PRs are the ones its attempts linked.
+- **Unit**: one factory (or factory + config) on one work item. Every metric is built from units. Its PRs are the ones its attempts linked. With `--by config` a staged run stays one unit, under the config of its first attempt; its later configs are listed as escalations.
 
 ![One issue through a plan → build factory](diagrams/issue-flow.svg)
 
@@ -38,6 +39,8 @@ Shown by `report items` (one row per unit) and `report factories [--by config]` 
 
 | Metric | Definition |
 |---|---|
+| attempts | attempts (failed: state `failed`). On staged runs also stages and retries, and failed counts only failed attempts that were retried or ended the run, e.g. `3 attempts · 2 stages · 1 retry (2 failed)` |
+| escalations | `--by config`: configs a staged run switched to after its first one, with the number of runs |
 | tokens / issue | input + output + cache read + cache write over all usage ÷ work items; `+?` when an attempt has no usage |
 | time / issue | per unit, elapsed = first attempt start → last attempt end (now if open), active = elapsed − human wait; averaged over work items |
 | cost total / per issue / per merged issue | sum of priced sessions (provenance shown, `+?` if any unpriced) ÷ work items, ÷ units whose own PR merged |
@@ -49,8 +52,8 @@ Shown by `report items` (one row per unit) and `report factories [--by config]` 
 | review rounds / PR | human CHANGES_REQUESTED reviews ÷ linked PRs with any human review |
 | human interventions / issue | `human.waiting` + `human.steering` + human commits on linked PRs + human CHANGES_REQUESTED reviews, ÷ work items |
 | escaped defects | human CHANGES_REQUESTED reviews and human commits dated after the unit's last attempt ended, shown as `k on m/n PRs` |
-| time to first PR / to merge | per unit, first attempt start → first `pr.linked` / first merge of its PRs; averaged over units that have one |
-| CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (that of the earliest-started run) all succeeded ÷ linked PRs with such runs |
+| time to first PR / to merge | per unit, first attempt start → first `pr.linked` / first merge of its PRs; averaged over units that have one. Marked as not comparable on staged runs, where an early stage may open the PR: compare time to merge |
+| CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (that of the earliest-started run) all succeeded ÷ linked PRs with such runs. On staged runs the earliest run started at or after the first handoff: an earlier stage's push may fail CI on purpose |
 | PR size / cost per changed line | additions, deletions, changed files of sized linked PRs, averaged per PR; cost of units with a sized PR ÷ their additions + deletions |
 | tool calls / issue, tool mix, tool failure rate | tool calls ÷ work items; the 3 most used tools; failed ÷ calls that report success or failure |
 | time in model / tool calls | sum of usage `duration_ms` / sum of tool call `duration_ms` (parallel subagents can exceed elapsed time) |
