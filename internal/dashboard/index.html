@@ -310,9 +310,9 @@ function bars(w,h,buckets,series,fmt,count){
   });
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
 }
-// lane bands behind a time chart: one band per dispatch, labelled with its lane (label in text ink, swatch in lane color)
+// lane bands behind a time chart: one band per dispatch, labelled with its lane (label in text ink, swatch in lane color, or r.color)
 function laneBands(rows,X,pt,ih,xmin,xmax){
-  return (rows||[]).filter(r=>r.lane).map(r=>{const x1=Math.max(xmin,X(+T(r.at))),x2=Math.min(xmax,X(+T(r.end)));if(x2<=x1)return'';const c=colorOf('lane',r.lane);
+  return (rows||[]).filter(r=>r.lane).map(r=>{const x1=Math.max(xmin,X(+T(r.at))),x2=Math.min(xmax,X(+T(r.end)));if(x2<=x1)return'';const c=r.color||colorOf('lane',r.lane);
     return `<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`}).join('');
 }
 // a stretch with no events inside a chart longer than this is drawn dashed and labelled
@@ -362,7 +362,7 @@ function callBars(w,h,items,series,fmt,bands){
   let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});
   let bd='',lastEnd=-1e9;
   (bands||[]).filter(r=>r.lane).forEach(r=>{const ix=items.map((_,i)=>i).filter(i=>+items[i].t>=+T(r.at)&&+items[i].t<=+T(r.end));if(!ix.length)return;
-    const x1=pl+ix[0]*step,x2=pl+(ix.at(-1)+1)*step,c=colorOf('lane',r.lane);
+    const x1=pl+ix[0]*step,x2=pl+(ix.at(-1)+1)*step,c=r.color||colorOf('lane',r.lane);
     bd+=`<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>34?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`;
     if(x1-lastEnd>=8){g+=`<text x="${x1}" y="${h-6}">${esc(fmtTime(T(r.at)))}</text>`;lastEnd=x1+44}});
   g+='</g>';
@@ -661,6 +661,9 @@ V.attempt=async(f,id)=>{
   const cls=[['input','Input'],['output','Output'],['cache_read','Cache read'],['cache_write','Cache write']];
   const tser=cls.map(([k,n],i)=>({name:n,color:SER[i],values:d.usage.map(u=>u[k]||0)}));
   const tb=d.usage.map((u,i)=>({t:T(u.ts),tip:(u.lane?u.lane+' · ':'')+`Model call ${i+1} · ${fmtWhen(u.ts)}\n${u.model}${u.phase?' · '+u.phase:''}${u.agent_id?' · subagent':''}\n${fmtUsd(u.cost_usd)} · ${fmtDur((u.duration_ms||0)/1000)}`}));
+  // bands: the lane dispatches, or without them one per Claude Code session, labelled and coloured by its phase (several phases = neutral)
+  const bands=d.dispatches.some(x=>x.lane)?d.dispatches:d.sessions.filter(s=>s.session).map((s,i,all)=>({at:s.first_ts,end:s.last_ts,lane:(s.phase?s.phase.split(',').join(' + '):'unknown phase')+(all.length>1?' · session '+(i+1):''),color:phaseColor(s.phase?.includes(',')?null:s.phase)}));
+  const bandWord=bands===d.dispatches?'dispatches':'Claude Code sessions (by phase)';
   const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${plural(p.sessions,'model call')}`}));
   const tl=d.tool_calls.slice().reverse();
   const local=meta.local||meta.transcripts;
@@ -681,11 +684,11 @@ V.attempt=async(f,id)=>{
   </div>
   <div class="grid">
    ${d.dispatches.some(x=>x.lane)?`<div class="card c12"><h3>Dispatches</h3><div class="hint">Which lane worked on this attempt and when, one bar per dispatch with a line for each hand-off · bars are the same bands as in the charts below</div>${(()=>{gLegend=[];return gantt(w,[a],[],{dispatches:d.dispatches,moves:[],waits:[],attempts:[],hideAttempts:true})})()}</div>`:''}
-   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the dispatches it ran in · dashed = no events reported for a while (a long tool call or a telemetry gap)</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands:d.dispatches})+quietNote:'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the ${bandWord} it ran in · dashed = no events reported for a while (a long tool call or a telemetry gap)</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands})+quietNote:'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Phase split</h3><div class="hint">Cost by phase, tokens second</div>${d.phases.length?segbar(ph)+`<div class="stat-list">${d.phases.map(p=>`<div><span class="chip" style="color:${phaseColor(p.phase)}"><span style="color:var(--text-2)">${esc(p.phase??'unknown')}</span></span><b>${usd(p.cost_usd,p.unpriced>0)} <span class="muted">· ${tok(p.tokens)}</span></b></div>`).join('')}</div>`:'<div class="empty">No phase data</div>'}
      <h3 style="margin-top:18px">Models</h3>${hbars(Object.entries(d.usage.reduce((m,u)=>{m[u.model]=(m[u.model]||0)+(u.cost_usd||0);return m},{})).map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}
      ${d.model_purposes.length?`<h3 style="margin-top:18px">Used for</h3><div class="hint">Purpose of each model's calls, as the agent reports it</div><div class="stat-list">${d.model_purposes.map(p=>`<div><span>${esc(p.model??'?')} <span class="muted">· ${esc(p.purpose)}</span></span><b>${plural(p.calls,'call')} <span class="muted">· ${usd(p.cost_usd)}</span></b></div>`).join('')}</div>`:''}</div>
-   <div class="card c8"><h3>Tokens per model call</h3><div class="hint">One bar per model call in order, stacked by token class. Shaded bands are dispatches, labelled with their start time; each run rises as the context grows. Time between calls is not drawn</div>${d.usage.length?legend(tser)+callBars(cw,200,tb,tser,fmtTok,d.dispatches):'<div class="empty">No usage reported</div>'}</div>
+   <div class="card c8"><h3>Tokens per model call</h3><div class="hint">One bar per model call in order, stacked by token class. Shaded bands are ${bandWord}, with their start time below; each run rises as the context grows. Time between calls is not drawn</div>${d.usage.length?legend(tser)+callBars(cw,200,tb,tser,fmtTok,bands):'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Tools</h3><div class="hint">Calls per tool, failures in red</div>${hbars(d.tools.map(t=>({label:t.tool_name,value:t.calls,fail:t.failed||0,color:'var(--ink)',tip:`${t.tool_name}\n${t.calls} calls · ${t.failed??'?'} failed${t.unknown?' · '+t.unknown+' unknown':''}\n${fmtDur((t.duration_ms||0)/1000)} total`})),v=>String(v))}
      <h3 style="margin-top:18px">By lane</h3>${d.tools_by_lane.length?`<div class="stat-list">${d.tools_by_lane.map(l=>`<div style="align-items:baseline"><span>${laneChip(l.lane)}</span><span style="text-align:right">${l.tools.map(t=>`${esc(t.tool)} <b>${t.calls}</b>${t.failed?` <span style="color:var(--crit)">(${t.failed} failed)</span>`:''}`).join(' · ')}</span></div>`).join('')}</div>`:'<div class="empty">No tool calls</div>'}
      ${(()=>{const ran=new Set(d.tools.map(t=>t.tool_name)),gone=d.tool_decisions.filter(x=>x.decision!=='accept');return gone.length?`<h3 style="margin-top:18px">Decided but not run</h3><div class="hint">Tool decisions the agent reported that were not accepted; these never produce a tool call</div><div class="stat-list">${gone.map(x=>`<div><span>${esc(x.tool_name??'?')} <span class="muted">· ${esc(x.decision??'?')}${x.source?' by '+esc(x.source):''}${ran.has(x.tool_name)?'':' · never ran'}</span></span><b>${x.n}</b></div>`).join('')}</div>`:''})()}</div>

@@ -383,7 +383,8 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"agents", `SELECT agent_id, parent_agent_id, agent_type, is_async, model, final_model, tool_calls, duration_ms, status, started_at FROM agent_runs WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY started_at`},
 		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"gates", `SELECT ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
-		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events FROM events
+		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
+			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
 	} {
 		if res[q.key], err = rows(s.db, q.sql, f, id); err != nil {
