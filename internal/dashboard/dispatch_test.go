@@ -93,7 +93,7 @@ func TestGroupByDispatch(t *testing.T) {
 	total := 0
 	for i, w := range wants {
 		r := rows[i]
-		got := want{r.Lane, r.Attempt, r.Retry, len(r.Calls), r.Unpriced, r.End.Format("15:04"), r.EndReported}
+		got := want{r.Lane, r.Attempt, r.Failed, len(r.Calls), r.Unpriced, r.End.Format("15:04"), r.EndReported}
 		if got != w {
 			t.Errorf("row %d: %+v, want %+v", i, got, w)
 		}

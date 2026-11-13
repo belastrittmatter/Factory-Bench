@@ -1,0 +1,303 @@
+acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outcome rejected · survival n/a
+  11-11 10:00  fb      attempt c1 started (build)                                                     config fb@2
+  11-11 10:05          attempt c1 failed                                                              5m0s, cost unknown (no usage)
+  11-11 10:06          attempt c2 started (build, parent c1)                                          config fb@2
+  11-11 10:09          session c2 claude-haiku-5-5: 2.0k in / ? cache read / ? cache write / 400 out  $0.02 reported
+  11-11 10:10          gate build passed                                                              
+  11-11 10:11          session c2 claude-haiku-5-5: 600 in / ? cache read / ? cache write / 100 out   $0.01 reported
+  11-11 10:12          PR linked https://github.com/acme/app/pull/21                                  
+  11-11 10:13          attempt c2 completed                                                           7m0s, $0.03 reported
+  11-11 10:20  github  check test on PR #21: failure                                                  
+  11-11 10:30          review by carol: CHANGES_REQUESTED                                             
+  11-11 10:50          review by carol: CHANGES_REQUESTED                                             
+  11-12 00:00          PR acme/app#21 closed (as of now)                                              1 factory / 0 human commits
+  totals  fb  2 attempts (1 completed, 1 failed) · 2 sessions · tokens 2.6k in / 500 out / ? cache · 13m0s active / 13m0s elapsed · 0 human waits (0s) · $0.03 reported +? · usage coverage 1/2 attempts
+item         title                                     factory  outcome   attempts      tokens   cost      active  elapsed  human  PR          escaped
+acme/app#10  Add retry with backoff to the upstream …  fb       rejected  2 (1 failed)  3.1k +?  $0.03 +?  13m0s   13m0s    2      #21 closed  2
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+metric                       fb
+work items                   1
+attempts                     2 (1 failed)
+sessions                     2
+tokens / issue               3.1k +? (1 attempt(s) without usage)
+time / issue                 13m0s active / 13m0s elapsed
+cost total                   $0.03 reported +? (1 attempt(s) without usage)
+cost / issue                 $0.03 +?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     700 (700 / 1 PRs)
+issues closed by agent       0% (0/1)
+first-pass plan approval     n/a
+first-pass PR approval       0% (0/1)
+review rounds / PR           2.0 (2/1)
+human interventions / issue  2.0 (2/1)
+escaped defects              2 on 1/1 PRs
+time to first PR             12m0s (1 issues)
+CI passing on first push     0% (0/1) PRs
+usage coverage               50% (1/2) attempts
+activity coverage            0% (0/2) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source   gate   failed / runs
+  fb       factory  build  0% (0/1)
+  fb       CI       test   100% (1/1)
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  fb       test   6m0s            0% (0/1)
+metric                       fb fb@2
+work items                   1
+attempts                     2 (1 failed)
+sessions                     2
+tokens / issue               3.1k +? (1 attempt(s) without usage)
+time / issue                 13m0s active / 13m0s elapsed
+cost total                   $0.03 reported +? (1 attempt(s) without usage)
+cost / issue                 $0.03 +?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     700 (700 / 1 PRs)
+issues closed by agent       0% (0/1)
+first-pass plan approval     n/a
+first-pass PR approval       0% (0/1)
+review rounds / PR           2.0 (2/1)
+human interventions / issue  2.0 (2/1)
+escaped defects              2 on 1/1 PRs
+time to first PR             12m0s (1 issues)
+CI passing on first push     0% (0/1) PRs
+usage coverage               50% (1/2) attempts
+activity coverage            0% (0/2) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source   gate   failed / runs
+  fb fb@2  factory  build  0% (0/1)
+  fb fb@2  CI       test   100% (1/1)
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  fb fb@2  test   6m0s            0% (0/1)
+[
+ {
+  "Item": "acme/app#10",
+  "Title": "Add retry with backoff to the upstream fetcher client",
+  "Factory": "fb",
+  "Outcome": "rejected",
+  "Attempts": "2 (1 failed)",
+  "Tokens": "3.1k +?",
+  "Cost": "$0.03 +?",
+  "Active": "13m0s",
+  "Elapsed": "13m0s",
+  "Human": 2,
+  "Escaped": 2,
+  "PRs": "#21 closed",
+  "ToPR": "12m0s",
+  "ToMerge": "n/a",
+  "ReviewRounds": "2 on 1 reviewed PRs",
+  "CIFirstPush": "0% (0/1)",
+  "Size": "?",
+  "HasPR": true,
+  "Merged": false,
+  "ToPRSeconds": 720,
+  "CostUSD": 0.026000000000000002,
+  "CostLowerBound": true
+ }
+]
+acme/app#1 [bug]   outcome open · survival n/a
+  11-11 10:00  fa  attempt a1 started (build)                                                    config fake@1.0
+  11-11 10:05      session a1 gemini-3-pro: 1.0k in / 5.0k cache read / ? cache write / 200 out  $0.01 est. (prices 2026-11-11)
+  11-11 10:06      attempt a1 failed                                                             6m0s, $0.01 est.
+  11-11 10:10      attempt a2 started (build, parent a1, inferred)                               config fake@1.0
+  11-11 10:11      attempt a2 failed                                                             1m0s, cost unknown (no usage)
+  11-11 10:15      attempt a3 started (build, parent a2, inferred)                               config fake@1.0
+  11-11 10:20      session a3 unpriced-model: 10 in / ? cache read / ? cache write / 10 out      unknown (1 session(s) unpriced)
+  11-11 10:21      session a3 claude-haiku-5-5: 100 in / ? cache read / ? cache write / 50 out   $0.50 reported
+  11-11 10:22      attempt a3 completed                                                          7m0s, $0.50 reported + unknown (1 session(s) unpriced)
+  totals  fa  3 attempts (1 completed, 2 failed) · 3 sessions · tokens 1.1k in / 260 out / 5.0k cache · 22m0s active / 22m0s elapsed · 0 human waits (0s) · $0.51 (reported $0.50 + est. $0.01) + unknown (1 session(s) unpriced) +? · usage coverage 2/3 attempts
+item        title  factory  outcome  attempts      tokens   cost      active  elapsed  human  PR  escaped
+acme/app#1         fa       open     3 (2 failed)  6.4k +?  $0.51 +?  22m0s   22m0s    0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+metric                       fa
+work items                   1
+attempts                     3 (2 failed)
+sessions                     3
+tokens / issue               6.4k +? (1 attempt(s) without usage)
+time / issue                 22m0s active / 22m0s elapsed
+cost total                   $0.51 (reported $0.50 + est. $0.01) +? (1 attempt(s) without usage)
+cost / issue                 $0.51 +?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+usage coverage               67% (2/3) attempts
+activity coverage            0% (0/3) attempts
+unpriced sessions            1
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+metric                       fa fake@1.0
+work items                   1
+attempts                     3 (2 failed)
+sessions                     3
+tokens / issue               6.4k +? (1 attempt(s) without usage)
+time / issue                 22m0s active / 22m0s elapsed
+cost total                   $0.51 (reported $0.50 + est. $0.01) +? (1 attempt(s) without usage)
+cost / issue                 $0.51 +?
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+usage coverage               67% (2/3) attempts
+activity coverage            0% (0/3) attempts
+unpriced sessions            1
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+[
+ {
+  "Item": "acme/app#1",
+  "Title": "",
+  "Factory": "fa",
+  "Outcome": "open",
+  "Attempts": "3 (2 failed)",
+  "Tokens": "6.4k +?",
+  "Cost": "$0.51 +?",
+  "Active": "22m0s",
+  "Elapsed": "22m0s",
+  "Human": 0,
+  "Escaped": 0,
+  "PRs": "",
+  "ToPR": "n/a",
+  "ToMerge": "n/a",
+  "ReviewRounds": "n/a",
+  "CIFirstPush": "n/a",
+  "Size": "?",
+  "HasPR": false,
+  "Merged": false,
+  "ToPRSeconds": null,
+  "CostUSD": 0.5054,
+  "CostLowerBound": true
+ }
+]
+acme/app#2   outcome open · survival n/a
+  11-11 09:00  fa      attempt p1 started (plan)                                                       config fake@1.0
+  11-11 09:02          session p1 claude-sonnet-5-5: 2.0k in / ? cache read / ? cache write / 500 out  $0.01 est. (prices 2026-11-11)
+  11-11 09:03          PR linked https://github.com/acme/app/pull/8                                    
+  11-11 09:03          waiting for human (plan_review)                                                 
+  11-11 09:04          attempt p1 finished, waiting for human                                          4m0s, $0.01 est.
+  11-11 09:30          waiting for human (plan_review)                                                 
+  11-12 00:00  github  PR acme/app#8 open (as of now)                                                  0 factory / 0 human commits
+  11-12 00:00          check test on PR #8: pending                                                    
+  totals  fa  1 attempts (1 waiting_for_human) · 1 sessions · tokens 2.0k in / 500 out / ? cache · 4m0s active / 4m0s elapsed · 0 human waits (0s) · $0.01 est. · usage coverage 1/1 attempts
+item        title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR       escaped
+acme/app#2         fa       open     1         2.5k    $0.01  4m0s    4m0s     2      #8 open  0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     1
+tokens / issue               2.5k
+time / issue                 4m0s active / 4m0s elapsed
+cost total                   $0.01 est.
+cost / issue                 $0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  2.0 (2/1)
+escaped defects              0 on 0/1 PRs
+time to first PR             3m0s (1 issues)
+usage coverage               100% (1/1) attempts
+activity coverage            0% (0/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source  gate  failed / runs
+  fa       CI      test  n/a
+
+CI suite
+  factory  check  median runtime  flake rate (sha pairs)
+  fa       test   n/a             n/a
+metric                       fa fake@1.0
+work items                   1
+attempts                     1 (0 failed)
+sessions                     1
+tokens / issue               2.5k
+time / issue                 4m0s active / 4m0s elapsed
+cost total                   $0.01 est.
+cost / issue                 $0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no phase data)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  2.0 (2/1)
+escaped defects              0 on 0/1 PRs
+time to first PR             3m0s (1 issues)
+usage coverage               100% (1/1) attempts
+activity coverage            0% (0/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory      source  gate  failed / runs
+  fa fake@1.0  CI      test  n/a
+
+CI suite
+  factory      check  median runtime  flake rate (sha pairs)
+  fa fake@1.0  test   n/a             n/a
+[
+ {
+  "Item": "acme/app#2",
+  "Title": "",
+  "Factory": "fa",
+  "Outcome": "open",
+  "Attempts": "1",
+  "Tokens": "2.5k",
+  "Cost": "$0.01",
+  "Active": "4m0s",
+  "Elapsed": "4m0s",
+  "Human": 2,
+  "Escaped": 0,
+  "PRs": "#8 open",
+  "ToPR": "3m0s",
+  "ToMerge": "n/a",
+  "ReviewRounds": "n/a",
+  "CIFirstPush": "n/a",
+  "Size": "?",
+  "HasPR": true,
+  "Merged": false,
+  "ToPRSeconds": 180,
+  "CostUSD": 0.0135,
+  "CostLowerBound": false
+ }
+]

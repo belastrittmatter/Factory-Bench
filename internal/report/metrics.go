@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
+	"slices"
 	"sort"
 	"strings"
 	"text/tabwriter"
@@ -21,6 +22,7 @@ type mAtt struct {
 	issue                                           int64
 	parent, ended, pr                               sql.NullString
 	waitMS                                          int64
+	stage                                           string // StageKind against its parent, set by buildUnits
 }
 
 type mUse struct {
@@ -223,6 +225,9 @@ type unit struct {
 	prs            []*mPR
 	outcome        string // from this unit's own PRs, by outcome.FromPRStates like the work item
 
+	staged                                        bool     // the run has a stage handoff
+	stages, retries                               int      // counted on staged runs only
+	escalations                                   []string // configs after the first one of a staged run
 	attempts, failed, sessions, withUsage, phased int
 	tokens, verifyTok                             int64
 	cost                                          cost
@@ -243,6 +248,7 @@ type runStats struct {
 	sizedCost                                                            cost // cost of units with a sized PR, for cost / changed line
 	toPR, toMerge                                                        time.Duration
 	nToPR, nToMerge, ciN, ciPass                                         int
+	stagedToPR                                                           int // staged runs among nToPR: their PR comes from an early stage
 }
 
 func (s *runStats) merge(o runStats) {
@@ -272,14 +278,71 @@ func (s *runStats) merge(o runStats) {
 	s.nToMerge += o.nToMerge
 	s.ciN += o.ciN
 	s.ciPass += o.ciPass
+	s.stagedToPR += o.stagedToPR
+}
+
+// StageKind classifies a follow-up attempt against its parent: "handoff" when both have a role and the roles differ
+// (the next stage of the same try), "retry" when the role is the same and the parent failed or was cancelled, else "".
+func StageKind(role, parentRole, parentState string) string {
+	switch {
+	case role != "" && parentRole != "" && role != parentRole:
+		return "handoff"
+	case role == parentRole && (parentState == "failed" || parentState == "cancelled"):
+		return "retry"
+	}
+	return ""
+}
+
+// StageAttempt is what Stages needs of an attempt. Run identifies its run (factory and work item).
+type StageAttempt struct{ Factory, ID, Parent, Role, State, Run string }
+
+// Stages applies StageKind to every attempt against its parent of the same factory ("" without one) and returns
+// the runs that have a handoff. The one place the rule is applied, for the reports and the dashboard alike.
+func Stages(as []StageAttempt) (kinds []string, staged map[string]bool) {
+	byID := map[string]StageAttempt{}
+	for _, a := range as {
+		byID[a.Factory+"\x00"+a.ID] = a
+	}
+	kinds, staged = make([]string, len(as)), map[string]bool{}
+	for i, a := range as {
+		if p, ok := byID[a.Factory+"\x00"+a.Parent]; ok && a.Parent != "" {
+			kinds[i] = StageKind(a.Role, p.Role, p.State)
+		}
+		staged[a.Run] = staged[a.Run] || kinds[i] == "handoff"
+	}
+	return kinds, staged
+}
+
+// stagesText is the stage and retry count of staged runs, e.g. "2 stages · 1 retry".
+func stagesText(stages, retries int) string {
+	r := fmt.Sprintf("%d retries", retries)
+	if retries == 1 {
+		r = "1 retry"
+	}
+	return plural(stages, "stage") + " · " + r
 }
 
 func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	var units []*unit
 	byKey := map[string]*unit{}
+	run := func(a *mAtt) string { return fmt.Sprintf("%s\x00%s#%d", a.factory, a.repo, a.issue) }
+	in := make([]StageAttempt, len(d.atts))
+	for i, a := range d.atts {
+		in[i] = StageAttempt{a.factory, a.id, a.parent.String, a.role, a.state, run(a)}
+	}
+	kinds, staged := Stages(in)
+	firstConfig := map[string]string{}
+	for i, a := range d.atts { // ordered by start, so a run's first attempt comes first
+		a.stage = kinds[i]
+		if _, ok := firstConfig[run(a)]; !ok {
+			firstConfig[run(a)] = a.config
+		}
+	}
 	for _, a := range d.atts {
 		g := a.factory
-		if byConfig {
+		if byConfig && staged[run(a)] { // a staged run stays one unit, under the config it started with
+			g += " " + firstConfig[run(a)]
+		} else if byConfig {
 			g += " " + a.config
 		}
 		k := g + "\x00" + fmt.Sprintf("%s#%d", a.repo, a.issue)
@@ -289,7 +352,7 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 			if it == nil { // attempts and work items are derived together; this only guards a half-written DB
 				continue
 			}
-			u = &unit{group: g, factory: a.factory, item: it}
+			u = &unit{group: g, factory: a.factory, item: it, staged: staged[run(a)]}
 			byKey[k] = u
 			units = append(units, u)
 		}
@@ -297,6 +360,9 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	}
 	for _, u := range units {
 		u.compute(d, now)
+		if !byConfig { // escalations only mean something when configs are columns
+			u.escalations = nil
+		}
 	}
 	sort.SliceStable(units, func(i, j int) bool {
 		if a, b := units[i].item.firstSeen, units[j].item.firstSeen; a != b {
@@ -317,6 +383,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 	ids := map[string]*mAtt{}
 	seenPR := map[string]bool{}
 	linked := ""
+	var handoff time.Time // start of the first handoff of a staged run
 	u.run.tools = map[string]int{}
 	for _, a := range u.atts {
 		k := a.factory + "\x00" + a.id
@@ -341,8 +408,22 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		u.run.apiErrors += d.apiErrs[k]
 		ids[a.id] = a
 		u.attempts++
-		if a.state == "failed" {
+		if a.state == "failed" && !u.staged {
 			u.failed++
+		}
+		if u.staged {
+			switch a.stage {
+			case "handoff":
+				u.stages++
+				if handoff.IsZero() {
+					handoff = parse(a.started)
+				}
+			case "retry":
+				u.retries++
+			}
+			if a.config != u.atts[0].config && !slices.Contains(u.escalations, a.config) {
+				u.escalations = append(u.escalations, a.config)
+			}
 		}
 		uses := d.usage[a.factory+"\x00"+a.id]
 		if len(uses) > 0 {
@@ -378,9 +459,23 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 			u.prs = append(u.prs, p)
 		}
 	}
+	if u.staged { // a staged run counts a failure only when it was retried or ended the run
+		u.stages++
+		retried := map[string]bool{}
+		for _, a := range u.atts {
+			if a.stage == "retry" {
+				retried[a.parent.String] = true
+			}
+		}
+		for i, a := range u.atts {
+			if a.state == "failed" && (retried[a.id] || i == len(u.atts)-1) {
+				u.failed++
+			}
+		}
+	}
 	u.elapsed = last.Sub(first)
 	u.active = u.elapsed - time.Duration(waitMS)*time.Millisecond
-	u.prStats(d, first, linked)
+	u.prStats(d, first, linked, handoff)
 
 	st := map[string]bool{}
 	for _, p := range u.prs {
@@ -478,9 +573,13 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 }
 
 // prStats sets the unit's PR size, time to first PR and to merge (from its first attempt start), and CI on the first push.
-func (u *unit) prStats(d *metricsData, first time.Time, linked string) {
+// On a staged run (handoff set) the first push is the first one after the handoff: an earlier stage's PR may fail CI on purpose.
+func (u *unit) prStats(d *metricsData, first time.Time, linked string, handoff time.Time) {
 	if linked != "" {
 		u.run.nToPR, u.run.toPR = 1, parse(linked).Sub(first)
+		if u.staged {
+			u.run.stagedToPR = 1
+		}
 	}
 	merged := ""
 	for _, p := range u.prs {
@@ -492,9 +591,15 @@ func (u *unit) prStats(d *metricsData, first time.Time, linked string) {
 			u.run.added, u.run.deleted, u.run.files = u.run.added+p.add.Int64, u.run.deleted+p.del.Int64, u.run.files+p.files.Int64
 		}
 		// shortcut: the first push is the head SHA of the earliest-started check run; pushes without checks are invisible
+		early := map[string]bool{} // SHAs checked before the handoff: an earlier stage pushed them, even if a check runs later
+		for _, c := range d.checks[p.key] {
+			if !handoff.IsZero() && c.started != "" && parse(c.started).Before(handoff) {
+				early[c.sha] = true
+			}
+		}
 		var sha, at string
 		for _, c := range d.checks[p.key] {
-			if c.started != "" && (at == "" || c.started < at) {
+			if c.started != "" && (at == "" || c.started < at) && !early[c.sha] && (handoff.IsZero() || !parse(c.started).Before(handoff)) {
 				sha, at = c.sha, c.started
 			}
 		}
@@ -569,10 +674,6 @@ func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) erro
 		if r := []rune(title); len(r) > 40 {
 			title = string(r[:39]) + "…"
 		}
-		att := fmt.Sprint(u.attempts)
-		if u.failed > 0 {
-			att += fmt.Sprintf(" (%d failed)", u.failed)
-		}
 		var prs []string
 		for _, p := range u.prs {
 			prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
@@ -581,7 +682,7 @@ func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) erro
 		if pr == "" {
 			pr = "-"
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\n", u.item.key, title, u.factory, u.outcome, att,
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\t%d\n", u.item.key, title, u.factory, u.outcome, u.attemptsText(),
 			u.tokensString(), money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), dur(u.active), dur(u.elapsed), u.human, pr, u.escaped)
 	}
 	if err := tw.Flush(); err != nil {
@@ -602,6 +703,25 @@ type ItemRow struct {
 	ToPRSeconds    *float64
 	CostUSD        *float64 // priced sessions; nil when nothing was priced
 	CostLowerBound bool     // some sessions unpriced or attempts without usage (the +? of Cost)
+
+	// staged runs only (see StageKind); left out of the JSON otherwise
+	Staged                  bool `json:",omitempty"`
+	Stages, Retries, Failed int  `json:",omitempty"`
+}
+
+// stagedToPR marks time to first PR on staged runs: an early stage may open the PR, so it doesn't compare across factory types.
+const stagedToPR = " (staged run: not comparable, see time to merge)"
+
+// attemptsText is the attempts column: "3 (2 failed)", on a staged run "3 attempts · 2 stages · 1 retry (2 failed)".
+func (u *unit) attemptsText() string {
+	s := fmt.Sprint(u.attempts)
+	if u.staged {
+		s = plural(u.attempts, "attempt") + " · " + stagesText(u.stages, u.retries)
+	}
+	if u.failed > 0 {
+		s += fmt.Sprintf(" (%d failed)", u.failed)
+	}
+	return s
 }
 
 // ItemRows returns one row per (work item, factory), newest first, from the same units as Items.
@@ -612,11 +732,11 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 	}
 	var out []ItemRow
 	for _, u := range buildUnits(d, false, now) {
-		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: fmt.Sprint(u.attempts),
+		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
 			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
 			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
-		if u.failed > 0 {
-			r.Attempts += fmt.Sprintf(" (%d failed)", u.failed)
+		if u.staged {
+			r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
 		}
 		var prs []string
 		for _, p := range u.prs {
@@ -625,6 +745,9 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 		r.PRs = strings.Join(prs, ", ")
 		if u.run.nToPR > 0 {
 			r.ToPR = dur(u.run.toPR)
+			if u.staged {
+				r.ToPR += stagedToPR
+			}
 			v := u.run.toPR.Seconds()
 			r.ToPRSeconds = &v
 		}

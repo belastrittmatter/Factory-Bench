@@ -73,17 +73,15 @@ func (s *server) flow(r *http.Request) (any, error) {
 
 // cardFlow is the /api/flow answer for one card.
 type cardFlow struct {
-	Attempts        []map[string]any `json:"attempts"` // with status, bar_end and bar_state
-	MergedAt        any              `json:"merged_at"`
-	Dispatches      []dispatchRow    `json:"dispatches"`
-	Notes           []note           `json:"notes"`
-	Moves           []move           `json:"moves"`
-	Waits           []map[string]any `json:"waits"`
-	RetryCostUSD    float64          `json:"retry_cost_usd"`
-	RetryDispatches int              `json:"retry_dispatches"`
-	Bounces         int              `json:"bounces"`
-	Redispatches    int              `json:"redispatches"`
-	Manifest        bool             `json:"manifest"` // run manifests are configured and served
+	Attempts     []map[string]any `json:"attempts"` // with status, bar_end and bar_state
+	MergedAt     any              `json:"merged_at"`
+	Dispatches   []dispatchRow    `json:"dispatches"`
+	Notes        []note           `json:"notes"`
+	Moves        []move           `json:"moves"`
+	Waits        []map[string]any `json:"waits"`
+	Bounces      int              `json:"bounces"`
+	Redispatches int              `json:"redispatches"`
+	Manifest     bool             `json:"manifest"` // run manifests are configured and served
 }
 
 func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error) {
@@ -146,19 +144,14 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 	ds := rl.dispatches[n]
 	grouped := groupByDispatch(ds, wins, calls, now)
 	var lanes []string
-	retryCost, retryRows := 0.0, 0
 	for _, d := range grouped {
 		if d.Lane != "" {
 			lanes = append(lanes, d.Lane)
 		}
-		if d.Retry {
-			retryCost += d.Cost
-			retryRows++
-		}
 	}
 	bounces, redis := rework(lanes)
 	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n], Waits: waits,
-		RetryCostUSD: retryCost, RetryDispatches: retryRows, Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
+		Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
 }
 
 func parseTS(v any) time.Time { s, _ := v.(string); t, _ := time.Parse(time.RFC3339Nano, s); return t }

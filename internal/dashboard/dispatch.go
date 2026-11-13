@@ -133,15 +133,15 @@ type dispatchRow struct {
 	File         string    `json:"file"`
 	Attempt      string    `json:"attempt_id"` // "" = before any attempt
 	AttemptState string    `json:"attempt_state"`
-	Retry        bool      `json:"retry"` // its attempt failed or was cancelled
+	Failed       bool      `json:"failed_attempt"` // its attempt failed or was cancelled
 	Calls        []call    `json:"calls"`
 	Tokens       int64     `json:"tokens"`
 	Cost         float64   `json:"cost_usd"`
 	Unpriced     int       `json:"unpriced"`
 }
 
-// retry reports whether an attempt state means its work was thrown away.
-func retry(state string) bool { return state == "failed" || state == "cancelled" }
+// failedState reports whether an attempt state means its work was thrown away.
+func failedState(state string) bool { return state == "failed" || state == "cancelled" }
 
 // groupByDispatch assigns every dispatch to the attempt it ran in and every call to the latest dispatch of its
 // attempt that started before it. It never drops a call.
@@ -176,7 +176,7 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	row := func(at time.Time, a *attemptWin) dispatchRow {
 		r := dispatchRow{At: at, Calls: []call{}}
 		if a != nil {
-			r.Attempt, r.AttemptState, r.Retry = a.ID, a.State, retry(a.State)
+			r.Attempt, r.AttemptState, r.Failed = a.ID, a.State, failedState(a.State)
 		}
 		return r
 	}

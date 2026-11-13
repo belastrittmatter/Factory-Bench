@@ -14,6 +14,7 @@ import (
 type summary struct {
 	Issues, WithPR, Merged int
 	AvgToPRSeconds         *float64
+	StagedToPR             int // issue rows in AvgToPRSeconds from staged runs: an early stage opened their PR
 	CostPerMerged          *float64
 	CostLowerBound         bool // some cost unpriced or missing: CostPerMerged is a lower bound
 	IssuesWithDispatches   int
@@ -39,6 +40,9 @@ func summarize(rows []report.ItemRow, lanes map[string][]string) summary {
 		if r.ToPRSeconds != nil {
 			toPR += *r.ToPRSeconds
 			nToPR++
+			if r.Staged {
+				s.StagedToPR++
+			}
 		}
 	}
 	keys := make([]string, 0, len(seen))

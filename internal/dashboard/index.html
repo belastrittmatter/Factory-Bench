@@ -439,7 +439,7 @@ V.overview=async()=>{
     ${kpi('Running now',running.length,[`${idle.length} idle`,`${waiting.length} waiting`].join(' · '),idle.length?'alert':'')}
     ${kpi('Spend',esc(fmtUsd(cost))+(unp?'<span class="muted" style="font-size:15px"> +?</span>':''),`${fmtTok(tokens)} tokens`)}
     ${kpi('Issues → PR → merged',`${sm.Issues}<small> → </small>${sm.WithPR}<small> → </small>${sm.Merged}`,'all time')}
-    ${kpi('Time to PR',nil(sm.AvgToPRSeconds)?'<span class="muted">n/a</span>':esc(fmtDur(sm.AvgToPRSeconds)),nil(sm.AvgToPRSeconds)?'no PR linked yet':`average over ${plural(sm.WithPR,'issue')} with a PR`)}
+    ${kpi('Time to PR',nil(sm.AvgToPRSeconds)?'<span class="muted">n/a</span>':esc(fmtDur(sm.AvgToPRSeconds)),nil(sm.AvgToPRSeconds)?'no PR linked yet':`average over ${plural(sm.WithPR,'issue')} with a PR`+(sm.StagedToPR?` · <span data-tip="${esc('A staged factory opens its PR in an early stage, so its time to PR does not compare with single-session factories. Compare time to merge instead.')}">${sm.StagedToPR} staged, not comparable</span>`:''))}
     ${kpi('Rework',nil(sm.ReworkPerIssue)?'<span class="muted">n/a</span>':sm.ReworkPerIssue.toFixed(1),nil(sm.ReworkPerIssue)?(meta.local?'no dispatches reported':'needs --runs'):`bounces per issue (${sm.Bounces} / ${sm.IssuesWithDispatches})`)}
     ${kpi('Cost per merged',nil(sm.CostPerMerged)?'<span class="muted">n/a</span>':usd(sm.CostPerMerged,sm.CostLowerBound),sm.Merged?'all cost ÷ merged issues':'no merged issue yet')}
   </div>
@@ -501,11 +501,11 @@ V.items=async()=>{
   const cols=[
     {h:'Issue',f:r=>`<div class="ttl">${esc(r.Title||'untitled')}</div><div class="muted">${esc(r.Item)}</div>`,c:'t',k:r=>numOf(r)},
     {h:'Factory',f:r=>esc(r.Factory),k:r=>r.Factory},{h:'Outcome',f:r=>chip(r.Outcome),k:r=>r.Outcome},
-    {h:'Attempts',n:1,f:r=>/failed/.test(r.Attempts)?`${esc(r.Attempts.split(' ')[0])} <span style="color:var(--crit)">· ${esc(r.Attempts.match(/(\d+) failed/)[1])} failed</span>`:esc(r.Attempts),k:r=>parseInt(r.Attempts)},
+    {h:'Attempts',n:1,f:r=>`${esc(r.Attempts.split(' ')[0])}${r.Staged?` <span class="muted">· ${plural(r.Stages,'stage')} · ${r.Retries||0} retr${r.Retries===1?'y':'ies'}</span>`:''}${/failed/.test(r.Attempts)?` <span style="color:var(--crit)">· ${esc(r.Attempts.match(/(\d+) failed/)[1])} failed</span>`:''}${r.Staged?` <span class="chip plain" data-tip="${esc(STAGED_TIP)}">staged</span>`:''}`,k:r=>parseInt(r.Attempts)},
     {h:'Cost',n:1,f:r=>{const v=money(r.Cost);return v===null?U:`<span class="ibar"><i style="width:${Math.max(2,v/maxCost*48)}px"></i>${esc(r.Cost)}</span>`},k:r=>money(r.Cost)},
     {h:'Tokens',n:1,f:r=>{const m=/([\d.]+)([kMB]?)/.exec(r.Tokens);return m?esc(fmtTok(+m[1]*({'':1,k:1e3,M:1e6,B:1e9}[m[2]])))+(/\+\?/.test(r.Tokens)?'<span class="muted"> +?</span>':''):U},k:r=>{const m=/([\d.]+)([kMB]?)/.exec(r.Tokens);return m?+m[1]*({'':1,k:1e3,M:1e6,B:1e9}[m[2]]):null}},
     {h:'Active',n:1,f:r=>na(r.Active),k:r=>durS(r.Active)},
-    {h:'To PR',n:1,f:r=>na(r.ToPR),k:r=>durS(r.ToPR)},{h:'To merge',n:1,f:r=>na(r.ToMerge),k:r=>durS(r.ToMerge)},
+    {h:'To PR',n:1,f:r=>r.Staged&&r.ToPR.includes(' (')?`<span data-tip="${esc('Staged run: an early stage opened the PR, so this does not compare across factory types. Use time to merge.')}">${esc(r.ToPR.split(' (')[0])}<span class="muted">*</span></span>`:na(r.ToPR),k:r=>durS(r.ToPR)},{h:'To merge',n:1,f:r=>na(r.ToMerge),k:r=>durS(r.ToMerge)},
     {h:'Review rounds',n:1,f:r=>r.ReviewRounds==='n/a'?na('n/a'):esc(r.ReviewRounds.split(' ')[0]),k:r=>r.ReviewRounds==='n/a'?null:parseInt(r.ReviewRounds)},
     {h:'CI 1st push',n:1,f:r=>r.CIFirstPush==='n/a'?na('n/a'):(r.CIFirstPush.startsWith('100%')?chip('pass','good'):chip('fail','crit')),k:r=>r.CIFirstPush==='n/a'?null:parseInt(r.CIFirstPush)},
     {h:'PR size',n:1,f:r=>r.Size==='?'?U:esc(r.Size.replace(', ',' · ')),k:r=>r.Size==='?'?null:r.Size.match(/\d+/g).slice(0,2).reduce((a,b)=>a+ +b,0)},
@@ -517,7 +517,8 @@ V.items=async()=>{
    <div class="muted" style="margin-top:8px">? unknown · n/a nothing to measure · +? lower bound</div>`;
 };
 // report strings use 1234.5k and 44m37s; show them in the page's number style (1.23M, 44m 37s)
-const fixStr=v=>String(v).replace(/\bsession(\(s\)|s)?\b/g,(m,pl)=>'model call'+(pl||'')).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
+// report text says session for a model call; "single session" (a factory type) is not one
+const fixStr=v=>String(v).replace(/(?<!single[ -])\bsession(\(s\)|s)?\b/g,(m,pl)=>'model call'+(pl||'')).replace(/(\d+(?:\.\d+)?)k\b/g,(m,n)=>fmtTok(+n*1e3)).replace(/(\d)([hm])(?=\d)/g,'$1$2 ');
 const na=v=>v==='n/a'?'<span class="muted">n/a</span>':v==='?'?U:esc(fixStr(v));
 
 // timeline event classification
@@ -531,8 +532,20 @@ function evKind(l){const t=l.Text;
   if(/^check /.test(t))return /failure|timed_out/.test(t)?['ci',BAD,'check failed']:/success/.test(t)?['ci',GOOD,'check passed']:['ci',NEUTRAL,'check other / pending'];
   if(/^review /.test(t))return /CHANGES_REQUESTED/.test(t)?['reviews',BAD,'changes requested']:/APPROVED/.test(t)?['reviews',GOOD,'approved']:['reviews',NEUTRAL,'review comment'];
   if(/^PR /.test(t))return /merged/.test(t)?['github',GOOD,'PR merged']:['github',INFO,'PR state'];return['other',NEUTRAL,'other']}
-// attempts are named by start order ("attempt 2"), never by their id, in every event text
-const attLabels=atts=>{const m={};atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>m[a.attempt_id]='attempt '+(i+1));return m};
+// attempts are named by start order ("attempt 2"), never by their id, in every event text; on a staged run by role ("build (retry)")
+// on a staged run by role, numbered per factory: "build", "build (retry)", "build (retry 2)"; a same-role rerun after a
+// completed attempt is "build (again)"; with several staged factories on the issue the factory is named too
+const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=>a.factory_id)).length>1;
+  atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>{if(!(a.staged&&a.role)){m[a.attempt_id]='attempt '+(i+1);return}
+    const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
+const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
+// staged or single session for one factory's attempts on an issue, as a chip: "staged · plan → build" or "single session"
+const runType=as=>as.some(a=>a.staged)?`<span class="chip plain" data-tip="${esc(STAGED_TIP)}">staged · ${esc(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?').filter((r,i,x)=>r!==x[i-1]).join(' → '))}</span>`:`<span class="chip plain" data-tip="${esc(STAGED_TIP)}">single session</span>`;
+// cost per stage of one factory's attempts: by role on a staged run (retries counted toward their role), else by usage phase
+const stageCost=(as,phases)=>{const m={};
+  if(as.some(a=>a.staged))as.forEach(a=>{const k=a.role||'no role',x=m[k]=m[k]||{name:k,v:0,retry:0,unpriced:false,color:colorOf('stage',k)};x.v+=a.cost_usd||0;x.unpriced=x.unpriced||a.unpriced>0;if(a.stage==='retry')x.retry+=a.cost_usd||0});
+  else phases.forEach(p=>{const k=p.phase??'unknown phase',x=m[k]=m[k]||{name:k,v:0,unpriced:false,color:phaseColor(k)};x.v+=p.cost_usd||0;x.unpriced=x.unpriced||p.unpriced>0});
+  return Object.values(m).map(x=>({...x,tip:`${x.name}\n${fmtUsd(x.v)}${x.retry?' · '+fmtUsd(x.retry)+' in retries':''}`}))};
 const relabel=(t,labels)=>Object.entries(labels).reduce((s,[id,l])=>s.split('attempt '+id).join(l).split(id).join(l),String(t));
 const laneChip=l=>l?`<span class="chip" style="color:${colorOf('lane',l)}"><span style="color:var(--text)">${esc(l)}</span></span>`:'<span class="chip plain">no dispatch</span>';
 const plural=(n,w)=>`${n} ${w}${n===1?'':'s'}`;
@@ -548,7 +561,7 @@ function timelineHtml(tl,disp,labels){
 function dispatchEv(d,labels){
   const n=d.calls.length,span=(+T(d.end)-+T(d.at))/1000;
   const head=[laneChip(d.lane),labels[d.attempt_id]?esc(labels[d.attempt_id]):'',plural(n,'model call'),usd(n?d.cost_usd:null,d.unpriced>0),esc(fmtDur(span))+(d.end_reported?'':' <span class="muted">(end not reported)</span>')].filter(Boolean).join(' · ');
-  return `<div class="ev" style="--k:${d.lane?colorOf('lane',d.lane):'var(--text-3)'};${d.retry?'opacity:.62;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)':''}"><div class="when">${esc(fmtWhen(d.at))}</div><div class="what">${d.retry?chip('retry','warn')+' ':''}${head}</div>${d.outcome?`<div class="ex">${esc(relabel(d.outcome,labels))}</div>`:''}
+  return `<div class="ev" style="--k:${d.lane?colorOf('lane',d.lane):'var(--text-3)'};${d.failed_attempt?'opacity:.62;background:repeating-linear-gradient(135deg,transparent 0 6px,var(--surface-2) 6px 7px)':''}"><div class="when">${esc(fmtWhen(d.at))}</div><div class="what">${d.failed_attempt?chip('failed attempt','warn')+' ':''}${head}</div>${d.outcome?`<div class="ex">${esc(relabel(d.outcome,labels))}</div>`:''}
    ${n?`<details class="tool" style="grid-column:3;border:0"><summary>show ${plural(n,'model call')}</summary>${table([{h:'Time',f:c=>esc(fmtTime(T(c.ts)))},{h:'Model',f:c=>esc(c.model)},{h:'Phase',f:c=>esc(c.phase??'?')},{h:'Tokens',n:1,f:c=>tok(c.tokens)},{h:'Cost',n:1,f:c=>usd(c.cost_usd)},{h:'Duration',n:1,f:c=>dur(nil(c.duration_ms)?null:c.duration_ms/1000)}],d.calls)}</details>`:''}</div>`;
 }
 
@@ -566,7 +579,10 @@ function gantt(w,atts,tl,f){
   const pl=110,pr=10,ax=timeAxis([...rowsOf.map(a=>[+T(a.started_at),endOf(a)]),...board.map(b=>[+T(b.at),+T(b.at)]),...ev.map(l=>[+T(l.TS),+T(l.TS)]),...flow.map(d=>[+T(d.at),+T(d.end)])],pl,w-pr),X=ax.X;
   const lanes=uniq(flow.map(d=>d.lane)).sort((a,b)=>flow.findIndex(d=>d.lane===a)-flow.findIndex(d=>d.lane===b));
   // every row is rowH tall; marks are centred on cy(row) and row labels share its baseline
-  const rowH=34,rows=rowsOf.length+(ev.length?1:0)+lanes.length+(board.length?1:0),h=rows*rowH+40,cy=y=>y+17,lab=(y,t)=>`<text x="0" y="${cy(y)+4}" style="fill:var(--text-2)">${esc(t)}</text>`;
+  // a retry on a staged run is drawn in its stage's row, so every row is one stage
+  const roleOf={};rowsOf.forEach(a=>roleOf[a.attempt_id]=a.role);
+  const rowOf={};let nRows=0;rowsOf.forEach(a=>{rowOf[a.attempt_id]=a.staged&&a.parent_attempt_id in rowOf&&roleOf[a.parent_attempt_id]===a.role?rowOf[a.parent_attempt_id]:nRows++});
+  const rowH=34,rows=nRows+(ev.length?1:0)+lanes.length+(board.length?1:0),h=rows*rowH+40,cy=y=>y+17,lab=(y,t)=>`<text x="0" y="${cy(y)+4}" style="fill:var(--text-2)">${esc(t)}</text>`;
   let g='<g class="grid">'+ax.ticks.map(t=>`<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${h-22}"/>`).join('')+axisTicks(ax,h-6,t=>fmtWhen(new Date(t).toISOString()))+'</g>'+gapMarks(ax,6,h-22);
   let y=8,m='';
   if(lanes.length){
@@ -576,16 +592,21 @@ function gantt(w,atts,tl,f){
       const back=prev&&prev.lane!==d.lane&&seen.has(d.lane),again=prev&&prev.lane===d.lane;seen.add(d.lane);
       // hand-off to another lane: a thin elbow from the end of the previous dispatch to the start of this one
       if(prev&&!again){const mid=(prev.x2+x1)/2;m+=`<path d="M${prev.x2},${prev.c}H${mid}V${c}H${x1}" fill="none" stroke="${back?'var(--crit)':'var(--text-3)'}" stroke-width="1.5"/>`+(back?`<circle cx="${mid}" cy="${(prev.c+c)/2}" r="9" fill="var(--crit)" stroke="var(--surface)" stroke-width="2" data-tip="${esc('sent back to '+d.lane+'\nit had already worked on this card')}"/><text x="${mid}" y="${(prev.c+c)/2+4.5}" text-anchor="middle" style="fill:#fff;font-size:13px;font-weight:700;pointer-events:none">↩</text>`:'')}
-      m+=`<rect x="${x1}" y="${c-9}" width="${x2-x1}" height="18" rx="3" fill="${col}" ${d.retry?`fill-opacity=".25" stroke="${col}" stroke-width="1.5" stroke-dasharray="3 2"`:''} data-tip="${esc(`${d.lane}${d.retry?' · retry (its attempt '+d.attempt_state+')':''}\n${fmtWhen(d.at)} · ${fmtDur((+T(d.end)-+T(d.at))/1000)}\n${plural(d.calls.length,'model call')} · ${d.calls.length?fmtUsd(d.cost_usd)+(d.unpriced?' +?':''):'no cost'}${d.outcome?'\n'+d.outcome:''}${back?'\nsent back: this lane had already worked on the issue':again?'\nsame lane again, right after its previous run':''}`)}"/>`
+      m+=`<rect x="${x1}" y="${c-9}" width="${x2-x1}" height="18" rx="3" fill="${col}" ${d.failed_attempt?`fill-opacity=".25" stroke="${col}" stroke-width="1.5" stroke-dasharray="3 2"`:''} data-tip="${esc(`${d.lane}${d.failed_attempt?' · its attempt '+d.attempt_state:''}\n${fmtWhen(d.at)} · ${fmtDur((+T(d.end)-+T(d.at))/1000)}\n${plural(d.calls.length,'model call')} · ${d.calls.length?fmtUsd(d.cost_usd)+(d.unpriced?' +?':''):'no cost'}${d.outcome?'\n'+d.outcome:''}${back?'\nsent back: this lane had already worked on the issue':again?'\nsame lane again, right after its previous run':''}`)}"/>`
       prev={lane:d.lane,x2,c}});
     y+=lanes.length*rowH;m+=`<line class="axis" x1="0" x2="${w}" y1="${y-1}" y2="${y-1}"/>`;
   }
   if(board.length){m+=lab(y,'board');board.forEach((b,i)=>{const x=X(+T(b.at)),room=Math.min(i+1<board.length?X(+T(board[i+1].at))-x:w-x,...ax.gaps.map(([a])=>X(a)-x).filter(r=>r>=0)),c=cy(y);
       m+=`<path d="M${x},${c-9}l8,9l-8,9l-8,-9z" fill="var(--hot)" data-tip="${esc(b.tip+'\n'+fmtWhen(b.at))}"/>${room>70?`<text x="${x+13}" y="${c+4}" style="fill:var(--text)">${esc(b.label)}</text>`:''}`});y+=rowH}
   const labels=attLabels(atts),SC={completed:'var(--s3)',running:'var(--s1)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
-  rowsOf.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle',c=cy(y);
-    m+=lab(y,labels[a.attempt_id])+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
-      (open?`<line x1="${x2}" x2="${X(ax.t1)}" y1="${c}" y2="${c}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-56)}" y="${c-8}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');y+=rowH});
+  const rowAt={},how=a=>a.stage==='handoff'?'handoff from '+labels[a.parent_attempt_id]:'retry of '+labels[a.parent_attempt_id];
+  const y0=y,drawn=new Set();
+  rowsOf.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle',ry=y0+rowOf[a.attempt_id]*rowH,c=cy(ry),p=a.staged&&a.stage&&rowAt[a.parent_attempt_id];
+    // staged run: a solid elbow from the parent's bar for a handoff to the next stage, a dashed red one for a retry
+    if(p){const mid=(p.x2+x1)/2;m+=`<path d="M${p.x2},${p.c}H${mid}V${c}H${x1}" fill="none" stroke="${a.stage==='retry'?'var(--crit)':'var(--text-3)'}" stroke-width="1.5" ${a.stage==='retry'?'stroke-dasharray="3 2"':''}/>`}
+    rowAt[a.attempt_id]={x2,c};
+    m+=(drawn.has(rowOf[a.attempt_id])?'':lab(ry,labels[a.attempt_id]))+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]}${p?' · '+how(a):''} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
+      (open?`<line x1="${x2}" x2="${X(ax.t1)}" y1="${c}" y2="${c}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-56)}" y="${c-8}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');drawn.add(rowOf[a.attempt_id])});y=y0+nRows*rowH;
   if(ev.length){gLegend=uniq(ev.map(l=>evKind(l)[2])).map(n=>({name:n,color:evKind(ev.find(l=>evKind(l)[2]===n))[1]}));m+=lab(y,'GitHub');ev.forEach(l=>{m+=`<rect x="${X(+T(l.TS))-6}" y="${cy(y)-9}" width="12" height="18" rx="2" fill="${evKind(l)[1]}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${g}${m}</svg>`;
 }
@@ -598,26 +619,30 @@ V.item=async(repo,issue)=>{
   const bounces=f.bounces,redis=f.redispatches,lanes=f.dispatches.filter(x=>x.lane),labels=attLabels(d.attempts);
   const pr=d.prs[0];
   const w=W($('#main'))-90;
+  const facs=uniq(d.attempts.map(a=>a.factory_id)),fAtts=fc=>d.attempts.filter(a=>a.factory_id===fc);
   return `<div class="crumbs"><a href="#items">Issues</a>›<span>${esc(repo)}#${issue}</span></div>`+topbar(esc(d.title||repo+'#'+issue))+
-  `
+  `<div class="meta">${facs.map(fc=>`<span>${facs.length>1?`factory <b>${esc(fc)}</b> `:''}${runType(fAtts(fc))}</span>`).join('')}</div>
   <div class="kpis">
    ${kpi('Outcome',pr?chip(pr.state):chip('open'),d.prs.length?`${d.prs.length} PR${d.prs.length>1?'s':''}`:'no PR linked')}
-   ${kpi('Attempts',d.attempts.length,`${d.attempts.filter(a=>a.state==='failed').length} failed`)}
+   ${(()=>{const st=d.units.filter(u=>u.Staged),sum=k=>st.reduce((n,u)=>n+(u[k]||0),0),failed=d.units.reduce((n,u)=>n+(u.Staged?u.Failed||0:d.attempts.filter(a=>a.factory_id===u.Factory&&a.state==='failed').length),0);
+     return st.length?kpi('Attempts',d.attempts.length,`<span data-tip="${esc('Stage: a handoff to the next role of the same try\nRetry: same role again after a failed or cancelled attempt\nFailed: retried, or the last attempt of its run')}">${plural(sum('Stages'),'stage')} · ${sum('Retries')} retr${sum('Retries')===1?'y':'ies'} · ${failed} failed</span>`):kpi('Attempts',d.attempts.length,`${d.attempts.filter(a=>a.state==='failed').length} failed`)})()}
    ${kpi('Cost',usd(cost,unp),`${fmtTok(tokens)} tokens`)}
-   ${kpi('Cost of retries',f.retry_dispatches?usd(f.retry_cost_usd):'<span class="muted">none</span>',f.retry_dispatches?`${f.retry_dispatches} retried dispatch${f.retry_dispatches===1?'':'es'}`:'no failed attempt')}
+   ${(()=>{const fa=d.attempts.filter(a=>a.state==='failed'||a.state==='cancelled');return kpi('Cost of failed attempts',fa.length?usd(fa.reduce((n,a)=>n+(a.cost_usd||0),0),fa.some(a=>a.unpriced>0)):'<span class="muted">none</span>',fa.length?[['failed','failed'],['cancelled','cancelled']].map(([st,w])=>{const k=fa.filter(a=>a.state===st).length;return k?`${k} ${w}`:''}).filter(Boolean).join(' · '):'no failed attempt')})()}
    ${kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
    ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),'first start → last end')}
    ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'needs --runs')}
   </div>
   <div class="grid">
-  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. ':''}Then board state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>retry of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,f);return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
+  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. ':''}Then board state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${d.attempts.some(a=>a.staged)?`<div class="legend" style="margin:8px 0 4px"><span><i style="width:16px;height:2px;background:var(--text-3)"></i>handoff to the next stage</span><span><i style="width:16px;height:0;background:transparent;border-top:2px dashed var(--crit)"></i>retry of a failed attempt</span></div>`:''}${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>dispatch of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,f);return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
   <div class="card c8"><h3>Events</h3><div class="hint">Lifecycle, review and CI events from <span class="mono">report item</span>; model calls are grouped per dispatch (open a row for its calls). Toggle kinds to filter.</div>${timelineHtml(d.timeline,f.dispatches,labels)}</div>
   <div class="c4" style="display:flex;flex-direction:column;gap:14px;min-width:0">
-   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt · lanes',c:'t',f:a=>{const ls=uniq(lanes.filter(x=>x.attempt_id===a.attempt_id).map(x=>x.lane));return `<b>${esc(labels[a.attempt_id])}</b>${a.role?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span><div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:3px">${ls.length?ls.map(laneChip).join(''):'<span class="muted">no lanes reported</span>'}</div>`}},{h:'State · PR',f:a=>`${chip(a.status||a.state)}<div>${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a>`:'<span class="muted">no PR</span>'}</div>`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
+   <div class="card"><h3>Attempts</h3>${table([{h:'Attempt · lanes',c:'t',f:a=>{const ls=uniq(lanes.filter(x=>x.attempt_id===a.attempt_id).map(x=>x.lane));return `<b>${esc(labels[a.attempt_id])}</b>${a.role&&!a.staged?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span><div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:3px">${ls.length?ls.map(laneChip).join(''):'<span class="muted">no lanes reported</span>'}</div>`}},{h:'State · PR',f:a=>`${chip(a.status||a.state)}<div>${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a>`:'<span class="muted">no PR</span>'}</div>`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
+   <div class="card"><h3>Cost per stage</h3><div class="hint">Staged runs by attempt role (a retry counts toward its stage), single-session runs by usage phase</div>${facs.map(fc=>{const parts=stageCost(fAtts(fc),d.phases.filter(p=>p.factory_id===fc));
+     return `${facs.length>1?`<div style="margin-top:8px"><b>${esc(fc)}</b></div>`:''}${parts.some(p=>p.v>0)?segbar(parts)+`<div class="stat-list">${parts.map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.name)}</span></span><b>${usd(p.v,p.unpriced)}${p.retry?` <span class="muted">· ${fmtUsd(p.retry)} retries</span>`:''}</b></div>`).join('')}</div>`:'<div class="empty">No priced calls</div>'}`}).join('')}</div>
    <div class="card"><h3>Pull requests</h3>${d.prs.length?d.prs.map(p=>`<div style="margin:6px 0 10px"><div style="display:flex;gap:8px;align-items:center"><a href="${esc(p.url)}" target="_blank" rel="noreferrer noopener"><b>#${p.number}</b></a>${chip(p.state)}<span class="muted" style="margin-left:auto">${nil(p.additions)?'size ?':`<span style="color:var(--good)">+${p.additions}</span> <span style="color:var(--crit)">−${p.deletions}</span> · ${p.changed_files} files`}</span></div>
      <div class="muted">${p.factory_commits} factory · ${p.human_commits} human commits${p.merged_at?' · merged '+esc(fmtWhen(p.merged_at)):''}</div></div>`).join(''):'<div class="empty">No PR linked yet</div>'}
      ${d.reviews.length?`<h3 style="margin-top:10px">Reviews</h3>${d.reviews.map(r=>`<div style="display:flex;gap:8px;margin:4px 0">${chip(r.state)}<span>${esc(r.reviewer)}</span><span class="muted" style="margin-left:auto">${esc(fmtWhen(r.submitted_at))}</span></div>`).join('')}`:''}</div>
-   <div class="card"><h3>CI checks</h3>${d.units.map(u=>`<div class="stat-list" style="margin-bottom:8px"><div><span>first push${d.units.length>1?' · '+esc(u.Factory):''}</span><b>${u.CIFirstPush==='n/a'?'<span class="muted">n/a</span>':(u.CIFirstPush.startsWith('100%')?chip('pass','good'):chip('fail','crit'))+' <span class="muted">'+esc(u.CIFirstPush)+'</span>'}</b></div></div>`).join('')}${d.checks.length?hbars(Object.entries(d.checks.reduce((m,c)=>{const x=m[c.name]=m[c.name]||{n:0,f:0};x.n++;if(/failure|timed_out/.test(c.conclusion))x.f++;return m},{})).map(([k,x])=>({label:k,value:x.n,fail:x.f,color:'var(--s3)',tip:`${k}\n${x.n} runs · ${x.f} failed`})),v=>v+' runs'):'<div class="empty">No check runs</div>'}</div>
+   <div class="card"><h3>CI checks</h3>${d.units.map(u=>`<div class="stat-list" style="margin-bottom:8px"><div><span>first push${d.units.length>1?' · '+esc(u.Factory):''}${u.Staged&&u.CIFirstPush==='n/a'?`<div class="muted">no check ran after the handoff to ${esc((fAtts(u.Factory).find(a=>a.stage==='handoff')||{}).role||'the next stage')}</div>`:''}</span><b>${u.CIFirstPush==='n/a'?'<span class="muted">n/a</span>':(u.CIFirstPush.startsWith('100%')?chip('pass','good'):chip('fail','crit'))+' <span class="muted">'+esc(u.CIFirstPush)+'</span>'}</b></div></div>`).join('')}${d.checks.length?hbars(Object.entries(d.checks.reduce((m,c)=>{const x=m[c.name]=m[c.name]||{n:0,f:0};x.n++;if(/failure|timed_out/.test(c.conclusion))x.f++;return m},{})).map(([k,x])=>({label:k,value:x.n,fail:x.f,color:'var(--s3)',tip:`${k}\n${x.n} runs · ${x.f} failed`})),v=>v+' runs'):'<div class="empty">No check runs</div>'}</div>
   </div></div>`;
 };
 
@@ -673,11 +698,16 @@ V.attempt=async(f,id)=>{
 let CUR_ATTEMPT=null;
 
 // scorecard sections and the better direction, keyed by the report's metric names
-const SECTIONS=[['Outcome',/work items|^attempts|closed|approval|escaped/],['Cost',/cost|token/],['Speed',/time/],['Quality',/CI|failure|error|review rounds|interventions/],['Activity',/session|tool|subagent|PR size/],['Data coverage',/coverage|unpriced|rejected/]];
+const SECTIONS=[['Outcome',/work items|run type|^attempts|closed|approval|escaped/],['Cost',/cost|token/],['Speed',/time/],['Quality',/CI|failure|error|review rounds|interventions/],['Activity',/session|tool|subagent|PR size/],['Data coverage',/coverage|unpriced|rejected/]];
 const LOWER=/cost|token|time|failure|error|rounds|interventions|escaped|unpriced|rejected/,HIGHER=/approval|closed|CI passing|coverage/;
 // first number of a report value: durations to seconds, k to thousands; n/a and text give null
 function metricNum(v){v=String(v);if(/^n\/a|^\?/.test(v))return null;const d=/^(\d+h)?(\d+m(?!s))?(\d+(?:\.\d+)?s)?(?=\s|$)/.exec(v);if(d&&d[0])return d[0].replace(/(\d+(?:\.\d+)?)([hms])/g,(_,n,u)=>' '+n*{h:3600,m:60,s:1}[u]).trim().split(' ').reduce((a,b)=>a+ +b,0);
   const m=/^[+$]?(-?\d+(?:\.\d+)?)(k|M|B)?/.exec(v.replace(/^\+/,''));return m?+m[1]*({k:1e3,M:1e6,B:1e9}[m[2]]||1):null}
+// a "run type" row after work items: how many of a group's runs (factory × issue) are staged, all time like the scorecard
+function runTypeRow(sc,atts,gk){
+  const vals=sc.groups.map(g=>{const runs={};atts.filter(a=>gk(a)===g).forEach(a=>{const k=a.factory_id+' '+a.repo+'#'+a.issue;runs[k]=runs[k]||a.staged});
+    const n=Object.keys(runs).length,st=Object.values(runs).filter(Boolean).length;return !n?'n/a':!st?'single session':st===n?`staged · all ${plural(n,'run')}`:`mixed · staged ${st} of ${n} runs`});
+  const rows=sc.rows.slice(),i=rows.findIndex(r=>r.Label==='work items')+1;rows.splice(i,0,{Label:'run type',Values:vals});return {...sc,rows}}
 // one table, a column per picked group, a row per metric, section rows between; same numbers as report factories
 function scoreTable(sc,groups){
   const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0],n=groups.length;
@@ -695,7 +725,9 @@ const CMP_DEFAULT=3;
 let CMP=[];
 V.compare=async()=>{
   const [sc,s]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries()]);
-  const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+r.config_version:'');
+  // by config, a staged run's attempts stay under the config it started with, like the scorecard; usage rows keep their own
+  const runOf=a=>a.factory_id+' '+a.repo+'#'+a.issue,firstCfg={};s.attempts.forEach(a=>{if(!(runOf(a) in firstCfg))firstCfg[runOf(a)]=a.config_version});
+  const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+(r.staged?firstCfg[runOf(r)]:r.config_version):'');
   const avail=sc.groups.filter(g=>uniq(s.attempts.filter(keep).map(gk)).includes(g));
   let groups=store.get('pick.'+UI.compareBy,[]).filter(g=>avail.includes(g));
   if(!groups.length)groups=avail.slice(0,CMP_DEFAULT);
@@ -712,10 +744,17 @@ V.compare=async()=>{
   (groups.length?`<div class="cmpbar">${rest.length?`<select class="sel" data-cmpadd aria-label="Add a ${what}"><option value="">+ Add ${what} (${rest.length} more)</option>${rest.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('')}</select>`:`<span class="muted">All ${plural(avail.length,what)} shown</span>`}
      ${groups.length>1?`<div class="seg" role="group" aria-label="row order"><button class="${UI.diffFirst?'':'on'}" data-diff="">Report order</button><button class="${UI.diffFirst?'on':''}" data-diff="1">Biggest difference first</button></div>`:''}
      <span class="muted">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>${groups.length>1?' · <span style="background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good);padding:0 4px 0 7px">green</span> = best in row · ↓ lower is better, ↑ higher · bar = relative to the largest':avail.length<2?` · only one ${what} here${UI.compareBy?'':': switch to By config to compare its configs'}`:''}</span></div>
-   <div class="tw">${scoreTable(sc,groups)}</div>
+   <div class="tw">${scoreTable(runTypeRow(sc,s.attempts.filter(keep),gk),groups)}</div>
   <div class="grid" style="margin-top:40px">
    <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>
+   <div class="card c12"><h3>Cost per stage</h3><div class="hint">Priced model calls of attempts started in the selected range · staged factories by attempt role, single-session factories by usage phase</div>${groups.map(g=>{
+     const ga=atts.filter(a=>gk(a)===g),st=ga.filter(a=>a.staged),ids=new Set(ga.filter(a=>!a.staged).map(a=>a.factory_id+'/'+a.attempt_id)),sums={},kind={};
+     st.forEach(a=>{const k=a.role||'no role';sums[k]=(sums[k]||0)+(a.cost_usd||0);kind[k]='stage'});
+     (s.attempt_phases||[]).filter(p=>ids.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const k=p.phase??'unknown phase';sums[k]=(sums[k]||0)+(p.cost_usd||0);kind[k]=kind[k]||'phase'});
+     const parts=Object.entries(sums).map(([k,v])=>({name:k,v,color:kind[k]==='stage'?colorOf('stage',k):phaseColor(k),tip:`${g} · ${k}\n${fmtUsd(v)}`}));
+     const how=st.length===ga.length?'by role':st.length?'staged runs by role, single-session runs by phase':'by phase';
+     return `<div style="margin:10px 0"><div style="display:flex;gap:8px;align-items:baseline"><b>${esc(g)}</b><span class="muted">${how}</span></div>${parts.some(p=>p.v>0)?segbar(parts)+legend(parts.map(p=>({name:`${p.name} ${fmtUsd(p.v)}`,color:p.color}))):'<div class="empty">No priced calls in range</div>'}</div>`}).join('')}</div>
   </div>`:'<div class="card"><div class="empty">No attempts match these filters</div></div>');
 };
 const cmpPick=f=>{store.set('pick.'+UI.compareBy,f(CMP));render(true)};

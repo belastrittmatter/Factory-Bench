@@ -85,6 +85,8 @@ type attempt struct {
 	parent, role, ended, pr             sql.NullString
 	waitMS                              int64
 	inferred                            bool
+	stage                               string // StageKind against its parent
+	staged                              bool   // its factory's run on the item has a handoff
 	tools, toolsFailed, apiErrors       int
 	cost                                cost
 	in, out, cache                      sql.NullInt64 // token sums; cache is NULL when no session reported it
@@ -192,6 +194,33 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		}
 		atts = append(atts, a)
 		byKey[a.factory+"\x00"+a.id] = a
+		return nil
+	}, repo, issue)
+	if err != nil {
+		return nil, nil, err
+	}
+	in := make([]StageAttempt, len(atts)) // one item, so a factory is a run
+	for i, a := range atts {
+		in[i] = StageAttempt{a.factory, a.id, a.parent.String, a.role.String, a.state, a.factory}
+	}
+	kinds, staged := Stages(in)
+	for i, a := range atts {
+		a.stage = kinds[i]
+	}
+	for _, a := range atts {
+		a.staged = staged[a.factory]
+		text, extra := "attempt "+a.id+" started", "config "+a.config
+		if a.staged { // "attempt b started · handoff from attempt a"; role and inference move to the detail line
+			if how := map[string]string{"handoff": "handoff from", "retry": "retry of"}[a.stage]; how != "" {
+				text += " · " + how + " attempt " + a.parent.String
+			}
+			extra = "role " + a.role.String + " · " + extra
+			if a.parent.Valid && a.inferred {
+				extra += " · parent inferred"
+			}
+			lines = append(lines, line{a.started, 0, a.factory, text, extra})
+			continue
+		}
 		var desc []string
 		if a.role.Valid {
 			desc = append(desc, a.role.String)
@@ -202,15 +231,10 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 				desc = append(desc, "inferred")
 			}
 		}
-		text := "attempt " + a.id + " started"
 		if desc != nil {
 			text += " (" + strings.Join(desc, ", ") + ")"
 		}
-		lines = append(lines, line{a.started, 0, a.factory, text, "config " + a.config})
-		return nil
-	}, repo, issue)
-	if err != nil {
-		return nil, nil, err
+		lines = append(lines, line{a.started, 0, a.factory, text, extra})
 	}
 
 	err = store.Each(db, `SELECT u.factory_id, u.attempt_id, u.ts, u.model, u.input, u.output, u.cache_read, u.cache_write,
@@ -483,6 +507,27 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 	withUsage, waits := 0, 0
 	var waitMS int64
 	var first, last time.Time
+	// staged runs (one per factory here): stages and retries per factory, and which failed attempts count as failed
+	var stagedF []string
+	stages, retries := map[string]int{}, map[string]int{}
+	retried, lastOf := map[string]bool{}, map[string]string{}
+	for _, a := range atts {
+		lastOf[a.factory] = a.id
+		if !a.staged {
+			continue
+		}
+		if stages[a.factory] == 0 {
+			stagedF = append(stagedF, a.factory)
+			stages[a.factory] = 1 // one stage more than its handoffs
+		}
+		switch a.stage {
+		case "handoff":
+			stages[a.factory]++
+		case "retry":
+			retries[a.factory]++
+			retried[a.parent.String] = true
+		}
+	}
 	for _, a := range atts {
 		c.merge(a.cost)
 		if a.cost.sessions > 0 {
@@ -491,7 +536,11 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 		addTok(&in, a.in)
 		addTok(&out, a.out)
 		addTok(&cache, a.cache)
-		states[a.state]++
+		if a.staged && a.state == "failed" && !retried[a.id] && lastOf[a.factory] != a.id {
+			states["failed, then handed off"]++ // like report items: not a failure of the run
+		} else {
+			states[a.state]++
+		}
 		if a.waitMS > 0 {
 			waits++
 			waitMS += a.waitMS
@@ -508,7 +557,7 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 		}
 	}
 	var st []string
-	for _, k := range []string{"completed", "failed", "cancelled", "running", "waiting_for_human"} {
+	for _, k := range []string{"completed", "failed", "failed, then handed off", "cancelled", "running", "waiting_for_human"} {
 		if states[k] > 0 {
 			st = append(st, fmt.Sprintf("%d %s", states[k], k))
 		}
@@ -523,8 +572,16 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 	if c.sessions > 0 && withUsage < len(atts) {
 		cs += " +?"
 	}
-	return fmt.Sprintf("%d attempts (%s) · %d sessions · tokens %s in / %s out / %s cache · %s · %d human waits (%s) · %s · usage coverage %d/%d attempts",
-		len(atts), strings.Join(st, ", "), c.sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
+	n := fmt.Sprintf("%d attempts", len(atts))
+	for _, f := range stagedF {
+		if oneFactory {
+			n += " · " + stagesText(stages[f], retries[f])
+		} else { // only this factory's run is staged: say whose stages these are
+			n += " · " + f + ": " + stagesText(stages[f], retries[f])
+		}
+	}
+	return fmt.Sprintf("%s (%s) · %d sessions · tokens %s in / %s out / %s cache · %s · %d human waits (%s) · %s · usage coverage %d/%d attempts",
+		n, strings.Join(st, ", "), c.sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
 }
 
 // LiveRow is one attempt that is running or waiting for a human. Nil pointers are unknown values.
