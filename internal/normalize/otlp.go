@@ -23,6 +23,7 @@ type toolCall struct {
 type agentRun struct {
 	Factory, Attempt, ID string
 	Parent, Type         *string
+	Phase                *string // from an activity event; usage rows of this agent without a phase of their own take it
 	Async                *bool
 	Model, FinalModel    *string
 	ToolCalls            int64

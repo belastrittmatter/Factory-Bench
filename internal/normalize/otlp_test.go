@@ -2,6 +2,7 @@ package normalize
 
 import (
 	"bytes"
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -123,6 +124,49 @@ func TestOTLPAPIError(t *testing.T) {
 		d.APIErrors[1].Kind != "api_retries_exhausted" || d.APIErrors[1].Status != nil {
 		t.Fatalf("%+v", d.APIErrors)
 	}
+}
+
+// One Claude Code process can run every phase as subagents, so OTEL_RESOURCE_ATTRIBUTES can't phase them. An
+// activity with agent_id and phase gives that phase to the agent's unphased usage rows, whether it arrives before or
+// after them; a phase on the record itself wins, the first activity phase wins, and the main agent stays unphased.
+// The activity's agent names the subagent when it comes first.
+func TestOTLPPhaseFromActivity(t *testing.T) {
+	ev := func(src, id, typ, ts, payload string) event {
+		return event{Source: src, Factory: "f", ID: id, Type: typ, TS: ts, AttemptID: "a", Payload: []byte(payload)}
+	}
+	req := func(id, ts, attrs string) event {
+		return ev("otlp", id, "otlp.api_request", ts, `{"model":"m","input_tokens":10,"output_tokens":5,"attempt_id":"a"`+attrs+`}`)
+	}
+	d := derive([]event{
+		ev("contract", "start", "attempt.started", "2026-11-13T08:00:00.000Z", `{"work_item":{"repo":"o/r","issue":1},"factory_config_version":"v"}`),
+		ev("contract", "agent:t1", "activity", "2026-11-13T08:00:01.000Z", `{"agent_id":"t1","agent":"Build: test S1","phase":"verify"}`),
+		req("s:1", "2026-11-13T08:00:02.000Z", `,"agent_id":"t1","agent.name":"general-purpose"`),
+		req("s:2", "2026-11-13T08:00:03.000Z", `,"agent_id":"t1","factorybench.phase":"review"`),
+		req("s:3", "2026-11-13T08:00:04.000Z", `,"agent_id":"b1"`),
+		req("s:4", "2026-11-13T08:00:05.000Z", ``),
+		req("s:5", "2026-11-13T08:00:06.000Z", `,"agent_id":"x1"`),
+		ev("contract", "agent:b1", "activity", "2026-11-13T08:00:07.000Z", `{"agent_id":"b1","agent":"Build: build S1","phase":"implement"}`),
+		ev("contract", "agent:b1:again", "activity", "2026-11-13T08:00:08.000Z", `{"agent_id":"b1","phase":"review"}`),
+	}, nil, nil)
+	var got []string
+	for _, u := range d.Usage {
+		got = append(got, cmp.Or(deref(u.Agent), "main")+"="+cmp.Or(deref(u.Phase), "-"))
+	}
+	if want := "t1=verify t1=review b1=implement main=- x1=-"; strings.Join(got, " ") != want {
+		t.Errorf("phases %q, want %q", strings.Join(got, " "), want)
+	}
+	for _, r := range d.AgentRuns {
+		if r.ID == "t1" && deref(r.Type) != "Build: test S1" {
+			t.Errorf("t1 type %q, want the activity's agent", deref(r.Type))
+		}
+	}
+}
+
+func deref(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 // factorybench.phase from OTEL_RESOURCE_ATTRIBUTES survives intake and tags the usage row, so the scorecard
