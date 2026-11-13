@@ -1,14 +1,14 @@
 acme/app#29   outcome open · survival n/a
-  11-11 10:00  fs      attempt p1 started (plan)                                                      config fs@1+gemini
+  11-11 10:00  fs      attempt p1 started                                                             role plan · config fs@1+gemini
   11-11 10:10          session p1 claude-haiku-5-5: 1.0k in / ? cache read / ? cache write / 300 out  $0.01 reported
   11-11 10:12          PR linked https://github.com/acme/app/pull/30                                  
   11-11 10:13          attempt p1 completed                                                           13m0s, $0.01 reported
   11-11 10:14  github  check test on PR #30: failure                                                  
-  11-11 10:16  fs      attempt b1 started (build, handoff, parent p1, inferred)                       config fs@1+gemini
+  11-11 10:16  fs      attempt b1 started · handoff from attempt p1                                   role build · config fs@1+gemini · parent inferred
   11-11 10:18          session b1 claude-haiku-5-5: 2.0k in / ? cache read / ? cache write / 400 out  $0.02 reported
   11-11 10:19          attempt b1 failed                                                              3m0s, $0.02 reported
   11-11 10:22  github  check test on PR #30: success                                                  
-  11-11 10:30  fs      attempt b2 started (build, retry, parent b1, inferred)                         config fs@1+opus
+  11-11 10:30  fs      attempt b2 started · retry of attempt b1                                       role build · config fs@1+opus · parent inferred
   11-11 10:34          session b2 claude-haiku-5-5: 3.0k in / ? cache read / ? cache write / 500 out  $0.04 reported
   11-11 10:35          attempt b2 failed                                                              5m0s, $0.04 reported
   11-12 00:00  github  PR acme/app#30 open (as of now)                                                0 factory / 0 human commits

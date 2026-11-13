@@ -1,10 +1,10 @@
 acme/app#1   outcome open · survival n/a
-  11-11 09:00  fa  attempt p1 started (plan)                                                              config fake@1.0
+  11-11 09:00  fa  attempt p1 started                                                                     role plan · config fake@1.0
   11-11 09:02      session p1 claude-sonnet-5-5: 2.0k in / 10.0k cache read / 3.0k cache write / 500 out  $0.03 est. (prices 2026-11-11)
   11-11 09:03      PR linked https://github.com/acme/app/pull/7                                           
   11-11 09:03      waiting for human (plan_review)                                                        
   11-11 09:04      attempt p1 completed                                                                   4m0s, $0.03 est.
-  11-11 09:12      attempt b1 started (build, handoff, parent p1, inferred)                               config fake@1.0
+  11-11 09:12      attempt b1 started · handoff from attempt p1                                           role build · config fake@1.0 · parent inferred
   11-11 09:12      resumed by human (plan_approved)                                                       waited 9m0s
   11-11 09:18      session b1 claude-sonnet-5-5: 3.0k in / ? cache read / ? cache write / 900 out         5m0s session, $0.02 est. (prices 2026-11-11)
   11-11 09:20      attempt b1 completed                                                                   8m0s, $0.02 est.

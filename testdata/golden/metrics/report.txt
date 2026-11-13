@@ -1,5 +1,5 @@
 acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outcome merged · survival pending
-  11-11 10:00  fa      attempt p1 started (plan)                                                         config fa@1
+  11-11 10:00  fa      attempt p1 started                                                                role plan · config fa@1
   11-11 10:00  fb      attempt c1 started (build)                                                        config fb@2
   11-11 10:02  fa      session p1 claude-haiku-5-5: 1.0k in / ? cache read / ? cache write / 300 out     $0.01 reported
   11-11 10:03          waiting for human (plan_review)                                                   
@@ -8,7 +8,7 @@ acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outc
   11-11 10:06          attempt c2 started (build, parent c1)                                             config fb@2
   11-11 10:06  fa      human steering (comment)                                                          
   11-11 10:09  fb      session c2 claude-haiku-5-5: 2.0k in / ? cache read / ? cache write / 400 out     $0.02 reported
-  11-11 10:10  fa      attempt b1 started (build, handoff, parent p1)                                    config fa@1
+  11-11 10:10  fa      attempt b1 started · handoff from attempt p1                                      role build · config fa@1
   11-11 10:10  fb      gate build passed                                                                 
   11-11 10:10  fa      resumed by human (plan_approved)                                                  waited 7m0s
   11-11 10:11  fb      session c2 claude-haiku-5-5: 600 in / ? cache read / ? cache write / 100 out      $0.01 reported
@@ -38,11 +38,11 @@ acme/app#10 "Add retry with backoff to the upstream fetcher client" [bug]   outc
   totals  all factories  4 attempts · 2 stages · 0 retries (3 completed, 1 failed) · 5 sessions · tokens 7.6k in / 1.4k out / 2.0k cache · 21m0s elapsed (wall clock) · 1 human waits (7m0s) · $0.08 reported +? · usage coverage 3/4 attempts
 
 acme/app#11 "Fix typo in docs" [docs]   outcome open · survival n/a
-  11-11 11:00  fa      attempt p3 started (plan)                                                     config fa@2
+  11-11 11:00  fa      attempt p3 started                                                            role plan · config fa@2
   11-11 11:01          session p3 claude-haiku-5-5: 500 in / ? cache read / ? cache write / 100 out  $0.01 reported
   11-11 11:02          waiting for human (plan_review)                                               
   11-11 11:03          attempt p3 completed                                                          3m0s, $0.01 reported
-  11-11 11:10          attempt b3 started (build, handoff, parent p3)                                config fa@2
+  11-11 11:10          attempt b3 started · handoff from attempt p3                                  role build · config fa@2
   11-11 11:10          resumed by human (plan_approved)                                              waited 8m0s
   11-11 11:12          session b3 mystery-model: 900 in / ? cache read / ? cache write / 200 out     unknown (1 session(s) unpriced)
   11-11 11:14          PR linked https://github.com/acme/app/pull/22                                 

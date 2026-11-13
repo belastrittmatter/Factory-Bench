@@ -342,6 +342,9 @@ func (s *server) item(r *http.Request) (any, error) {
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
 		"checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
+		// cost per attempt and phase, for the issue's cost per stage on single-session runs
+		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1, 2, 3 ORDER BY min(u.ts)`,
 	} {
 		if res[k], err = q(query); err != nil {
 			return nil, err

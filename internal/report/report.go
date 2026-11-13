@@ -208,12 +208,21 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 	}
 	for _, a := range atts {
 		a.staged = staged[a.factory]
+		text, extra := "attempt "+a.id+" started", "config "+a.config
+		if a.staged { // "attempt b started · handoff from attempt a"; role and inference move to the detail line
+			if how := map[string]string{"handoff": "handoff from", "retry": "retry of"}[a.stage]; how != "" {
+				text += " · " + how + " attempt " + a.parent.String
+			}
+			extra = "role " + a.role.String + " · " + extra
+			if a.parent.Valid && a.inferred {
+				extra += " · parent inferred"
+			}
+			lines = append(lines, line{a.started, 0, a.factory, text, extra})
+			continue
+		}
 		var desc []string
 		if a.role.Valid {
 			desc = append(desc, a.role.String)
-		}
-		if a.staged && a.stage != "" {
-			desc = append(desc, a.stage)
 		}
 		if a.parent.Valid {
 			desc = append(desc, "parent "+a.parent.String)
@@ -221,11 +230,10 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 				desc = append(desc, "inferred")
 			}
 		}
-		text := "attempt " + a.id + " started"
 		if desc != nil {
 			text += " (" + strings.Join(desc, ", ") + ")"
 		}
-		lines = append(lines, line{a.started, 0, a.factory, text, "config " + a.config})
+		lines = append(lines, line{a.started, 0, a.factory, text, extra})
 	}
 
 	err = store.Each(db, `SELECT u.factory_id, u.attempt_id, u.ts, u.model, u.input, u.output, u.cache_read, u.cache_write,
