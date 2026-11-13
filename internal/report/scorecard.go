@@ -253,6 +253,40 @@ var scorecard = []struct {
 	{"rejected events", func(c *card) string { return fmt.Sprint(c.rejected) }},
 }
 
+// ScoreRow is one scorecard metric, one value per group; "" values are shown as n/a.
+type ScoreRow struct {
+	Label  string
+	Values []string
+}
+
+// Scorecard returns the `report factories` scorecard as data: group names (factory or factory + config) and the shown rows.
+func Scorecard(db *sql.DB, byConfig bool, now time.Time) ([]string, []ScoreRow, error) {
+	d, err := loadMetrics(db)
+	if err != nil {
+		return nil, nil, err
+	}
+	cards := buildCards(d, byConfig, now)
+	groups := []string{}
+	for _, c := range cards {
+		groups = append(groups, c.group)
+	}
+	rows := []ScoreRow{}
+	for _, m := range scorecard {
+		r, shown := ScoreRow{Label: m.label, Values: make([]string, len(cards))}, false
+		for i, c := range cards {
+			r.Values[i] = m.val(c)
+			shown = shown || r.Values[i] != ""
+			if r.Values[i] == "" {
+				r.Values[i] = "n/a"
+			}
+		}
+		if shown {
+			rows = append(rows, r)
+		}
+	}
+	return groups, rows, nil
+}
+
 // Factories prints the scorecard (metrics as rows, factories as columns), then gate and CI breakdowns.
 func Factories(db *sql.DB, w io.Writer, byConfig bool, now time.Time) error {
 	d, err := loadMetrics(db)

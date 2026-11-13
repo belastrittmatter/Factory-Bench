@@ -450,6 +450,24 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 	return atts, lines, nil
 }
 
+// TimelineLine is one line of `report item`: Who is a factory or "github"; Kind orders lines with equal TS
+// (0 started, 1 session or subagent, 2 gate or human or PR link, 3 finished, 4 GitHub).
+type TimelineLine struct {
+	TS, Who, Text, Extra string
+	Kind, Depth          int // Depth: subagent nesting below the attempt
+}
+
+// Timeline returns the `report item` timeline of one work item as data.
+func Timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]TimelineLine, error) {
+	_, lines, err := timeline(db, repo, issue, now)
+	out := make([]TimelineLine, len(lines))
+	for i, l := range lines {
+		t := strings.TrimLeft(l.text, " ")
+		out[i] = TimelineLine{l.ts, l.who, t, l.extra, l.rank, (len(l.text) - len(t)) / 2}
+	}
+	return out, err
+}
+
 func orNA(s sql.NullString) string {
 	if !s.Valid {
 		return "n/a"
@@ -509,10 +527,25 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 		len(atts), strings.Join(st, ", "), c.sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
 }
 
-// Live prints one row per attempt that is running or waiting for a human. The last tool column (latest tool call,
-// the agent that made it, how long ago) is only shown when one of the attempts has tool calls.
-func Live(db *sql.DB, w io.Writer, now time.Time) error {
-	rows, err := db.Query(`SELECT a.factory_id, a.repo, a.issue, a.attempt_id, a.state, a.started_at, a.human_wait_ms,
+// LiveRow is one attempt that is running or waiting for a human. Nil pointers are unknown values.
+type LiveRow struct {
+	Factory, Repo  string
+	Issue          int64
+	Attempt, State string
+	Started        time.Time
+	Elapsed, Wait  time.Duration // Wait includes a human wait that is still open
+	Tokens         *int64
+	Cost           *float64 // sum of priced sessions
+	Unpriced       int64    // sessions that couldn't be priced
+	LastEvent      *time.Time
+	LastTool       string // "" = no tool call yet
+	LastToolAt     *time.Time
+}
+
+// LiveRows loads the attempts that are running or waiting for a human, oldest first.
+func LiveRows(db *sql.DB, now time.Time) ([]LiveRow, error) {
+	var out []LiveRow
+	err := store.Each(db, `SELECT a.factory_id, a.repo, a.issue, a.attempt_id, a.state, a.started_at, a.human_wait_ms,
 		a.waiting_since,
 		(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u
 		   WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id),
@@ -522,43 +555,73 @@ func Live(db *sql.DB, w io.Writer, now time.Time) error {
 		(SELECT tool_name || ' by ' || coalesce('subagent ' || agent_id, 'main') FROM tool_calls t
 		   WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id ORDER BY ts DESC, rowid DESC LIMIT 1),
 		(SELECT max(ts) FROM tool_calls t WHERE t.factory_id = a.factory_id AND t.attempt_id = a.attempt_id)
-		FROM attempts a WHERE state IN ('running', 'waiting_for_human') ORDER BY started_at`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	var out []string
-	tools := false
-	for rows.Next() {
-		var f, repo, id, state, started string
-		var issue, waitMS, unpriced int64
+		FROM attempts a WHERE state IN ('running', 'waiting_for_human') ORDER BY started_at`, func(rows *sql.Rows) error {
+		var l LiveRow
+		var started string
+		var waitMS int64
 		var waitingSince, lastTS, lastTool, lastToolTS sql.NullString
 		var tokens sql.NullInt64
 		var cost sql.NullFloat64
-		if err := rows.Scan(&f, &repo, &issue, &id, &state, &started, &waitMS, &waitingSince, &tokens, &cost, &unpriced, &lastTS, &lastTool, &lastToolTS); err != nil {
+		if err := rows.Scan(&l.Factory, &l.Repo, &l.Issue, &l.Attempt, &l.State, &started, &waitMS, &waitingSince, &tokens, &cost, &l.Unpriced, &lastTS, &lastTool, &lastToolTS); err != nil {
 			return err
 		}
-		wait := time.Duration(waitMS) * time.Millisecond
-		if state == "waiting_for_human" && waitingSince.Valid {
-			wait += now.Sub(parse(waitingSince.String))
+		l.Started = parse(started)
+		l.Wait = time.Duration(waitMS) * time.Millisecond
+		if l.State == "waiting_for_human" && waitingSince.Valid {
+			l.Wait += now.Sub(parse(waitingSince.String))
 		}
-		elapsed := now.Sub(parse(started))
-		c := "unknown"
+		l.Elapsed = now.Sub(l.Started)
+		if tokens.Valid {
+			l.Tokens = &tokens.Int64
+		}
 		if cost.Valid {
-			c = usd(cost.Float64)
-			if unpriced > 0 {
+			l.Cost = &cost.Float64
+		}
+		if lastTS.Valid {
+			t := parse(lastTS.String)
+			l.LastEvent = &t
+		}
+		if lastTool.Valid {
+			t := parse(lastToolTS.String)
+			l.LastTool, l.LastToolAt = lastTool.String, &t
+		}
+		out = append(out, l)
+		return nil
+	})
+	return out, err
+}
+
+// Live prints one row per attempt that is running or waiting for a human. The last tool column (latest tool call,
+// the agent that made it, how long ago) is only shown when one of the attempts has tool calls.
+func Live(db *sql.DB, w io.Writer, now time.Time) error {
+	rows, err := LiveRows(db, now)
+	if err != nil {
+		return err
+	}
+	var out []string
+	tools := false
+	for _, l := range rows {
+		c := "unknown"
+		if l.Cost != nil {
+			c = usd(*l.Cost)
+			if l.Unpriced > 0 {
 				c += " + unknown"
 			}
 		}
 		tool := "-"
-		if lastTool.Valid {
-			tools, tool = true, lastTool.String+" "+dur(now.Sub(parse(lastToolTS.String)))+" ago"
+		if l.LastTool != "" {
+			tools, tool = true, l.LastTool+" "+dur(now.Sub(*l.LastToolAt))+" ago"
 		}
-		out = append(out, fmt.Sprintf("%s\t%s#%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s ago\t%s\n", f, repo, issue, id, state, dur(elapsed),
-			dur(elapsed-wait), dur(wait), tok(tokens), c, dur(now.Sub(parse(lastTS.String))), tool))
-	}
-	if err := rows.Err(); err != nil {
-		return err
+		last := "?"
+		if l.LastEvent != nil {
+			last = dur(now.Sub(*l.LastEvent))
+		}
+		var tokens sql.NullInt64
+		if l.Tokens != nil {
+			tokens = sql.NullInt64{Int64: *l.Tokens, Valid: true}
+		}
+		out = append(out, fmt.Sprintf("%s\t%s#%d\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s ago\t%s\n", l.Factory, l.Repo, l.Issue, l.Attempt, l.State, dur(l.Elapsed),
+			dur(l.Elapsed-l.Wait), dur(l.Wait), tok(tokens), c, last, tool))
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	header := "factory\tissue\tattempt\tstatus\telapsed\tactive\thuman wait\ttokens\tcost\tlast event"

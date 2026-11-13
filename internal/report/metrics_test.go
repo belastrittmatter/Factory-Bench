@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -176,5 +177,50 @@ func TestCIStats(t *testing.T) {
 	}
 	if cs := ciStats(nil); cs.median != "n/a" || cs.runs != 0 {
 		t.Errorf("ciStats(nil) = %+v", cs)
+	}
+}
+
+func TestItemRows(t *testing.T) {
+	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
+	rows, err := ItemRows(db, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	// review rounds are the hand-computed ones from TestScorecard; unknowns stay "?" / "n/a"
+	want := map[string]string{
+		"fa acme/app#10": "merged | 1 on 1 reviewed PRs | ? | 20m0s | 0% (0/1)",
+		"fa acme/app#11": "open | 0 on 1 reviewed PRs | ? | 14m0s | 100% (1/1)",
+		"fb acme/app#10": "rejected | 2 on 1 reviewed PRs | ? | 12m0s | 0% (0/1)",
+	}
+	if len(rows) != len(want) {
+		t.Fatalf("got %d rows, want %d", len(rows), len(want))
+	}
+	for _, r := range rows {
+		if got := strings.Join([]string{r.Outcome, r.ReviewRounds, r.Size, r.ToPR, r.CIFirstPush}, " | "); got != want[r.Factory+" "+r.Item] {
+			t.Errorf("%s %s: %q, want %q", r.Factory, r.Item, got, want[r.Factory+" "+r.Item])
+		}
+	}
+	for _, r := range rows { // the numeric fields say what the text columns say
+		if r.HasPR != (r.PRs != "") || r.Merged != (r.Outcome == "merged") || (r.ToPRSeconds == nil) != (r.ToPR == "n/a") || r.CostUSD == nil {
+			t.Errorf("%s %s numeric fields disagree with the text: %+v", r.Factory, r.Item, r)
+		}
+		if r.CostLowerBound != strings.HasSuffix(r.Cost, "+?") {
+			t.Errorf("%s %s lower bound %v, cost %q", r.Factory, r.Item, r.CostLowerBound, r.Cost)
+		}
+	}
+}
+
+func TestScorecardRows(t *testing.T) {
+	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
+	groups, rows, err := Scorecard(db, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string][]string{}
+	for _, r := range rows {
+		got[r.Label] = r.Values
+	}
+	if len(groups) != 2 || groups[0] != "fa" || got["review rounds / PR"][1] != "2.0 (2/1)" || got["work items"][0] != "2" {
+		t.Errorf("groups %v, rows %v", groups, got)
 	}
 }
