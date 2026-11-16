@@ -358,7 +358,7 @@ function area(w,h,pts,fmt,color,o={}){
   const t0=o.t0??+pts[0].t,t1=Math.max(o.t1??+pts[pts.length-1].t,t0+1),sc=scale(Math.max(...pts.map(p=>p.v))),max=sc.max;
   const X=t=>pl+(t-t0)/(t1-t0)*iw,Y=v=>pt+ih-v/max*ih;
   let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=Y(v);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
-  for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(fmtTime(new Date(t)))}</text>`}
+  let lastT;for(let k=0;k<=4;k++){const t=t0+(t1-t0)*k/4,s=fmtTime(new Date(t));if(s===lastT)continue;lastT=s;g+=`<text x="${X(t)}" y="${h-6}" text-anchor="${k?k===4?'end':'middle':'start'}">${esc(s)}</text>`}
   const d=pts.map((p,i)=>`${i?'L':'M'}${X(+p.t).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
   let quiet='';pts.forEach((p,i)=>{if(i&&+p.t-+pts[i-1].t>=QUIET_MS){const a=X(+pts[i-1].t),b=X(+p.t),y=Y(pts[i-1].v);quiet+=`<path d="M${a},${y}H${b}" stroke="var(--surface)" stroke-width="3" stroke-dasharray="5 5"/>`+(b-a>70?`<text x="${(a+b)/2}" y="${y-6}" text-anchor="middle" style="fill:var(--text-3);font-size:10px">no events ${esc(fmtDur((+p.t-+pts[i-1].t)/1000))}</text>`:'')}});
   const id='a'+Math.random().toString(36).slice(2,7);
@@ -375,13 +375,13 @@ function callBars(w,h,items,series,fmt,bands){
   const {pl,pr,pb}=AX,pt=bands?20:8,iw=w-pl-pr,ih=h-pt-pb,n=Math.max(1,items.length),step=iw/n,bw=Math.max(1.5,Math.min(14,step*.75));
   const tot=items.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0)),sc=scale(Math.max(...tot,0)),max=sc.max,cx=i=>pl+(i+.5)*step;
   let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});
-  let bd='',lastEnd=-1e9;
+  let bd='',lastEnd=-1e9,lastT;
   (bands||[]).filter(r=>r.lane).forEach(r=>{const ix=items.map((_,i)=>i).filter(i=>+items[i].t>=+T(r.at)&&+items[i].t<=+T(r.end));if(!ix.length)return;
     const x1=pl+ix[0]*step,x2=pl+(ix.at(-1)+1)*step,c=r.color||colorOf('lane',r.lane);
     bd+=`<rect x="${x1}" y="${pt}" width="${x2-x1}" height="${ih}" fill="${c}" opacity=".09"/><rect x="${x1}" y="${pt}" width="1" height="${ih}" fill="${c}" opacity=".5"/>${x2-x1>16+r.lane.length*6.5?`<rect x="${x1+3}" y="${pt-11}" width="6" height="6" fill="${c}"/><text x="${x1+12}" y="${pt-5}" style="fill:var(--text-2)">${esc(r.lane)}</text>`:''}`;
-    if(x1-lastEnd>=8){g+=`<text x="${x1}" y="${h-6}">${esc(fmtTime(T(r.at)))}</text>`;lastEnd=x1+44}});
+    const s=fmtTime(T(r.at));if(x1-lastEnd>=8&&s!==lastT){g+=`<text x="${x1}" y="${h-6}">${esc(s)}</text>`;lastEnd=x1+44;lastT=s}});
   g+='</g>';
-  if(lastEnd<0&&items.length)g=g.replace('</g>',`<text x="${pl}" y="${h-6}">${esc(fmtTime(items[0].t))}</text><text x="${w-pr}" y="${h-6}" text-anchor="end">${esc(fmtTime(items.at(-1).t))}</text></g>`);
+  if(lastEnd<0&&items.length){const a=fmtTime(items[0].t),b=fmtTime(items.at(-1).t);g=g.replace('</g>',`<text x="${pl}" y="${h-6}">${esc(a)}</text>${b===a?'':`<text x="${w-pr}" y="${h-6}" text-anchor="end">${esc(b)}</text>`}</g>`)}
   let m='';items.forEach((it,i)=>{let y=pt+ih;series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(.5,v/max*ih);y-=hh;m+=`<rect x="${cx(i)-bw/2}" y="${y}" width="${bw}" height="${hh}" fill="${s.color}"/>`});
     m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" data-tip="${esc(it.tip+'\n'+series.filter(s=>s.values[i]).map(s=>s.name+': '+fmt(s.values[i])).join('\n'))}"/>`});
   const tX=t=>{let k=0;while(k+1<items.length&&+items[k+1].t<=t)k++;return cx(k)};
@@ -721,7 +721,7 @@ V.attempt=async(f,id)=>{
   let strip='';if(tl.length){const names=d.tools.map(t=>t.tool_name).slice(0,10),t0=ax0,t1=Math.max(ax1,t0+1),pl=96,X=t=>pl+(t-t0)/(t1-t0)*(w*.62-pl-8),h=names.length*22+26;
     strip=`<svg class="chart" viewBox="0 0 ${w*.62} ${h}" width="${w*.62}" height="${h}"${tmap(X,t0,t1)}>`+names.map((n,i)=>`<text x="0" y="${i*22+15}" style="fill:var(--text-2)">${esc(n.length>13?n.slice(0,12)+'…':n)}</text><line class="axis" x1="${pl}" x2="${w*.62-8}" y1="${i*22+11}" y2="${i*22+11}" style="stroke:var(--line)"/>`).join('')+
     tl.filter(t=>names.includes(t.tool_name)).map(t=>`<circle cx="${X(+T(t.ts))}" cy="${names.indexOf(t.tool_name)*22+11}" r="${t.success===0?4.5:3}" opacity="${t.success===0?1:.8}" fill="${t.success===0?'var(--crit)':'var(--ink)'}" stroke="none" data-tip="${esc(`${t.tool_name} · ${t.success===0?'failed':nil(t.success)?'result unknown':'ok'}\n${fmtWhen(t.ts)} · ${nil(t.duration_ms)?'?':t.duration_ms+' ms'}${t.error_type?'\n'+t.error_type:''}${t.agent_id?'\nsubagent '+t.agent_id:''}`)}"/>`).join('')+
-    [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
+    [0,.5,1].map(k=>[k,fmtTime(new Date(t0+(t1-t0)*k))]).filter(([,s],i,a)=>!i||s!==a[i-1][1]).map(([k,s])=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(s)}</text>`).join('')+'</svg>'}
   return `<div class="crumbs"><a href="#items">Issues</a>›<a href="${itemHref(a.repo,a.issue)}">${esc(a.repo)}#${a.issue}</a>›<span>${esc(id)}</span></div>`+topbar(`Attempt <span class="mono" style="font-size:15px;font-weight:500">${esc(shortId(id))}</span>`,(local?`<button class="btn" data-open-local>${ico('lock')} Conversation</button>`:''))+
   `
   <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span>${runType(d.run,d.run_sessions,d.run_lanes,true)}${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
