@@ -49,10 +49,9 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
-// sessionsSQL is every Claude Code session (distinct OTLP session.id) of attempts a: its first and last event, phase(s), and
-// the cost of the attempt's model calls in that window. Callers append a filter on a and an ORDER BY.
-const sessionsSQL = `SELECT s.factory_id, s.attempt_id, s.session, s.first_ts, s.last_ts, s.phase,
-	(SELECT sum(u.cost_usd) FROM usage u WHERE u.factory_id = s.factory_id AND u.attempt_id = s.attempt_id AND u.ts BETWEEN s.first_ts AND s.last_ts) AS cost_usd
+// sessionsSQL is every Claude Code session (distinct OTLP session.id) of attempts a: its first and last event and phase(s).
+// Callers append a filter on a and an ORDER BY.
+const sessionsSQL = `SELECT s.factory_id, s.attempt_id, s.session, s.first_ts, s.last_ts, s.phase
 	FROM (SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts,
 	max(ts) AS last_ts, group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events WHERE source = 'otlp' GROUP BY 1, 2, 3) s
 	JOIN attempts a USING (factory_id, attempt_id) WHERE s.session IS NOT NULL`

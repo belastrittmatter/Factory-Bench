@@ -112,9 +112,8 @@ func TestEndpoints(t *testing.T) {
 	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 1 {
 		t.Errorf("item attempt subagents: %v", a)
 	}
-	// a session's cost is the attempt's model calls between its first and last event
 	if s := item["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" ||
-		s[0].(map[string]any)["phase"] != "p1" || s[0].(map[string]any)["cost_usd"] != 0.5 || s[0].(map[string]any)["first_ts"] == nil {
+		s[0].(map[string]any)["phase"] != "p1" || s[0].(map[string]any)["first_ts"] == nil {
 		t.Errorf("item sessions: %v", s)
 	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
