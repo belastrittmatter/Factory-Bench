@@ -49,12 +49,14 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
-// sessionsSQL is every Claude Code session (distinct OTLP session.id) of attempts a: its first and last event and phase(s).
-// Callers append a filter on a and an ORDER BY.
-const sessionsSQL = `SELECT s.factory_id, s.attempt_id, s.session, s.first_ts, s.last_ts, s.phase
-	FROM (SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts,
-	max(ts) AS last_ts, group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events WHERE source = 'otlp' GROUP BY 1, 2, 3) s
-	JOIN attempts a USING (factory_id, attempt_id) WHERE s.session IS NOT NULL`
+// sessionsSQL is every Claude Code session (distinct OTLP session.id) of the attempts a matching filter, oldest first:
+// its first and last event and phase(s). The filter narrows the events before grouping, so a page reads only its own sessions.
+func sessionsSQL(filter string) string {
+	return `SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session,
+	min(ts) AS first_ts, max(ts) AS last_ts, group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
+	WHERE source = 'otlp' AND (factory_id, json_extract(payload, '$."factorybench.attempt"')) IN (SELECT factory_id, attempt_id FROM attempts a WHERE ` + filter + `)
+	GROUP BY 1, 2, 3 HAVING session IS NOT NULL ORDER BY first_ts`
+}
 
 // withStatus adds "status" to attempt rows that carry state and last_event.
 func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
@@ -162,8 +164,9 @@ func Handler(db *sql.DB, o Options) http.Handler {
 	mux.HandleFunc("/api/item", s.json(s.item))
 	mux.HandleFunc("/api/attempt", s.json(s.attempt))
 	mux.HandleFunc("/api/series", s.json(s.series))
-	// every session, for the run format on Compare only: it scans all OTLP events, so it stays out of /api/series, which Overview polls
-	mux.HandleFunc("/api/sessions", s.json(func(r *http.Request) (any, error) { return rows(s.db, sessionsSQL+` ORDER BY s.first_ts`) }))
+	// every session, for the run format on Compare (which polls it every 5 s too): it reads all OTLP events, so it stays out of
+	// /api/series, which Overview polls
+	mux.HandleFunc("/api/sessions", s.json(func(r *http.Request) (any, error) { return rows(s.db, sessionsSQL("1")) }))
 	mux.HandleFunc("/api/summary", s.json(s.summaryAPI))
 	mux.HandleFunc("/api/flow", s.json(s.flow))
 	mux.HandleFunc("/api/local/manifest", s.json(s.manifest))
@@ -340,7 +343,7 @@ func (s *server) item(r *http.Request) (any, error) {
 			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens,
 			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
-		"sessions": sessionsSQL + ` AND a.repo = ?1 AND a.issue = ?2 ORDER BY s.first_ts`,
+		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"prs":      `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
@@ -404,7 +407,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
 			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = r.factory_id AND u.attempt_id = r.attempt_id) AS subagents
 			FROM attempts r JOIN attempts a USING (factory_id, repo, issue) WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
-		{"run_sessions", sessionsSQL + ` AND a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2) ORDER BY s.first_ts`},
+		{"run_sessions", sessionsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
 	} {
 		if res[q.key], err = rows(s.db, q.sql, f, id); err != nil {
 			return nil, err
