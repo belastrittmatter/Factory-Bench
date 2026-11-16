@@ -330,6 +330,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:25:02.757Z"
       },
       {
@@ -347,6 +348,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:25:04.673Z"
       },
       {
@@ -364,6 +366,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:25:06.844Z"
       },
       {
@@ -381,6 +384,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:25:08.865Z"
       },
       {
@@ -398,6 +402,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:25:10.776Z"
       },
       {
@@ -415,6 +420,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:23.056Z"
       },
       {
@@ -432,6 +438,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:24.916Z"
       },
       {
@@ -449,6 +456,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:27.685Z"
       },
       {
@@ -466,6 +474,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:29.451Z"
       },
       {
@@ -483,6 +492,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:30.517Z"
       },
       {
@@ -500,6 +510,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:34.369Z"
       },
       {
@@ -517,6 +528,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:36.583Z"
       },
       {
@@ -534,6 +546,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:24:38.668Z"
       },
       {
@@ -551,6 +564,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:16.745Z"
       },
       {
@@ -568,6 +582,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:18.851Z"
       },
       {
@@ -585,6 +600,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:20.522Z"
       },
       {
@@ -602,6 +618,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:25.896Z"
       },
       {
@@ -619,6 +636,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:27.738Z"
       },
       {
@@ -636,6 +654,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:28.073Z"
       },
       {
@@ -653,6 +672,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:30.521Z"
       },
       {
@@ -670,6 +690,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:33.178Z"
       },
       {
@@ -687,6 +708,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-12T06:23:34.570Z"
       }
     ],

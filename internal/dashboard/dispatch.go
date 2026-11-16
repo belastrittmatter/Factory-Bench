@@ -246,20 +246,22 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	return rows
 }
 
-// rework counts how often a card went back to a lane it had already visited after another lane (bounces) and how
-// often the same lane was dispatched twice in a row (re-dispatches). lanes are in dispatch order.
-func rework(lanes []string) (bounces, redispatches int) {
-	seen := map[string]bool{}
+// rework counts how often a card went back to a lane it had already visited after another lane (bounces, and per
+// lane in back) and how often the same lane was dispatched twice in a row (re-dispatches). lanes are in dispatch order.
+// Named steps use it the same way, a step for a lane.
+func rework(lanes []string) (bounces, redispatches int, back map[string]int) {
+	seen, back := map[string]bool{}, map[string]int{}
 	for i, l := range lanes {
 		switch {
 		case i > 0 && l == lanes[i-1]:
 			redispatches++
 		case seen[l]:
 			bounces++
+			back[l]++
 		}
 		seen[l] = true
 	}
-	return bounces, redispatches
+	return bounces, redispatches, back
 }
 
 // barEnd is where an attempt's timeline bar stops and why: its end ("ended"), the start of the human wait it is in

@@ -235,7 +235,7 @@ TABLES = {
                                     ('input / output', 'int', ''), ('cache_read / write', 'int', ''), ('reasoning', 'int', ''),
                                     ('cost_usd', 'real, null', ''), ('cost_provenance', 'text', ''),
                                     ('price_version', 'text', ''), ('phase', 'impl|verify|review', ''),
-                                    ('agent_id', 'null = main', '')]),
+                                    ('agent_id', 'null = main', ''), ('step', 'text, null', '')]),
     'gates': (261, 697, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('ts', 'text', ''), ('name', 'text', ''),
                                     ('passed', 'bool', ''), ('reason', 'text', '')]),
     'prs': (514, 40, 200, 'p0', [('repo', 'text', 'PK'), ('number', 'int', 'PK'), ('url', 'text', ''), ('branch', 'text', ''),

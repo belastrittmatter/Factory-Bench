@@ -38,7 +38,13 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	for v, old := range map[int]string{1: v1, 2: schemaV2} {
+	// v3 is the current schema without usage.step
+	v3 := strings.Replace(schema, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)", "", 1)
+	v3 = strings.Replace(v3, "agent_id          TEXT,                   -- subagent", "agent_id          TEXT                    -- subagent", 1)
+	if v3 == schema || strings.Contains(v3, "  step ") {
+		t.Fatal("schema.sql no longer has the usage.step line this test removes")
+	}
+	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3} {
 		t.Run(fmt.Sprint("v", v), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "fb.db")
 			raw, err := sql.Open("sqlite", "file:"+path)
@@ -58,8 +64,8 @@ func TestOpenMigrates(t *testing.T) {
 				t.Fatal(err)
 			}
 			var n int
-			if err := db.QueryRow("PRAGMA user_version").Scan(&n); err != nil || n != 3 {
-				t.Fatalf("user_version %d (%v), want 3", n, err)
+			if err := db.QueryRow("PRAGMA user_version").Scan(&n); err != nil || n != SchemaVersion {
+				t.Fatalf("user_version %d (%v), want %d", n, err, SchemaVersion)
 			}
 			// positional inserts (normalize) need the same column order as a fresh database
 			got := columns(t, db)

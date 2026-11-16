@@ -149,7 +149,7 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 			lanes = append(lanes, d.Lane)
 		}
 	}
-	bounces, redis := rework(lanes)
+	bounces, redis, _ := rework(lanes)
 	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n], Waits: waits,
 		Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
 }

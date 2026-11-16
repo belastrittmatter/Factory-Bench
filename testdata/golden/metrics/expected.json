@@ -330,6 +330,7 @@
         "phase": "implement",
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:15:00.000Z"
       },
       {
@@ -347,6 +348,7 @@
         "phase": "verify",
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:18:00.000Z"
       },
       {
@@ -364,6 +366,7 @@
         "phase": "review",
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T11:12:00.000Z"
       },
       {
@@ -381,6 +384,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:02:00.000Z"
       },
       {
@@ -398,6 +402,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T11:01:00.000Z"
       },
       {
@@ -415,6 +420,7 @@
         "phase": "implement",
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:09:00.000Z"
       },
       {
@@ -432,6 +438,7 @@
         "phase": "review",
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:11:00.000Z"
       }
     ],

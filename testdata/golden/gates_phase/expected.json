@@ -89,6 +89,7 @@
         "phase": "implement",
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:04:00.000Z"
       },
       {
@@ -106,6 +107,7 @@
         "phase": "verify",
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:07:00.000Z"
       },
       {
@@ -123,6 +125,7 @@
         "phase": "implement",
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:14:00.000Z"
       },
       {
@@ -140,6 +143,7 @@
         "phase": "review",
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:18:00.000Z"
       },
       {
@@ -157,6 +161,7 @@
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:19:00.000Z"
       }
     ],
