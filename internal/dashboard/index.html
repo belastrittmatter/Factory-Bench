@@ -559,16 +559,18 @@ const STAGED_TIP='Staged run: the factory split this try into separate sessions 
 // ran several Claude Code sessions; phases are not used: a session is not a phase), subagents (subagent
 // runs, as on the attempt page and the scorecard), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
+const ONE='one Claude Code session per attempt',NO_SESSIONS='sessions unknown (no Claude Code telemetry)';
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged)){const t='staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ');p.push(['staged',t,t])}
-  const multi=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id)).filter(x=>x.length>1);
-  if(multi.length){const ns=multi.map(x=>x.length),most=Math.max(...ns);
-    p.push(['sessions',`${ns.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt'])}
+  // sessions of each attempt; "up to" when not every attempt had the most; none at all = no telemetry, so unknown, not one
+  const ns=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id).length),most=Math.max(0,...ns),upto=ns.some(k=>k!==most)?'up to ':'';
+  if(!most)p.push(['unknown',NO_SESSIONS,NO_SESSIONS]);
+  else if(most>1)p.push(['sessions',`${upto}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt']);
+  else if(upto)p.push(['one','up to one Claude Code session per attempt',ONE]);
   if(n)p.push(['subagents',plural(n,'subagent'),'Claude Code with subagents']);
   if(ls.length){const t='lanes: '+[...new Set(ls)].join(' → ');p.push(['lanes',t,t])}return p};
-const ONE='one Claude Code session per attempt';
 const runLabel=(p,general)=>p.map(x=>x[general?2:1]).join(', ')||ONE;
-const FORMAT_TIP='How this factory worked on the issue:\nStaged: the work was split into stages (e.g. plan → build), each its own attempt\nSessions per attempt: an attempt started Claude Code more than once (distinct session ids in its telemetry)\nSubagents: helper agents that made their own model calls\nLanes: the board lanes the card was dispatched to\nOne session per attempt: none of these\nOnly staged changes how metrics count attempts';
+const FORMAT_TIP='How this factory worked on the issue:\nStaged: the work was split into stages (e.g. plan → build), each its own attempt\nSessions per attempt: an attempt started Claude Code more than once (distinct session ids in its telemetry)\nSubagents: helper agents that made their own model calls\nLanes: the board lanes the card was dispatched to\nSessions unknown: no attempt of the run sent Claude Code telemetry\nOne session per attempt: none of these\nOnly staged changes how metrics count attempts';
 // general: how the factory works, without counts (the attempt page, where run-wide counts read as this attempt's)
 const runType=(as,ss=[],ls=[],general)=>`<span data-tip="${esc(FORMAT_TIP)}" style="cursor:help">run format <b>${esc(runLabel(runParts(as,ss,ls),general))}</b></span>`;
 // cost per stage of one factory's attempts: by role on a staged run (retries counted toward their role), else by usage phase
@@ -754,8 +756,8 @@ function metricNum(v){v=String(v);if(/^n\/a|^\?/.test(v))return null;const d=/^(
 // a "run format" row after work items: the format of a group's runs (factory × issue), all time like the scorecard; lanes are not known here
 function runTypeRow(sc,atts,gk,ss){
   const vals=sc.groups.map(g=>{const runs={};atts.filter(a=>gk(a)===g).forEach(a=>{const k=a.factory_id+' '+a.repo+'#'+a.issue;(runs[k]=runs[k]||[]).push(a)});
-    const ps=Object.values(runs).map(as=>runParts(as,ss,[])),n=ps.length,ls=new Set(ps.map(runLabel));if(!n)return'n/a';if(ls.size===1)return[...ls][0];
-    return [['staged','staged'],['sessions','several sessions per attempt'],['subagents','subagents']].map(([k,w])=>[w,ps.filter(p=>p.some(x=>x[0]===k)).length]).filter(x=>x[1]).map(([w,m])=>`${w}: ${m===n?'all '+n:m+' of '+n} runs`).join(', ')||ONE});
+    const ps=Object.values(runs).map(as=>runParts(as,ss,[])),n=ps.length,ls=new Set(ps.map(p=>runLabel(p)));if(!n)return'n/a';if(ls.size===1)return[...ls][0];
+    return [['staged','staged'],['sessions','several sessions per attempt'],['unknown','sessions unknown'],['subagents','subagents']].map(([k,w])=>[w,ps.filter(p=>p.some(x=>x[0]===k)).length]).filter(x=>x[1]).map(([w,m])=>`${w}: ${m===n?'all '+n:m+' of '+n} runs`).join(', ')||ONE});
   const rows=sc.rows.slice(),i=rows.findIndex(r=>r.Label==='work items')+1;rows.splice(i,0,{Label:'run format',Values:vals,raw:true});return {...sc,rows}}
 // one table, a column per picked group, a row per metric, section rows between; same numbers as report factories
 function scoreTable(sc,groups){
