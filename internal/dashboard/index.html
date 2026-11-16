@@ -651,7 +651,9 @@ V.item=async(repo,issue)=>{
   const tokens=d.attempts.reduce((a,x)=>a+(x.tokens||0),0);
   const t0=Math.min(...d.attempts.map(a=>+T(a.started_at))),t1=Math.max(...f.attempts.map(a=>+T(a.bar_end))); // where the bars stop: waiting or idle attempts do not run to now
   const bounces=f.bounces,redis=f.redispatches,lanes=f.dispatches.filter(x=>x.lane),labels=attLabels(d.attempts);
-  const pr=d.prs[0];
+  const pr=d.prs[0],act=d.activity[0]||{},wait=d.attempts.reduce((n,a)=>n+(a.human_wait_ms||0),0);
+  // a report value of the issue's factory, or of each factory when several worked on it
+  const per=(k,fmt)=>d.units.length===1?fmt(d.units[0][k]):d.units.map(u=>`${esc(u.Factory)} ${fmt(u[k])}`).join(' · ')||U;
   const w=W($('#main'))-90;
   const facs=uniq(d.attempts.map(a=>a.factory_id)),fAtts=fc=>d.attempts.filter(a=>a.factory_id===fc);
   return `<div class="crumbs"><a href="#items">Issues</a>›<span>${esc(repo)}#${issue}</span></div>`+topbar(esc(d.title||repo+'#'+issue))+
@@ -660,11 +662,19 @@ V.item=async(repo,issue)=>{
    ${kpi('Outcome',pr?chip(pr.state):chip('open'),d.prs.length?`${d.prs.length} PR${d.prs.length>1?'s':''}`:'no PR linked')}
    ${(()=>{const st=d.units.filter(u=>u.Staged),sum=k=>st.reduce((n,u)=>n+(u[k]||0),0),failed=d.units.reduce((n,u)=>n+(u.Staged?u.Failed||0:d.attempts.filter(a=>a.factory_id===u.Factory&&a.state==='failed').length),0);
      return st.length?kpi('Attempts',d.attempts.length,`<span data-tip="${esc('Stage: a handoff to the next role of the same try\nRetry: same role again after a failed or cancelled attempt\nFailed: retried, or the last attempt of its run')}">${plural(sum('Stages'),'stage')} · ${sum('Retries')} retr${sum('Retries')===1?'y':'ies'} · ${failed} failed</span>`):kpi('Attempts',d.attempts.length,`${d.attempts.filter(a=>a.state==='failed').length} failed`)})()}
-   ${kpi('Cost',usd(cost,unp),`${fmtTok(tokens)} tokens`)}
+   ${kpi('Cost',usd(cost,unp),plural(act.calls||0,'model call'))}
+   ${kpi('Tokens',act.calls?esc(fmtTok(tokens))+(unp?'<small>+?</small>':''):U,act.calls?`${fmtTok(act.cache_read)} cache read`:'no usage reported')}
    ${(()=>{const fa=d.attempts.filter(a=>a.state==='failed'||a.state==='cancelled');return kpi('Cost of failed attempts',fa.length?usd(fa.reduce((n,a)=>n+(a.cost_usd||0),0),fa.some(a=>a.unpriced>0)):'<span class="muted">none</span>',fa.length?[['failed','failed'],['cancelled','cancelled']].map(([st,w])=>{const k=fa.filter(a=>a.state===st).length;return k?`${k} ${w}`:''}).filter(Boolean).join(' · '):'no failed attempt')})()}
-   ${kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
-   ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),'first start → last end')}
-   ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'needs --runs')}
+   ${kpi('Wall clock',esc(fmtDur((t1-t0)/1000)),wait?`${esc(fmtDur(wait/1000))} waiting for a human`:'first start → last end')}
+  </div>
+  <div class="kpis" style="margin-top:-35px;border-top:1px solid var(--line)">
+   ${kpi('Time to PR',per('ToPR',v=>na(v.split(' (')[0])),`to merge ${per('ToMerge',na)}${d.units.some(u=>u.Staged)?' · staged: compare merge':''}`)}
+   ${kpi(`<span data-tip="${esc('Human waits + steering + human commits on its PRs + change requests by humans')}">Human interventions</span>`,d.units.reduce((n,u)=>n+u.Human,0),plural(d.units.reduce((n,u)=>n+u.Escaped,0),'escaped defect'))}
+   ${kpi(`<span data-tip="${esc('Change requests by humans per PR a human reviewed')}">Review rounds</span>`,per('ReviewRounds',v=>na(v.split(' on ')[0])),d.reviews.length?plural(d.reviews.length,'review'):'no review yet')}
+   ${kpi('Tool calls',act.tools||(act.calls?0:U),act.tools?`${act.tools_failed||0} failed · ${Math.round((act.tools_failed||0)/act.tools*100)}%`:act.calls?'none reported':'no telemetry')}
+   ${kpi('Subagents',act.calls?act.subagents:U,plural(act.api_errors||0,'API error'),act.api_errors?'alert':'')}
+   ${!(f.moves||[]).length&&!(f.waits||[]).length?'':kpi('Board state',(()=>{const mv=(f.moves||[]).at(-1),wt=(f.waits||[]).filter(x=>x.type==='human.waiting').at(-1);const cur=[mv&&{at:mv.At,t:mv.State},wt&&{at:wt.ts,t:'waiting'+(wt.reason?': '+wt.reason:'')}].filter(Boolean).sort((a,b)=>+T(a.at)-+T(b.at)).at(-1);return cur?`<span style="font-size:20px">${esc(cur.t)}</span>`:'<span class="muted">n/a</span>'})(),(f.moves||[]).length||(f.waits||[]).length?'last reported state':'no state reported')}
+   ${!f.manifest?'':kpi('Dispatches',lanes.length,f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'')}
   </div>
   <div class="grid">
   <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. Then b':'B'}oard state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${d.attempts.some(a=>a.staged)?`<div class="legend" style="margin:8px 0 4px"><span><i style="width:16px;height:2px;background:var(--text-3)"></i>handoff to the next stage</span><span><i style="width:16px;height:0;background:transparent;border-top:2px dashed var(--crit)"></i>retry of a failed attempt</span></div>`:''}${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>dispatch of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,{...f,sessions:d.sessions});return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>

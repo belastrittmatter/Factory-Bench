@@ -116,6 +116,10 @@ func TestEndpoints(t *testing.T) {
 		s[0].(map[string]any)["phase"] != "p1" || s[0].(map[string]any)["first_ts"] == nil {
 		t.Errorf("item sessions: %v", s)
 	}
+	// activity totals of the issue: 2 model calls (one by a subagent), 1 failed tool call
+	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 2 || a["tools"].(float64) != 1 || a["tools_failed"].(float64) != 1 || a["api_errors"].(float64) != 0 {
+		t.Errorf("item activity: %v", a)
+	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
 		t.Errorf("units: %v", u)
 	}
