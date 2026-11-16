@@ -49,6 +49,14 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
+// sessionsSQL is every Claude Code session (distinct OTLP session.id) of attempts a: its first and last event, phase(s), and
+// the cost of the attempt's model calls in that window. Callers append a filter on a and an ORDER BY.
+const sessionsSQL = `SELECT s.factory_id, s.attempt_id, s.session, s.first_ts, s.last_ts, s.phase,
+	(SELECT sum(u.cost_usd) FROM usage u WHERE u.factory_id = s.factory_id AND u.attempt_id = s.attempt_id AND u.ts BETWEEN s.first_ts AND s.last_ts) AS cost_usd
+	FROM (SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts,
+	max(ts) AS last_ts, group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events WHERE source = 'otlp' GROUP BY 1, 2, 3) s
+	JOIN attempts a USING (factory_id, attempt_id) WHERE s.session IS NOT NULL`
+
 // withStatus adds "status" to attempt rows that carry state and last_event.
 func withStatus(rs []map[string]any, now time.Time, idle time.Duration) {
 	for _, r := range rs {
@@ -328,8 +336,10 @@ func (s *server) item(r *http.Request) (any, error) {
 		"attempts": `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
 			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
 			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
-			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens, ` + lastEventSQL + ` AS last_event
+			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens,
+			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
+		"sessions": sessionsSQL + ` AND a.repo = ?1 AND a.issue = ?2 ORDER BY s.first_ts`,
 		"prs": `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
@@ -386,6 +396,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
 			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
+		// the attempts of this attempt's run (factory × issue), for its run format
+		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id FROM attempts r JOIN attempts a USING (factory_id, repo, issue)
+			WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
 	} {
 		if res[q.key], err = rows(s.db, q.sql, f, id); err != nil {
 			return nil, err
@@ -396,6 +409,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		return nil, httpError{http.StatusNotFound, "no such attempt"}
 	}
 	withStatus(a, time.Now(), s.o.Idle)
+	withStages(res["run"].([]map[string]any))
 	res["attempt"] = a[0]
 	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
 	at := res["attempt"].(map[string]any)
@@ -466,8 +480,8 @@ func (s *server) series(r *http.Request) (any, error) {
 	var err error
 	for _, q := range []struct{ key, sql string }{
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
-			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title, ` + lastEventSQL + ` AS last_event
-			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
+			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, u.subagents, w.title, ` + lastEventSQL + ` AS last_event
+			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced, count(DISTINCT agent_id) AS subagents,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
 		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,
@@ -475,6 +489,7 @@ func (s *server) series(r *http.Request) (any, error) {
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3 ORDER BY min(u.ts)`}, // cost per attempt and phase, for the per-issue spend chart
+		{"sessions", sessionsSQL + ` ORDER BY s.first_ts`}, // for the run format on Compare
 		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
 			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
 		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,

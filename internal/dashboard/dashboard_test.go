@@ -32,7 +32,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 7, '<b>t</b>', 'x', 'open')`,
 		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at) VALUES ('f', 'a1', 'o/r', 7, 'v1', 'running', '` + ts(30*time.Minute) + `')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
-		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1)`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, agent_id) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1, 'sub1')`,
 		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"p1","model":"m","query_source":"q1","cost_usd":0.5}')`,
@@ -109,6 +109,14 @@ func TestEndpoints(t *testing.T) {
 	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
+	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 1 {
+		t.Errorf("item attempt subagents: %v", a)
+	}
+	// a session's cost is the attempt's model calls between its first and last event
+	if s := item["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" ||
+		s[0].(map[string]any)["phase"] != "p1" || s[0].(map[string]any)["cost_usd"] != 0.5 || s[0].(map[string]any)["first_ts"] == nil {
+		t.Errorf("item sessions: %v", s)
+	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
 		t.Errorf("units: %v", u)
 	}
@@ -131,6 +139,9 @@ func TestEndpoints(t *testing.T) {
 	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["phase"] != "p1" {
 		t.Errorf("sessions: %v", s)
 	}
+	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false {
+		t.Errorf("run: %v", r)
+	}
 	if a := at["attempt"].(map[string]any); a["status"] != "idle" || a["has_wait_events"].(float64) != 0 || a["last_event"] == nil {
 		t.Errorf("attempt status: %v", a)
 	}
@@ -152,8 +163,11 @@ func TestEndpoints(t *testing.T) {
 
 	var se map[string][]map[string]any
 	get(t, h, "/api/series", &se)
-	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" {
+	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" || a[0]["subagents"].(float64) != 1 {
 		t.Errorf("series attempts: %v", a)
+	}
+	if s := se["sessions"]; len(s) != 1 || s[0]["session"] != sid || s[0]["phase"] != "p1" {
+		t.Errorf("series sessions: %v", s)
 	}
 	calls, cost := 0.0, 0.0 // the two calls may fall into one hourly bucket or two, depending on the clock
 	for _, u := range se["usage"] {
