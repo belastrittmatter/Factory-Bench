@@ -16,5 +16,6 @@ Who uses it: the **operator** running a factory (is it working right now?) and t
 | 10 | engineer | see cost, attempts and merges per day per config | I see trends after a config change | Compare |
 | 11 | operator | read the transcript, worker log and run manifest of one attempt, only on this machine | I debug a run without leaking prompts | Attempt (local only) |
 | 12 | operator | register a factory, issue it a new token, revoke one and fix its commit email or login, only on this machine | I onboard a factory or cut one off without the CLI | Factories (writes local only) |
+| 13 | engineer | see which format a factory ran an issue in (staged stages, Claude Code sessions by phase, subagents, lanes) and follow one moment across all charts of an attempt | I read a run correctly and compare like with like | Item, Attempt, Compare |
 
 Rules: unknown is `?`, never 0; nothing to measure is `n/a`; a lower bound is `+?`. Text from GitHub and transcripts is always plain text.

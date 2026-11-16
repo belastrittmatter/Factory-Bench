@@ -16,7 +16,7 @@ import (
 
 const sid = "00000000-0000-4000-8000-000000000001"
 
-// fixture: one running attempt with an unpriced session, one failed tool call and no human wait events.
+// fixture: one running attempt with an unpriced session, two subagent runs (one without model calls), one failed tool call and no human wait events.
 func fixture(t *testing.T) (*server, http.Handler, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -32,10 +32,12 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 7, '<b>t</b>', 'x', 'open')`,
 		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at) VALUES ('f', 'a1', 'o/r', 7, 'v1', 'running', '` + ts(30*time.Minute) + `')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
-		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1)`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, agent_id) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1, 'sub1')`,
+		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'a1', 'sub1', 0, 'completed', '` + ts(19*time.Minute) + `'), ('f', 'a1', 'sub2', 0, 'killed', '` + ts(19*time.Minute) + `')`, // sub2 made no model call
 		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
-		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","model":"m","query_source":"q1","cost_usd":0.5}')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"p1","model":"m","query_source":"q1","cost_usd":0.5}')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e3', 'otlp.user_prompt', '` + ts(19*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"a0"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e2', 'otlp.tool_decision', '` + ts(18*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","tool_name":"T9","decision":"reject","source":"cfg"}')`,
 	} {
 		if _, err := rw.Exec(q); err != nil {
@@ -109,6 +111,16 @@ func TestEndpoints(t *testing.T) {
 	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
+	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 2 { // subagent runs, not distinct agent ids in usage
+		t.Errorf("item attempt subagents: %v", a)
+	}
+	if s := item["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" ||
+		s[0].(map[string]any)["phase"] != "a0,p1" || s[0].(map[string]any)["first_ts"] == nil {
+		t.Errorf("item sessions: %v", s)
+	}
+	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 2 {
+		t.Errorf("item activity: %v", a)
+	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
 		t.Errorf("units: %v", u)
 	}
@@ -128,8 +140,15 @@ func TestEndpoints(t *testing.T) {
 	if at["usage"].([]any)[1].(map[string]any)["cost_usd"] != nil { // unpriced stays null
 		t.Errorf("unpriced session shown as a number: %v", at["usage"])
 	}
-	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid {
+	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["phase"] != "a0,p1" { // phases sorted, not in arrival order
 		t.Errorf("sessions: %v", s)
+	}
+	// the run format covers every attempt of the run, not only this one
+	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false || r[0].(map[string]any)["subagents"].(float64) != 2 {
+		t.Errorf("run: %v", r)
+	}
+	if s := at["run_sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" {
+		t.Errorf("run_sessions: %v", s)
 	}
 	if a := at["attempt"].(map[string]any); a["status"] != "idle" || a["has_wait_events"].(float64) != 0 || a["last_event"] == nil {
 		t.Errorf("attempt status: %v", a)
@@ -152,8 +171,16 @@ func TestEndpoints(t *testing.T) {
 
 	var se map[string][]map[string]any
 	get(t, h, "/api/series", &se)
-	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" {
+	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" || a[0]["subagents"].(float64) != 2 {
 		t.Errorf("series attempts: %v", a)
+	}
+	if _, ok := se["sessions"]; ok {
+		t.Error("series carries sessions: Overview polls it every 5 s")
+	}
+	var ss []map[string]any
+	get(t, h, "/api/sessions", &ss)
+	if len(ss) != 1 || ss[0]["session"] != sid || ss[0]["phase"] != "a0,p1" {
+		t.Errorf("sessions: %v", ss)
 	}
 	calls, cost := 0.0, 0.0 // the two calls may fall into one hourly bucket or two, depending on the clock
 	for _, u := range se["usage"] {
@@ -196,6 +223,73 @@ func TestEndpoints(t *testing.T) {
 	get(t, h, "/api/scorecard?by=config", &sc)
 	if len(sc.Groups) != 1 || sc.Groups[0] != "f v1" || sc.Rows[0].Label != "work items" || sc.Rows[0].Values[0] != "1" {
 		t.Errorf("scorecard: %+v", sc)
+	}
+}
+
+// The issue, attempt and run lookups keep to their own issue, factory and run: another issue of the same factory and
+// another factory on the same issue, both with telemetry, stay out of them.
+func TestScopes(t *testing.T) {
+	_, h, dir := fixture(t)
+	rw, err := OpenWritable(filepath.Join(dir, "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := func(t time.Time) string { return store.FormatTS(t) }
+	now, day := time.Now().UTC(), time.Date(2026, 1, 2, 9, 59, 0, 0, time.Local) // the fixture's dispatches start at 10:00 local that day
+	for _, q := range []string{
+		`INSERT INTO factories VALUES ('g', 'h2', NULL, NULL, 'x')`,
+		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 8, 'other', 'x', 'open')`,
+		// b1: factory f on another issue; c1: factory g on the same issue, during the fixture's dispatches
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES ('f', 'b1', 'o/r', 8, 'v1', 'completed', '` + ts(now.Add(-time.Hour)) + `', '` + ts(now.Add(-50*time.Minute)) + `')`,
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES ('g', 'c1', 'o/r', 7, 'v1', 'completed', '` + ts(day) + `', '` + ts(day.Add(13*time.Minute)) + `')`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'b1', 'm', '` + ts(now.Add(-55*time.Minute)) + `', 1, 1, 0.1, 'p1'), ('g', 'c1', 'm', '` + ts(day.Add(time.Minute)) + `', 1, 1, 0.2, 'p1')`,
+		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'b1', 's', 0, 'completed', 'x'), ('g', 'c1', 's', 0, 'completed', 'x')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'b1e', 'otlp.api_request', '` + ts(now.Add(-55*time.Minute)) + `', 'x', '{"factorybench.attempt":"b1","session.id":"sb1"}'),
+			('otlp', 'g', 'c1e', 'otlp.api_request', '` + ts(day.Add(time.Minute)) + `', 'x', '{"factorybench.attempt":"c1","session.id":"sc1"}'),
+			('otlp', 'f', 'xe', 'otlp.api_request', '` + ts(day) + `', 'x', '{"factorybench.attempt":"c1","session.id":"sx"}')`, // c1's id under factory f: no such attempt
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatal(err, q)
+		}
+	}
+	rw.Close()
+	ids := func(rs []any, k string) string {
+		var out []string
+		for _, r := range rs {
+			out = append(out, fmt.Sprint(r.(map[string]any)[k]))
+		}
+		return strings.Join(out, " ")
+	}
+	var item map[string]any
+	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	if g := ids(item["sessions"].([]any), "session"); g != "sc1 "+sid {
+		t.Errorf("item sessions: %s", g)
+	}
+	if g := ids(item["attempts"].([]any), "attempt_id"); g != "c1 a1" {
+		t.Errorf("item attempts: %s", g)
+	}
+	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 3 { // a1's two calls and c1's, not b1's
+		t.Errorf("item activity: %v", a)
+	}
+	var at map[string]any
+	get(t, h, "/api/attempt?factory=f&id=a1", &at)
+	if g := ids(at["run"].([]any), "attempt_id"); g != "a1" {
+		t.Errorf("run: %s", g)
+	}
+	if g := ids(at["run_sessions"].([]any), "session"); g != sid {
+		t.Errorf("run sessions: %s", g)
+	}
+	if l := at["run_lanes"].([]any); len(l) != 0 { // the dispatches ran in c1, another factory's run
+		t.Errorf("run lanes: %v", l)
+	}
+	get(t, h, "/api/attempt?factory=g&id=c1", &at)
+	if g := ids(at["run"].([]any), "attempt_id") + " | " + ids(at["run_sessions"].([]any), "session") + " | " + fmt.Sprint(at["run_lanes"]); g != "c1 | sc1 | [alpha beta alpha]" {
+		t.Errorf("c1 run: %s", g)
+	}
+	var ss []map[string]any
+	get(t, h, "/api/sessions", &ss)
+	if len(ss) != 3 { // every attempt's sessions; sx belongs to no attempt
+		t.Errorf("sessions: %v", ss)
 	}
 }
 
