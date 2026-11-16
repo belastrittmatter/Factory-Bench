@@ -342,7 +342,7 @@ func (s *server) item(r *http.Request) (any, error) {
 			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
 			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
 			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens,
-			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
+			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
 		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"prs":      `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
@@ -406,7 +406,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
 		// the attempts of this attempt's run (factory × issue), for its run format
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
-			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = r.factory_id AND u.attempt_id = r.attempt_id) AS subagents
+			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = r.factory_id AND g.attempt_id = r.attempt_id) AS subagents
 			FROM attempts r JOIN attempts a USING (factory_id, repo, issue) WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
 		{"run_sessions", sessionsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
 	} {
@@ -498,8 +498,9 @@ func (s *server) series(r *http.Request) (any, error) {
 	var err error
 	for _, q := range []struct{ key, sql string }{
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
-			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, u.subagents, w.title, ` + lastEventSQL + ` AS last_event
-			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced, count(DISTINCT agent_id) AS subagents,
+			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title,
+			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
+			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
 		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,

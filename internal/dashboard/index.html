@@ -556,8 +556,8 @@ const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=
     const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
 // a run's format (one factory's attempts on an issue) as [kind, text with counts, text without] parts: staged (handoffs between roles), sessions (an attempt
-// ran several Claude Code sessions; phases are not used: a session is not a phase), subagents (distinct
-// agent ids), lanes (the lane of each dispatch)
+// ran several Claude Code sessions; phases are not used: a session is not a phase), subagents (subagent
+// runs, as on the attempt page and the scorecard), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged)){const t='staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ');p.push(['staged',t,t])}

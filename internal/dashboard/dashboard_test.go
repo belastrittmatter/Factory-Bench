@@ -16,7 +16,7 @@ import (
 
 const sid = "00000000-0000-4000-8000-000000000001"
 
-// fixture: one running attempt with an unpriced session, one failed tool call and no human wait events.
+// fixture: one running attempt with an unpriced session, two subagent runs (one without model calls), one failed tool call and no human wait events.
 func fixture(t *testing.T) (*server, http.Handler, string) {
 	t.Helper()
 	dir := t.TempDir()
@@ -33,6 +33,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at) VALUES ('f', 'a1', 'o/r', 7, 'v1', 'running', '` + ts(30*time.Minute) + `')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, agent_id) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1, 'sub1')`,
+		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'a1', 'sub1', 0, 'completed', '` + ts(19*time.Minute) + `'), ('f', 'a1', 'sub2', 0, 'killed', '` + ts(19*time.Minute) + `')`, // sub2 made no model call
 		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"p1","model":"m","query_source":"q1","cost_usd":0.5}')`,
@@ -110,7 +111,7 @@ func TestEndpoints(t *testing.T) {
 	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
-	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 1 {
+	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 2 { // subagent runs, not distinct agent ids in usage
 		t.Errorf("item attempt subagents: %v", a)
 	}
 	if s := item["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" ||
@@ -143,7 +144,7 @@ func TestEndpoints(t *testing.T) {
 		t.Errorf("sessions: %v", s)
 	}
 	// the run format covers every attempt of the run, not only this one
-	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false || r[0].(map[string]any)["subagents"].(float64) != 1 {
+	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false || r[0].(map[string]any)["subagents"].(float64) != 2 {
 		t.Errorf("run: %v", r)
 	}
 	if s := at["run_sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" {
@@ -170,7 +171,7 @@ func TestEndpoints(t *testing.T) {
 
 	var se map[string][]map[string]any
 	get(t, h, "/api/series", &se)
-	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" || a[0]["subagents"].(float64) != 1 {
+	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" || a[0]["subagents"].(float64) != 2 {
 		t.Errorf("series attempts: %v", a)
 	}
 	if _, ok := se["sessions"]; ok {
