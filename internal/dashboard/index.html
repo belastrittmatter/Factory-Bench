@@ -555,18 +555,21 @@ const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=
   atts.slice().sort((x,y)=>x.started_at<y.started_at?-1:1).forEach((a,i)=>{if(!(a.staged&&a.role)){m[a.attempt_id]='attempt '+(i+1);return}
     const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
-// a run's format (one factory's attempts on an issue), as [kind, detail] parts: staged (handoffs between roles), sessions (an attempt ran
-// several Claude Code sessions; phases in order, repeats collapsed, the attempt with the most steps), subagents (distinct agent ids), lanes (the lane of each dispatch)
+// a run's format (one factory's attempts on an issue) as [kind, plain text] parts: staged (handoffs between roles), sessions (an attempt
+// ran several Claude Code sessions; phases in order, repeats collapsed, from the attempt with the most steps), subagents (distinct
+// agent ids), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
-  if(as.some(a=>a.staged))p.push(['staged',seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ')]);
+  if(as.some(a=>a.staged))p.push(['staged','staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ')]);
   const multi=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id)).filter(x=>x.length>1);
-  if(multi.length){const ph=multi.map(x=>seq(x.filter(s=>s.phase).map(s=>s.phase.split(',').join(' + ')))).reduce((a,b)=>b.length>a.length?b:a);const most=Math.max(...multi.map(x=>x.length));p.push(['sessions',ph.length>1?ph.join(' → '):ph[0]?`${most} × ${ph[0]}`:most])}
-  if(n)p.push(['subagents',n]);
-  if(ls.length)p.push(['lanes',[...new Set(ls)].join(' → ')]);return p};
-const runLabel=p=>p.map(([k,v])=>k+' · '+v).join(' + ')||'single session';
-const FORMAT_TIP=STAGED_TIP.split('\n')[0]+'\nSessions: one attempt ran several Claude Code sessions, by phase in order (factorybench.phase)\nSubagents: distinct subagents that made model calls\nLanes: dispatches to lanes, from the run manifests\nSingle session: none of these\nOnly staged changes how metrics count attempts';
-const runType=(as,ss=[],ls=[])=>`<span class="chip plain" data-tip="${esc(FORMAT_TIP)}">${esc(runLabel(runParts(as,ss,ls)))}</span>`;
+  if(multi.length){const ph=multi.map(x=>seq(x.filter(s=>s.phase).map(s=>s.phase.split(',').join(' + ')))).reduce((a,b)=>b.length>a.length?b:a),ns=multi.map(x=>x.length),most=Math.max(...ns);
+    p.push(['sessions',`${ns.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt${ph.length?` (${ph.join(' → ')})`:''}`])}
+  if(n)p.push(['subagents',plural(n,'subagent')]);
+  if(ls.length)p.push(['lanes','lanes: '+[...new Set(ls)].join(' → ')]);return p};
+const ONE='one Claude Code session per attempt';
+const runLabel=p=>p.map(x=>x[1]).join(', ')||ONE;
+const FORMAT_TIP='How this factory worked on the issue:\nStaged: the work was split into stages (e.g. plan → build), each its own attempt\nSessions per attempt: an attempt started Claude Code more than once, e.g. once per phase\nSubagents: helper agents that made their own model calls\nLanes: the board lanes the card was dispatched to\nOne session per attempt: none of these\nOnly staged changes how metrics count attempts';
+const runType=(as,ss=[],ls=[])=>`<span data-tip="${esc(FORMAT_TIP)}" style="cursor:help">run format <b>${esc(runLabel(runParts(as,ss,ls)))}</b></span>`;
 // cost per stage of one factory's attempts: by role on a staged run (retries counted toward their role), else by usage phase
 const stageCost=(as,phases)=>{const m={};
   if(as.some(a=>a.staged))as.forEach(a=>{const k=a.role||'no role',x=m[k]=m[k]||{name:k,v:0,retry:0,unpriced:false,color:colorOf('stage',k)};x.v+=a.cost_usd||0;x.unpriced=x.unpriced||a.unpriced>0;if(a.stage==='retry')x.retry+=a.cost_usd||0});
@@ -711,7 +714,7 @@ V.attempt=async(f,id)=>{
     [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
   return `<div class="crumbs"><a href="#items">Issues</a>›<a href="${itemHref(a.repo,a.issue)}">${esc(a.repo)}#${a.issue}</a>›<span>${esc(id)}</span></div>`+topbar(`Attempt <span class="mono" style="font-size:15px;font-weight:500">${esc(shortId(id))}</span>`,(local?`<button class="btn" data-open-local>${ico('lock')} Conversation</button>`:''))+
   `
-  <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span><span>run ${runType(d.run,d.run_sessions,d.run_lanes)}</span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
+  <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span>${runType(d.run,d.run_sessions,d.run_lanes)}${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
   <div class="kpis">
    ${kpi('Cost',usd(cost,unp||!d.usage.length),plural(d.usage.length,'model call'))}
    ${kpi('Tokens',d.usage.length?esc(fmtTok(tokens)):U,d.usage.length?`${fmtTok(d.usage.reduce((s,u)=>s+(u.cache_read||0),0))} cache read`:'no usage reported')}
@@ -738,21 +741,21 @@ V.attempt=async(f,id)=>{
 let CUR_ATTEMPT=null;
 
 // scorecard sections and the better direction, keyed by the report's metric names
-const SECTIONS=[['Outcome',/work items|run type|^attempts|closed|approval|escaped/],['Cost',/cost|token/],['Speed',/time/],['Quality',/CI|failure|error|review rounds|interventions/],['Activity',/session|tool|subagent|PR size/],['Data coverage',/coverage|unpriced|rejected/]];
+const SECTIONS=[['Outcome',/work items|run format|^attempts|closed|approval|escaped/],['Cost',/cost|token/],['Speed',/time/],['Quality',/CI|failure|error|review rounds|interventions/],['Activity',/session|tool|subagent|PR size/],['Data coverage',/coverage|unpriced|rejected/]];
 const LOWER=/cost|token|time|failure|error|rounds|interventions|escaped|unpriced|rejected/,HIGHER=/approval|closed|CI passing|coverage/;
 // first number of a report value: durations to seconds, k to thousands; n/a and text give null
 function metricNum(v){v=String(v);if(/^n\/a|^\?/.test(v))return null;const d=/^(\d+h)?(\d+m(?!s))?(\d+(?:\.\d+)?s)?(?=\s|$)/.exec(v);if(d&&d[0])return d[0].replace(/(\d+(?:\.\d+)?)([hms])/g,(_,n,u)=>' '+n*{h:3600,m:60,s:1}[u]).trim().split(' ').reduce((a,b)=>a+ +b,0);
   const m=/^[+$]?(-?\d+(?:\.\d+)?)(k|M|B)?/.exec(v.replace(/^\+/,''));return m?+m[1]*({k:1e3,M:1e6,B:1e9}[m[2]]||1):null}
-// a "run type" row after work items: the format of a group's runs (factory × issue), all time like the scorecard; lanes are not known here
+// a "run format" row after work items: the format of a group's runs (factory × issue), all time like the scorecard; lanes are not known here
 function runTypeRow(sc,atts,gk,ss){
   const vals=sc.groups.map(g=>{const runs={};atts.filter(a=>gk(a)===g).forEach(a=>{const k=a.factory_id+' '+a.repo+'#'+a.issue;(runs[k]=runs[k]||[]).push(a)});
     const ps=Object.values(runs).map(as=>runParts(as,ss,[])),n=ps.length,ls=new Set(ps.map(runLabel));if(!n)return'n/a';if(ls.size===1)return[...ls][0];
-    return ['staged','sessions','subagents'].map(k=>[k,ps.filter(p=>p.some(x=>x[0]===k)).length]).filter(x=>x[1]).map(([k,m])=>`${k} · ${m===n?'all '+n:m+' of '+n} runs`).join(' + ')||'single session'});
-  const rows=sc.rows.slice(),i=rows.findIndex(r=>r.Label==='work items')+1;rows.splice(i,0,{Label:'run type',Values:vals,raw:true});return {...sc,rows}}
+    return [['staged','staged'],['sessions','several sessions per attempt'],['subagents','subagents']].map(([k,w])=>[w,ps.filter(p=>p.some(x=>x[0]===k)).length]).filter(x=>x[1]).map(([w,m])=>`${w}: ${m===n?'all '+n:m+' of '+n} runs`).join(', ')||ONE});
+  const rows=sc.rows.slice(),i=rows.findIndex(r=>r.Label==='work items')+1;rows.splice(i,0,{Label:'run format',Values:vals,raw:true});return {...sc,rows}}
 // one table, a column per picked group, a row per metric, section rows between; same numbers as report factories
 function scoreTable(sc,groups){
   const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0],n=groups.length;
-  const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(metricNum),ok=nums.filter(n=>n!==null),dir=LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
+  const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(v=>r.raw?null:metricNum(v)),ok=nums.filter(n=>n!==null),dir=LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
     const max=Math.max(...ok.map(Math.abs),0),spread=ok.length>1&&max?(Math.max(...ok)-Math.min(...ok))/max:0,best=dir&&ok.length>1&&spread?(dir<0?Math.min(...ok):Math.max(...ok)):null;return{...r,vals,nums,max,spread,best,dir}});
   const secs=[...SECTIONS.map(x=>x[0]),'Other'].map(s=>[s,rows.filter(r=>secOf(r.Label)===s)]).filter(([,rs])=>rs.length);
   const head=groups.map(g=>{const [f,...c]=g.split(' ');return `<th class="gh"><div class="ghc"><i style="background:${colorOf('group',g)}"></i><div><b>${esc(f)}</b>${c.length?`<span class="mono">${esc(c.join(' ')).replace(/[+@]/g,'$&<wbr>')}</span>`:''}</div>${n>1?`<button class="iconbtn" data-cmprm="${esc(g)}" aria-label="Remove ${esc(g)}">${ico('close')}</button>`:''}</div></th>`}).join('');
