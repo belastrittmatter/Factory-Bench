@@ -705,11 +705,14 @@ V.attempt=async(f,id)=>{
   const sess=d.sessions.filter(s=>s.session),sb=sess.reduce((b,s)=>{const l=b.at(-1),ph=s.phase?s.phase.split(',').join(' + '):'unknown phase';
     if(l&&l.ph===ph){l.end=s.last_ts;l.n++}else b.push({at:s.first_ts,end:s.last_ts,ph,n:1,color:phaseColor(s.phase?.includes(',')?null:s.phase)});return b},[]).map(r=>({...r,lane:r.n>1?`${r.ph} · ${r.n} sessions`:r.ph})),lanes=d.dispatches.filter(x=>x.lane),bands=lanes.length?d.dispatches:sess.length>1?sb:[];
   // timeline rows: a row per phase with its session bands when the attempt ran several sessions, and one row of subagents (first to last model call each)
-  const inWin=(a,b)=>d.usage.filter(u=>u.ts>=a&&u.ts<=b).reduce((t,u)=>t+(u.cost_usd||0),0),span=b=>fmtWhen(b.at)+' · '+fmtDur((+T(b.end)-+T(b.at))/1000);
-  const subs=Object.values(d.usage.filter(u=>u.agent_id).reduce((m,u)=>{const x=m[u.agent_id]=m[u.agent_id]||{at:u.ts,end:u.ts,n:0,c:0,id:u.agent_id};x.end=u.ts;x.n++;x.c+=u.cost_usd||0;return m},{}));
+  // usage rows carry no session id: a session bar counts the model calls in its time window, which overlapping sessions share
+  const inWin=(a,b)=>d.usage.filter(u=>u.ts>=a&&u.ts<=b),span=b=>fmtWhen(b.at)+' · '+fmtDur((+T(b.end)-+T(b.at))/1000);
+  // calls and cost of usage rows as tooltip text: all unpriced = ?, some = amount +?
+  const callCost=us=>{const p=us.filter(u=>!nil(u.cost_usd));return plural(us.length,'model call')+' · '+(p.length?fmtUsd(p.reduce((t,u)=>t+u.cost_usd,0))+(p.length<us.length?' +?':''):'?')};
+  const subs=Object.values(d.usage.filter(u=>u.agent_id).reduce((m,u)=>{const x=m[u.agent_id]=m[u.agent_id]||{at:u.ts,end:u.ts,us:[],id:u.agent_id};x.end=u.ts;x.us.push(u);return m},{}));
   const sp=sess.map((s,i)=>({at:s.first_ts,end:s.last_ts,i,ph:s.phase?s.phase.split(',').join(' + '):'unknown phase',color:phaseColor(s.phase?.includes(',')?null:s.phase)}));
-  const grows=[...(sess.length>1?[...new Set(sp.map(b=>b.ph))].map(ph=>({label:ph,bars:sp.filter(b=>b.ph===ph).map(b=>({...b,tip:`${ph} · session ${b.i+1} of ${sess.length}\n${span(b)} · ${fmtUsd(inWin(b.at,b.end))}`}))})):[]),
-    ...(subs.length?[{label:'subagents',bars:subs.map(x=>({...x,color:'var(--s7)',op:.6,tip:`subagent ${shortId(x.id)}\n${span(x)}\n${plural(x.n,'model call')} · ${fmtUsd(x.c)}`}))}]:[])];
+  const grows=[...(sess.length>1?[...new Set(sp.map(b=>b.ph))].map(ph=>({label:ph,bars:sp.filter(b=>b.ph===ph).map(b=>({...b,tip:`${ph} · session ${b.i+1} of ${sess.length}\n${span(b)}\n${inWin(b.at,b.end).length?callCost(inWin(b.at,b.end))+' in this window':'no model calls in this window'}`}))})):[]),
+    ...(subs.length?[{label:'subagents',bars:subs.map(x=>({...x,color:'var(--s7)',op:.6,tip:`subagent ${shortId(x.id)}\n${span(x)}\n${callCost(x.us)}`}))}]:[])];
   const bandWord=bands===d.dispatches?'dispatches':'Claude Code sessions (by phase)';
   const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${plural(p.sessions,'model call')}`}));
   const tl=d.tool_calls.slice().reverse();
