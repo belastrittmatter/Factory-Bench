@@ -162,6 +162,8 @@ func Handler(db *sql.DB, o Options) http.Handler {
 	mux.HandleFunc("/api/item", s.json(s.item))
 	mux.HandleFunc("/api/attempt", s.json(s.attempt))
 	mux.HandleFunc("/api/series", s.json(s.series))
+	// every session, for the run format on Compare only: it scans all OTLP events, so it stays out of /api/series, which Overview polls
+	mux.HandleFunc("/api/sessions", s.json(func(r *http.Request) (any, error) { return rows(s.db, sessionsSQL+` ORDER BY s.first_ts`) }))
 	mux.HandleFunc("/api/summary", s.json(s.summaryAPI))
 	mux.HandleFunc("/api/flow", s.json(s.flow))
 	mux.HandleFunc("/api/local/manifest", s.json(s.manifest))
@@ -498,7 +500,6 @@ func (s *server) series(r *http.Request) (any, error) {
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3 ORDER BY min(u.ts)`}, // cost per attempt and phase, for the per-issue spend chart
-		{"sessions", sessionsSQL + ` ORDER BY s.first_ts`}, // for the run format on Compare
 		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
 			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
 		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,

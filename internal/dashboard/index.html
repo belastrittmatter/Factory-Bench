@@ -764,7 +764,7 @@ function scoreTable(sc,groups){
 const CMP_DEFAULT=3;
 let CMP=[];
 V.compare=async()=>{
-  const [sc,s]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries()]);
+  const [sc,s,ss]=await Promise.all([get('/api/scorecard'+(UI.compareBy?'?by=config':'')),loadSeries(),get('/api/sessions')]);
   // by config, a staged run's attempts stay under the config it started with, like the scorecard; usage rows keep their own
   const runOf=a=>a.factory_id+' '+a.repo+'#'+a.issue,firstCfg={};s.attempts.forEach(a=>{if(!(runOf(a) in firstCfg))firstCfg[runOf(a)]=a.config_version});
   const lo=since(),gk=r=>r.factory_id+(UI.compareBy?' '+(r.staged?firstCfg[runOf(r)]:r.config_version):'');
@@ -784,7 +784,7 @@ V.compare=async()=>{
   (groups.length?`<div class="cmpbar">${rest.length?`<select class="sel" data-cmpadd aria-label="Add a ${what}"><option value="">+ Add ${what} (${rest.length} more)</option>${rest.map(g=>`<option value="${esc(g)}">${esc(g)}</option>`).join('')}</select>`:`<span class="muted">All ${plural(avail.length,what)} shown</span>`}
      ${groups.length>1?`<div class="seg" role="group" aria-label="row order"><button class="${UI.diffFirst?'':'on'}" data-diff="">Report order</button><button class="${UI.diffFirst?'on':''}" data-diff="1">Biggest difference first</button></div>`:''}
      <span class="muted">All time, same numbers as <span class="mono">report factories${UI.compareBy?' --by config':''}</span>${groups.length>1?' · <span style="background:var(--good-soft);box-shadow:inset 3px 0 0 var(--good);padding:0 4px 0 7px">green</span> = best in row · ↓ lower is better, ↑ higher · bar = relative to the largest':avail.length<2?` · only one ${what} here${UI.compareBy?'':': switch to By config to compare its configs'}`:''}</span></div>
-   <div class="tw">${scoreTable(runTypeRow(sc,s.attempts.filter(keep),gk,s.sessions||[]),groups)}</div>
+   <div class="tw">${scoreTable(runTypeRow(sc,s.attempts.filter(keep),gk,ss),groups)}</div>
   <div class="grid" style="margin-top:40px">
    <div class="card c6"><h3>Spend per day</h3><div class="hint">Priced model calls in the selected range</div>${groups.length>1?legend(series):''}${days.length?bars(half,200,b,series,fmtUsd):'<div class="empty">No usage in range</div>'}</div>
    <div class="card c6"><h3>Attempts per day</h3><div class="hint">Attempts started</div>${groups.length>1?legend(aser):''}${days.length?bars(half,200,b,aser,v=>String(Math.round(v)),true):'<div class="empty">No attempts in range</div>'}</div>

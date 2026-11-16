@@ -169,8 +169,13 @@ func TestEndpoints(t *testing.T) {
 	if a := se["attempts"]; len(a) != 1 || a[0]["unpriced"].(float64) != 1 || a[0]["title"] != "<b>t</b>" || a[0]["status"] != "idle" || a[0]["subagents"].(float64) != 1 {
 		t.Errorf("series attempts: %v", a)
 	}
-	if s := se["sessions"]; len(s) != 1 || s[0]["session"] != sid || s[0]["phase"] != "p1" {
-		t.Errorf("series sessions: %v", s)
+	if _, ok := se["sessions"]; ok {
+		t.Error("series carries sessions: Overview polls it every 5 s")
+	}
+	var ss []map[string]any
+	get(t, h, "/api/sessions", &ss)
+	if len(ss) != 1 || ss[0]["session"] != sid || ss[0]["phase"] != "p1" {
+		t.Errorf("sessions: %v", ss)
 	}
 	calls, cost := 0.0, 0.0 // the two calls may fall into one hourly bucket or two, depending on the clock
 	for _, u := range se["usage"] {
