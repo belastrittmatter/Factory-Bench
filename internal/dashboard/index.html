@@ -556,19 +556,19 @@ const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=
     const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
 // a run's format (one factory's attempts on an issue) as [kind, text with counts, text without] parts: staged (handoffs between roles), sessions (an attempt
-// ran several Claude Code sessions; phases in order, repeats collapsed, from the attempt with the most steps), subagents (distinct
+// ran several Claude Code sessions; phases are not used: a session is not a phase), subagents (distinct
 // agent ids), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged)){const t='staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ');p.push(['staged',t,t])}
   const multi=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id)).filter(x=>x.length>1);
-  if(multi.length){const ph=multi.map(x=>seq(x.filter(s=>s.phase).map(s=>s.phase.split(',').join(' + ')))).reduce((a,b)=>b.length>a.length?b:a),ns=multi.map(x=>x.length),most=Math.max(...ns);
-    p.push(['sessions',`${ns.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt${ph.length?` (${ph.join(' → ')})`:''}`,ph.length>1?'a new Claude Code session per phase':'several Claude Code sessions per attempt'])}
+  if(multi.length){const ns=multi.map(x=>x.length),most=Math.max(...ns);
+    p.push(['sessions',`${ns.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt'])}
   if(n)p.push(['subagents',plural(n,'subagent'),'Claude Code with subagents']);
   if(ls.length){const t='lanes: '+[...new Set(ls)].join(' → ');p.push(['lanes',t,t])}return p};
 const ONE='one Claude Code session per attempt';
 const runLabel=(p,general)=>p.map(x=>x[general?2:1]).join(', ')||ONE;
-const FORMAT_TIP='How this factory worked on the issue:\nStaged: the work was split into stages (e.g. plan → build), each its own attempt\nSessions per attempt: an attempt started Claude Code more than once, e.g. once per phase\nSubagents: helper agents that made their own model calls\nLanes: the board lanes the card was dispatched to\nOne session per attempt: none of these\nOnly staged changes how metrics count attempts';
+const FORMAT_TIP='How this factory worked on the issue:\nStaged: the work was split into stages (e.g. plan → build), each its own attempt\nSessions per attempt: an attempt started Claude Code more than once (distinct session ids in its telemetry)\nSubagents: helper agents that made their own model calls\nLanes: the board lanes the card was dispatched to\nOne session per attempt: none of these\nOnly staged changes how metrics count attempts';
 // general: how the factory works, without counts (the attempt page, where run-wide counts read as this attempt's)
 const runType=(as,ss=[],ls=[],general)=>`<span data-tip="${esc(FORMAT_TIP)}" style="cursor:help">run format <b>${esc(runLabel(runParts(as,ss,ls),general))}</b></span>`;
 // cost per stage of one factory's attempts: by role on a staged run (retries counted toward their role), else by usage phase
