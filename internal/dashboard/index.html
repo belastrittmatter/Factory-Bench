@@ -296,9 +296,10 @@ const TMAP={};let tmN=0;
 const tmap=(X,t0,t1)=>{const id='tm'+(++tmN);TMAP[id]={X,t0,t1};if(tmN%200===0)Object.keys(TMAP).forEach(k=>{if(!document.querySelector(`[data-tmap="${k}"]`)&&k!==id)delete TMAP[k]});return ` data-tmap="${id}"`};
 document.addEventListener('pointermove',e=>{const sv=e.target.closest&&e.target.closest('svg[data-tmap]'),all=document.querySelectorAll('svg[data-tmap]');
   if(!sv||!TMAP[sv.dataset.tmap]){all.forEach(x=>x.querySelector(':scope>.sync')?.setAttribute('visibility','hidden'));return}
-  const m=TMAP[sv.dataset.tmap],x=e.clientX-sv.getBoundingClientRect().left;let lo=m.t0,hi=m.t1;for(let k=0;k<50;k++){const mid=(lo+hi)/2;if(m.X(mid)<x)lo=mid;else hi=mid}
+  // svgs are scaled to their card: cursor px -> viewBox units; on a chart with its own snapping line (.xh) take the snapped point's x and draw no second line there
+  const m=TMAP[sv.dataset.tmap],rc=sv.getBoundingClientRect(),pt=e.target.closest('rect[data-x]'),x=pt?+pt.dataset.x:(e.clientX-rc.left)*sv.viewBox.baseVal.width/rc.width;let lo=m.t0,hi=m.t1;for(let k=0;k<50;k++){const mid=(lo+hi)/2;if(m.X(mid)<x)lo=mid;else hi=mid}
   all.forEach(o=>{const n=TMAP[o.dataset.tmap];if(!n)return;let l=o.querySelector(':scope>.sync');if(!l){l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('class','sync');o.append(l)}
-    const ok=lo>=n.t0&&lo<=n.t1,X=n.X(lo),hh=o.viewBox.baseVal.height;l.setAttribute('x1',X);l.setAttribute('x2',X);l.setAttribute('y1',0);l.setAttribute('y2',hh-18);l.setAttribute('visibility',ok?'visible':'hidden')})});
+    const ok=lo>=n.t0&&lo<=n.t1&&!(o===sv&&sv.classList.contains('xh')),X=n.X(lo),hh=o.viewBox.baseVal.height;l.setAttribute('x1',X);l.setAttribute('x2',X);l.setAttribute('y1',0);l.setAttribute('y2',hh-18);l.setAttribute('visibility',ok?'visible':'hidden')})});
 const niceStep=v=>{const p=10**Math.floor(Math.log10(v)),f=v/p;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p};
 // axis scale: 3-5 round ticks just above the data max; count axes step by whole numbers
 const scale=(v,count)=>{v=Math.max(v,count?1:1e-6);let st=niceStep(v/4);if(count)st=Math.max(1,Math.round(st));const n=Math.ceil(v/st-1e-9);return{max:st*n,ticks:[...Array(n+1)].map((_,k)=>k*st)}};
