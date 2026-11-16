@@ -340,7 +340,7 @@ func (s *server) item(r *http.Request) (any, error) {
 			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
 		"sessions": sessionsSQL + ` AND a.repo = ?1 AND a.issue = ?2 ORDER BY s.first_ts`,
-		"prs": `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
+		"prs":      `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
 		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
@@ -397,8 +397,10 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
 		// the attempts of this attempt's run (factory × issue), for its run format
-		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id FROM attempts r JOIN attempts a USING (factory_id, repo, issue)
-			WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
+		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
+			(SELECT count(DISTINCT agent_id) FROM usage u WHERE u.factory_id = r.factory_id AND u.attempt_id = r.attempt_id) AS subagents
+			FROM attempts r JOIN attempts a USING (factory_id, repo, issue) WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
+		{"run_sessions", sessionsSQL + ` AND a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2) ORDER BY s.first_ts`},
 	} {
 		if res[q.key], err = rows(s.db, q.sql, f, id); err != nil {
 			return nil, err
@@ -417,12 +419,20 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	if err != nil {
 		return nil, err
 	}
-	mine := []dispatchRow{}
+	inRun := map[any]bool{}
+	for _, r := range res["run"].([]map[string]any) {
+		inRun[r["attempt_id"]] = true
+	}
+	mine, runLanes := []dispatchRow{}, []string{} // runLanes: the lane of each dispatch of the run, for its run format
 	for _, d := range fl.Dispatches {
 		if d.Attempt == id {
 			mine = append(mine, d)
 		}
+		if d.Lane != "" && inRun[d.Attempt] {
+			runLanes = append(runLanes, d.Lane)
+		}
 	}
+	res["run_lanes"] = runLanes
 	for _, x := range fl.Attempts {
 		if x["attempt_id"] == id {
 			at["bar_end"], at["bar_state"] = x["bar_end"], x["bar_state"]

@@ -139,8 +139,12 @@ func TestEndpoints(t *testing.T) {
 	if s := at["sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["phase"] != "p1" {
 		t.Errorf("sessions: %v", s)
 	}
-	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false {
+	// the run format covers every attempt of the run, not only this one
+	if r := at["run"].([]any); len(r) != 1 || r[0].(map[string]any)["attempt_id"] != "a1" || r[0].(map[string]any)["staged"] != false || r[0].(map[string]any)["subagents"].(float64) != 1 {
 		t.Errorf("run: %v", r)
+	}
+	if s := at["run_sessions"].([]any); len(s) != 1 || s[0].(map[string]any)["session"] != sid || s[0].(map[string]any)["attempt_id"] != "a1" {
+		t.Errorf("run_sessions: %v", s)
 	}
 	if a := at["attempt"].(map[string]any); a["status"] != "idle" || a["has_wait_events"].(float64) != 0 || a["last_event"] == nil {
 		t.Errorf("attempt status: %v", a)

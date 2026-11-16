@@ -555,14 +555,14 @@ const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=
     const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
 // a run's format (one factory's attempts on an issue), as [kind, detail] parts: staged (handoffs between roles), sessions (an attempt ran
-// several Claude Code sessions; phases in order, repeats collapsed, the attempt with the most steps), subagents (distinct agent ids), lanes (dispatches)
+// several Claude Code sessions; phases in order, repeats collapsed, the attempt with the most steps), subagents (distinct agent ids), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged))p.push(['staged',seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ')]);
   const multi=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id)).filter(x=>x.length>1);
   if(multi.length){const ph=multi.map(x=>seq(x.filter(s=>s.phase).map(s=>s.phase.split(',').join(' + ')))).reduce((a,b)=>b.length>a.length?b:a);p.push(['sessions',ph.length?ph.join(' → '):Math.max(...multi.map(x=>x.length))])}
   if(n)p.push(['subagents',n]);
-  if(ls.length)p.push(['lanes',[...new Set(ls.map(d=>d.lane))].join(' → ')]);return p};
+  if(ls.length)p.push(['lanes',[...new Set(ls)].join(' → ')]);return p};
 const runLabel=p=>p.map(([k,v])=>k+' · '+v).join(' + ')||'single session';
 const FORMAT_TIP=STAGED_TIP.split('\n')[0]+'\nSessions: one attempt ran several Claude Code sessions, by phase in order (factorybench.phase)\nSubagents: distinct subagents that made model calls\nLanes: dispatches to lanes, from the run manifests\nSingle session: none of these\nOnly staged changes how metrics count attempts';
 const runType=(as,ss=[],ls=[])=>`<span class="chip plain" data-tip="${esc(FORMAT_TIP)}">${esc(runLabel(runParts(as,ss,ls)))}</span>`;
@@ -650,7 +650,7 @@ V.item=async(repo,issue)=>{
   const w=W($('#main'))-90;
   const facs=uniq(d.attempts.map(a=>a.factory_id)),fAtts=fc=>d.attempts.filter(a=>a.factory_id===fc);
   return `<div class="crumbs"><a href="#items">Issues</a>›<span>${esc(repo)}#${issue}</span></div>`+topbar(esc(d.title||repo+'#'+issue))+
-  `<div class="meta">${facs.map(fc=>`<span>${facs.length>1?`factory <b>${esc(fc)}</b> `:''}${runType(fAtts(fc),d.sessions,lanes.filter(x=>fAtts(fc).some(a=>a.attempt_id===x.attempt_id)))}</span>`).join('')}</div>
+  `<div class="meta">${facs.map(fc=>`<span>${facs.length>1?`factory <b>${esc(fc)}</b> `:''}${runType(fAtts(fc),d.sessions,lanes.filter(x=>fAtts(fc).some(a=>a.attempt_id===x.attempt_id)).map(x=>x.lane))}</span>`).join('')}</div>
   <div class="kpis">
    ${kpi('Outcome',pr?chip(pr.state):chip('open'),d.prs.length?`${d.prs.length} PR${d.prs.length>1?'s':''}`:'no PR linked')}
    ${(()=>{const st=d.units.filter(u=>u.Staged),sum=k=>st.reduce((n,u)=>n+(u[k]||0),0),failed=d.units.reduce((n,u)=>n+(u.Staged?u.Failed||0:d.attempts.filter(a=>a.factory_id===u.Factory&&a.state==='failed').length),0);
@@ -710,7 +710,7 @@ V.attempt=async(f,id)=>{
     [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
   return `<div class="crumbs"><a href="#items">Issues</a>›<a href="${itemHref(a.repo,a.issue)}">${esc(a.repo)}#${a.issue}</a>›<span>${esc(id)}</span></div>`+topbar(`Attempt <span class="mono" style="font-size:15px;font-weight:500">${esc(shortId(id))}</span>`,(local?`<button class="btn" data-open-local>${ico('lock')} Conversation</button>`:''))+
   `
-  <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span><span>${runType(d.run.map(r=>({...r,subagents:r.attempt_id===id?subs.length:0})),sess.map(s=>({...s,factory_id:a.factory_id,attempt_id:id})),lanes)}</span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
+  <div class="meta">${a.status==='idle'?chip('idle since '+(a.last_event?fmtWhen(a.last_event):'?'),'warn'):chip(a.status||a.state)}<span>factory <b>${esc(a.factory_id)}</b></span><span>run ${runType(d.run,d.run_sessions,d.run_lanes)}</span>${a.role?`<span>role <b>${esc(a.role)}</b></span>`:''}<span>config <b class="mono">${esc(a.config_version)}</b></span>${a.parent_attempt_id?`<span>parent <a href="${attHref(a.factory_id,a.parent_attempt_id)}"><b class="mono">${esc(shortId(a.parent_attempt_id))}</b></a></span>`:''}${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR ↗</a>`:''}</div>
   <div class="kpis">
    ${kpi('Cost',usd(cost,unp||!d.usage.length),plural(d.usage.length,'model call'))}
    ${kpi('Tokens',d.usage.length?esc(fmtTok(tokens)):U,d.usage.length?`${fmtTok(d.usage.reduce((s,u)=>s+(u.cache_read||0),0))} cache read`:'no usage reported')}
