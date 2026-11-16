@@ -50,10 +50,11 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
 // sessionsSQL is every Claude Code session (distinct OTLP session.id) of the attempts a matching filter, oldest first:
-// its first and last event and phase(s). The filter narrows the events before grouping, so a page reads only its own sessions.
+// its first and last event and phase(s), sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
 func sessionsSQL(filter string) string {
 	return `SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session,
-	min(ts) AS first_ts, max(ts) AS last_ts, group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
+	min(ts) AS first_ts, max(ts) AS last_ts,
+	group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
 	WHERE source = 'otlp' AND (factory_id, json_extract(payload, '$."factorybench.attempt"')) IN (SELECT factory_id, attempt_id FROM attempts a WHERE ` + filter + `)
 	GROUP BY 1, 2, 3 HAVING session IS NOT NULL ORDER BY first_ts`
 }
@@ -401,7 +402,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"gates", `SELECT ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
-			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
+			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
 		// the attempts of this attempt's run (factory × issue), for its run format
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
