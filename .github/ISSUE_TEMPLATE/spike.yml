@@ -1,0 +1,30 @@
+name: Spike / Research Task
+description: Research a metric definition, a factory architecture, telemetry source or design decision.
+title: "[SPIKE] "
+labels: ["type:spike", "needs-triage"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Research Question / Problem to Investigate
+      description: What specific question or hypothesis are we investigating?
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & Timebox
+      description: Boundaries of the investigation and estimated timebox (e.g. 1-2 days).
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Expected Deliverables
+      description: Write-up, proof of concept code, captured events, or design proposal.
+      value: |
+        - [ ] Write-up in `docs/`
+        - [ ] Proof-of-concept code or captured events / OTLP payloads
+        - [ ] Recommendation / conclusion for implementation
+    validations:
+      required: true

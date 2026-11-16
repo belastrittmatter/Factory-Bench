@@ -1,0 +1,50 @@
+name: Feature Task
+description: Propose a new metric, report, dashboard view, event type or CLI command.
+title: "[FEAT] "
+labels: ["type:feat", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please fill out this form to specify a feature task. After filing, the team will review and tag with Size and Area.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary & Goal
+      description: What does this add to FactoryBench, and which question about a factory does it answer?
+      placeholder: "Show the run format (staged, sessions, subagents, lanes) on every issue and attempt page so..."
+    validations:
+      required: true
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical Specification & Implementation
+      description: Packages, event contract changes, SQL / schema, API endpoints, CLI flags or dashboard views involved.
+      placeholder: "- Contract: new optional field `...` on `attempt.started` (spec/events.schema.json + spec/examples/)\n- Derived in: internal/normalize, internal/report\n- Exposed via: /api/item, report items\n- Single-session factories unchanged"
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Definition of Done (Acceptance Criteria)
+      description: Checklist of conditions that must be satisfied.
+      value: |
+        - [ ] Implementation complete
+        - [ ] Unit tests / golden reports added (`go test ./...`, `go vet ./...`)
+        - [ ] Checked against real data on a copy of `fb.db` (CLI report and/or dashboard)
+        - [ ] Documentation updated (README, INSTALL.md, docs/reference.md, docs/dashboard.md, spec/)
+    validations:
+      required: true
+  - type: dropdown
+    id: size
+    attributes:
+      label: Estimated Size
+      description: Refer to the size rubric (XS to XL).
+      options:
+        - "XS (1 file, tiny change)"
+        - "S (single package / view)"
+        - "M (multi-package change + tests)"
+        - "L (contract or schema change / migration)"
+        - "XL (epic / needs split)"
+    validations:
+      required: true
