@@ -348,12 +348,8 @@ func (s *server) item(r *http.Request) (any, error) {
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
 		"checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
-		// the issue's activity totals for its KPI tiles: model calls, cache reads, tool calls (failed), subagent runs, API errors
-		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read,
-			(SELECT count(*) FROM tool_calls t JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2) AS tools,
-			(SELECT sum(t.success = 0) FROM tool_calls t JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2) AS tools_failed,
-			(SELECT count(*) FROM agent_runs r JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2) AS subagents,
-			(SELECT count(*) FROM api_errors e JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2) AS api_errors
+		// the issue's model calls and cache reads, for its KPI tiles
+		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2`,
 		// cost per attempt and phase, for the issue's cost per stage on single-session runs
 		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
