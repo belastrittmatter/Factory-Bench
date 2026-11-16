@@ -226,6 +226,73 @@ func TestEndpoints(t *testing.T) {
 	}
 }
 
+// The issue, attempt and run lookups keep to their own issue, factory and run: another issue of the same factory and
+// another factory on the same issue, both with telemetry, stay out of them.
+func TestScopes(t *testing.T) {
+	_, h, dir := fixture(t)
+	rw, err := OpenWritable(filepath.Join(dir, "fb.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := func(t time.Time) string { return store.FormatTS(t) }
+	now, day := time.Now().UTC(), time.Date(2026, 1, 2, 9, 59, 0, 0, time.Local) // the fixture's dispatches start at 10:00 local that day
+	for _, q := range []string{
+		`INSERT INTO factories VALUES ('g', 'h2', NULL, NULL, 'x')`,
+		`INSERT INTO work_items (repo, issue, title, first_seen, outcome) VALUES ('o/r', 8, 'other', 'x', 'open')`,
+		// b1: factory f on another issue; c1: factory g on the same issue, during the fixture's dispatches
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES ('f', 'b1', 'o/r', 8, 'v1', 'completed', '` + ts(now.Add(-time.Hour)) + `', '` + ts(now.Add(-50*time.Minute)) + `')`,
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES ('g', 'c1', 'o/r', 7, 'v1', 'completed', '` + ts(day) + `', '` + ts(day.Add(13*time.Minute)) + `')`,
+		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'b1', 'm', '` + ts(now.Add(-55*time.Minute)) + `', 1, 1, 0.1, 'p1'), ('g', 'c1', 'm', '` + ts(day.Add(time.Minute)) + `', 1, 1, 0.2, 'p1')`,
+		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'b1', 's', 0, 'completed', 'x'), ('g', 'c1', 's', 0, 'completed', 'x')`,
+		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'b1e', 'otlp.api_request', '` + ts(now.Add(-55*time.Minute)) + `', 'x', '{"factorybench.attempt":"b1","session.id":"sb1"}'),
+			('otlp', 'g', 'c1e', 'otlp.api_request', '` + ts(day.Add(time.Minute)) + `', 'x', '{"factorybench.attempt":"c1","session.id":"sc1"}'),
+			('otlp', 'f', 'xe', 'otlp.api_request', '` + ts(day) + `', 'x', '{"factorybench.attempt":"c1","session.id":"sx"}')`, // c1's id under factory f: no such attempt
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatal(err, q)
+		}
+	}
+	rw.Close()
+	ids := func(rs []any, k string) string {
+		var out []string
+		for _, r := range rs {
+			out = append(out, fmt.Sprint(r.(map[string]any)[k]))
+		}
+		return strings.Join(out, " ")
+	}
+	var item map[string]any
+	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	if g := ids(item["sessions"].([]any), "session"); g != "sc1 "+sid {
+		t.Errorf("item sessions: %s", g)
+	}
+	if g := ids(item["attempts"].([]any), "attempt_id"); g != "c1 a1" {
+		t.Errorf("item attempts: %s", g)
+	}
+	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 3 { // a1's two calls and c1's, not b1's
+		t.Errorf("item activity: %v", a)
+	}
+	var at map[string]any
+	get(t, h, "/api/attempt?factory=f&id=a1", &at)
+	if g := ids(at["run"].([]any), "attempt_id"); g != "a1" {
+		t.Errorf("run: %s", g)
+	}
+	if g := ids(at["run_sessions"].([]any), "session"); g != sid {
+		t.Errorf("run sessions: %s", g)
+	}
+	if l := at["run_lanes"].([]any); len(l) != 0 { // the dispatches ran in c1, another factory's run
+		t.Errorf("run lanes: %v", l)
+	}
+	get(t, h, "/api/attempt?factory=g&id=c1", &at)
+	if g := ids(at["run"].([]any), "attempt_id") + " | " + ids(at["run_sessions"].([]any), "session") + " | " + fmt.Sprint(at["run_lanes"]); g != "c1 | sc1 | [alpha beta alpha]" {
+		t.Errorf("c1 run: %s", g)
+	}
+	var ss []map[string]any
+	get(t, h, "/api/sessions", &ss)
+	if len(ss) != 3 { // every attempt's sessions; sx belongs to no attempt
+		t.Errorf("sessions: %v", ss)
+	}
+}
+
 func TestReadOnlyAndLocalOnly(t *testing.T) {
 	s, h, dir := fixture(t)
 	if _, err := s.db.Exec(`DELETE FROM events`); err == nil {
