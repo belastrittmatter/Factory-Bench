@@ -308,12 +308,12 @@ const W=el=>Math.max(260,(el&&el.clientWidth)||600);
 function bars(w,h,buckets,series,fmt,count,log){
   const pl=44,pr=6,pt=8,pb=22,iw=w-pl-pr,ih=h-pt-pb,n=buckets.length;
   const tot=buckets.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0));
-  // log: decades from the smallest non-zero total to the largest; a bar's height is its total, its segments split that by share
-  const pos=tot.filter(v=>v>0),lo=log&&pos.length?10**Math.floor(Math.log10(Math.min(...pos))):1,hi=log&&pos.length?Math.max(lo*10,10**Math.ceil(Math.log10(Math.max(...pos)))):1;
+  // log: decades from one below the smallest non-zero total (so it still shows as a bar) to the largest; a bar's height is its total, its segments split that by share
+  const pos=tot.filter(v=>v>0),lo=log&&pos.length?10**(Math.floor(Math.log10(Math.min(...pos)))-1):1,hi=log&&pos.length?10**Math.ceil(Math.log10(Math.max(...pos))):1;
   const sc=log?{max:1,ticks:[]}:scale(Math.max(...tot,0),count),max=sc.max,bw=Math.max(2,Math.min(42,iw/n-3)),step=iw/n;
   const frac=(v,i)=>log?(tot[i]>0?Math.log10(tot[i]/lo)/Math.log10(hi/lo)*v/tot[i]:0):v/max;
-  if(log)for(let v=lo;v<=hi*1.0001;v*=10)sc.ticks.push(v);
-  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*(log?Math.log10(v/lo)/Math.log10(hi/lo):v/max);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
+  if(log&&pos.length)for(let v=lo;v<=hi*1.0001;v*=10)sc.ticks.push(v); // nothing positive: no ticks
+  let g=`<g class="grid">`,lastY;sc.ticks.forEach(v=>{const y=pt+ih-ih*(log?Math.log10(v/lo)/Math.log10(hi/lo):v/max),s=fmt(v);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/>`+(s===lastY?'':`<text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(lastY=s)}</text>`)});g+='</g>';
   let m='',lastLab='';const every=Math.ceil(n/Math.floor(iw/58));
   buckets.forEach((b,i)=>{
     const x=pl+i*step+(step-bw)/2;let y=pt+ih;
