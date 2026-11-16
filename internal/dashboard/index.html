@@ -295,16 +295,20 @@ const niceStep=v=>{const p=10**Math.floor(Math.log10(v)),f=v/p;return(f<=1?1:f<=
 const scale=(v,count)=>{v=Math.max(v,count?1:1e-6);let st=niceStep(v/4);if(count)st=Math.max(1,Math.round(st));const n=Math.ceil(v/st-1e-9);return{max:st*n,ticks:[...Array(n+1)].map((_,k)=>k*st)}};
 const W=el=>Math.max(260,(el&&el.clientWidth)||600);
 // stacked bars: buckets [{label, tip}], series [{name,color,values}]
-function bars(w,h,buckets,series,fmt,count){
+function bars(w,h,buckets,series,fmt,count,log){
   const pl=44,pr=6,pt=8,pb=22,iw=w-pl-pr,ih=h-pt-pb,n=buckets.length;
   const tot=buckets.map((_,i)=>series.reduce((a,s)=>a+(s.values[i]||0),0));
-  const sc=scale(Math.max(...tot,0),count),max=sc.max,bw=Math.max(2,Math.min(42,iw/n-3)),step=iw/n;
-  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*v/max;g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
+  // log: decades from the smallest non-zero total to the largest; a bar's height is its total, its segments split that by share
+  const pos=tot.filter(v=>v>0),lo=log&&pos.length?10**Math.floor(Math.log10(Math.min(...pos))):1,hi=log&&pos.length?Math.max(lo*10,10**Math.ceil(Math.log10(Math.max(...pos)))):1;
+  const sc=log?{max:1,ticks:[]}:scale(Math.max(...tot,0),count),max=sc.max,bw=Math.max(2,Math.min(42,iw/n-3)),step=iw/n;
+  const frac=(v,i)=>log?(tot[i]>0?Math.log10(tot[i]/lo)/Math.log10(hi/lo)*v/tot[i]:0):v/max;
+  if(log)for(let v=lo;v<=hi*1.0001;v*=10)sc.ticks.push(v);
+  let g=`<g class="grid">`;sc.ticks.forEach(v=>{const y=pt+ih-ih*(log?Math.log10(v/lo)/Math.log10(hi/lo):v/max);g+=`<line x1="${pl}" x2="${w-pr}" y1="${y}" y2="${y}"/><text x="${pl-8}" y="${y+4}" text-anchor="end">${esc(fmt(v))}</text>`});g+='</g>';
   let m='',lastLab='';const every=Math.ceil(n/Math.floor(iw/58));
   buckets.forEach((b,i)=>{
     const x=pl+i*step+(step-bw)/2;let y=pt+ih;
     const lines=series.filter(s=>s.values[i]).map(s=>`${s.name}: ${fmt(s.values[i])}`);
-    series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(1,v/max*ih);y-=hh;m+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(0,hh-(y>pt?1.5:0))}" rx="${Math.min(1.5,bw/4)}" fill="${s.color}"/>`});
+    series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(1,frac(v,i)*ih);y-=hh;m+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(0,hh-(y>pt?1.5:0))}" rx="${Math.min(1.5,bw/4)}" fill="${s.color}"/>`});
     m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" ${b.href?`data-href="${esc(b.href)}" style="cursor:pointer"`:''} data-tip="${esc(b.tip+(tot[i]?'\n'+(series.length>1?'Total '+fmt(tot[i])+'\n':'')+lines.join('\n'):'\nno data'))}"/>`;
     if(i%every===0&&b.label!==lastLab&&(lastLab=b.label))m+=`<text x="${x+bw/2}" y="${h-6}" text-anchor="middle">${esc(b.label)}</text>`;
   });
@@ -394,7 +398,7 @@ function filterBar(opts,{time=true,search}={}){
 }
 const uniq=a=>[...new Set(a.filter(v=>!nil(v)&&v!==''))].sort();
 const optsOf=atts=>({factories:uniq(atts.map(a=>a.factory_id)),configs:uniq(atts.filter(a=>!F.factory||a.factory_id===F.factory).map(a=>a.config_version)),repos:uniq(atts.map(a=>a.repo))});
-const UI={q:'',outcome:'',sort:store.get('sort',{k:'',d:-1}),tlKinds:{},compareBy:store.get('by','')};
+const UI={q:'',outcome:'',sort:store.get('sort',{k:'',d:-1}),tlKinds:{},compareBy:store.get('by',''),spendLog:store.get('spendLog',false)};
 
 // ---------- data
 let meta={},SERIES=null,LIVE=[],LAST=null;
@@ -422,9 +426,9 @@ V.overview=async()=>{
   const items=new Set(ar.map(a=>a.repo+'#'+a.issue)).size;
   // spend per issue: cost of the attempts started in range, the part spent on failed or cancelled attempts in red
   const inRange=new Set(ar.map(a=>a.factory_id+'/'+a.attempt_id)),aOf={};ar.forEach(a=>aOf[a.factory_id+'/'+a.attempt_id]=a);
-  const byIssue={};ar.forEach(a=>{const k=a.repo+'#'+a.issue,x=byIssue[k]=byIssue[k]||{repo:a.repo,issue:a.issue,title:a.title,cost:0,lost:0,n:0,unp:false};x.cost+=a.cost_usd||0;if(['failed','cancelled'].includes(a.state))x.lost+=a.cost_usd||0;x.n++;x.unp=x.unp||a.unpriced>0||nil(a.cost_usd);x.ph=x.ph||{}});
+  const byIssue={};ar.forEach(a=>{const k=a.repo+'#'+a.issue,x=byIssue[k]=byIssue[k]||{repo:a.repo,issue:a.issue,title:a.title,cost:0,lost:0,n:0,unp:false};x.first=x.first&&x.first<a.started_at?x.first:a.started_at;x.cost+=a.cost_usd||0;if(['failed','cancelled'].includes(a.state))x.lost+=a.cost_usd||0;x.n++;x.unp=x.unp||a.unpriced>0||nil(a.cost_usd);x.ph=x.ph||{}});
   (s.attempt_phases||[]).filter(p=>inRange.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const a=aOf[p.factory_id+'/'+p.attempt_id],x=byIssue[a.repo+'#'+a.issue],k=p.phase??'unknown phase';x.ph[k]=(x.ph[k]||0)+(p.cost_usd||0)});
-  const top=Object.values(byIssue).sort((p,q)=>q.cost-p.cost).slice(0,TOP_ISSUES),issuePhases=uniq(top.flatMap(x=>Object.keys(x.ph)));
+  const top=Object.values(byIssue).sort((p,q)=>+T(q.first)-+T(p.first)).slice(0,TOP_ISSUES).reverse(),issuePhases=uniq(top.flatMap(x=>Object.keys(x.ph)));
   const pser=issuePhases.map(k=>({name:k,color:phaseColor(k),values:top.map(x=>x.ph[k]||0)}));
   // tool mix
   const tm={};s.tools.filter(t=>keep(t)&&+new Date(t.day)>=lo-864e5).forEach(t=>{const x=tm[t.tool_name]=tm[t.tool_name]||{c:0,f:0,ms:0};x.c+=t.calls;x.f+=t.failed||0;x.ms+=t.duration_ms||0});
@@ -444,8 +448,8 @@ V.overview=async()=>{
     ${kpi('Cost per merged',nil(sm.CostPerMerged)?'<span class="muted">n/a</span>':usd(sm.CostPerMerged,sm.CostLowerBound),sm.Merged?'all cost ÷ merged issues':'no merged issue yet')}
   </div>
   <div class="grid">
-   <div class="card c8"><div class="head"><div><h3>Spend per issue</h3><div class="hint">Cost of attempts started in range, most expensive first, split by phase · click a bar to open the issue</div></div></div>
-     ${top.length?legend(pser)+bars(W1*.64,260,top.map(x=>({label:'#'+x.issue,href:itemHref(x.repo,x.issue),tip:`#${x.issue} ${x.title||''}\n${x.repo}\n${fmtUsd(x.cost)}${x.unp?' +?':''} over ${plural(x.n,'attempt')}${x.lost?'\n'+fmtUsd(x.lost)+' on failed or cancelled attempts':''}\nclick to open`})),pser,fmtUsd)+(items>TOP_ISSUES?`<div class="muted" style="margin-top:8px">${items-TOP_ISSUES} more issues · <a href="#items">all issues →</a></div>`:''):'<div class="empty">No attempts in this range</div>'}</div>
+   <div class="card c8"><div class="head"><div><h3>Spend per issue</h3><div class="hint">Cost of attempts started in range, issues in order of their first attempt, split by phase · click a bar to open the issue</div></div><div class="seg" role="group" aria-label="y scale"><button class="${UI.spendLog?'':'on'}" data-ylog="">Linear</button><button class="${UI.spendLog?'on':''}" data-ylog="1">Log</button></div></div>
+     ${top.length?legend(pser)+bars(W1*.64,260,top.map(x=>({label:'#'+x.issue,href:itemHref(x.repo,x.issue),tip:`#${x.issue} ${x.title||''}\n${x.repo}\n${fmtUsd(x.cost)}${x.unp?' +?':''} over ${plural(x.n,'attempt')}${x.lost?'\n'+fmtUsd(x.lost)+' on failed or cancelled attempts':''}\nfirst attempt ${fmtWhen(x.first)}\nclick to open`})),pser,fmtUsd,undefined,UI.spendLog)+(items>TOP_ISSUES?`<div class="muted" style="margin-top:8px">${items-TOP_ISSUES} older issues · <a href="#items">all issues →</a></div>`:''):'<div class="empty">No attempts in this range</div>'}</div>
    <div class="c4" style="display:flex;flex-direction:column;gap:34px;min-width:0"><div class="card"><h3>Attempt outcomes</h3><div class="hint">${plural(ar.length,'attempt')} on ${plural(items,'issue')} started in range</div>
      ${ar.length?segbar(parts)+`<div class="stat-list">${parts.filter(p=>p.v).map(p=>`<div><span class="chip" style="color:${p.color}"><span style="color:var(--text-2)">${esc(p.k.replace(/_/g,' '))}</span></span><b>${p.v} <span class="muted">· ${Math.round(p.v/ar.length*100)}%</span></b></div>`).join('')}</div>`:'<div class="empty">No attempts in range</div>'}</div></div>
    <div class="card c6"><div class="head"><div><h3>In flight</h3><div class="hint">Running or waiting for a human, same as Live · refreshes every ${REFRESH_MS/1000} s</div></div><a class="sub" href="#live">All live →</a></div>
@@ -886,7 +890,7 @@ let qT;document.addEventListener('input',e=>{
   if(e.target.id==='q'){UI.q=e.target.value;clearTimeout(qT);qT=setTimeout(()=>render(true),120)}
   if(e.target.id==='tq'){const q=e.target.value.toLowerCase();document.querySelectorAll('#ents>[data-s]').forEach(el=>el.style.display=!q||el.dataset.s.includes(q)?'':'none')}});
 document.addEventListener('click',e=>{
-  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-diff],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files],[data-fact],[data-factgo],[data-copy],[data-cmprm]');if(!t)return;
+  const t=e.target.closest('[data-range],[data-outcome],[data-sort],[data-tlk],[data-by],[data-diff],[data-ylog],[data-themetoggle],[data-clear],[data-href],[data-open-local],[data-close],[data-load],[data-files],[data-fact],[data-factgo],[data-copy],[data-cmprm]');if(!t)return;
   const d=t.dataset;
   if('range' in d){F.range=d.range;saveF()}
   else if('clear' in d){F.factory=F.config=F.repo='';saveF()}
@@ -895,6 +899,7 @@ document.addEventListener('click',e=>{
   else if('tlk' in d){UI.tlKinds[d.tlk]=UI.tlKinds[d.tlk]===false;render(true)}
   else if('cmprm' in d)cmpPick(c=>c.filter(g=>g!==d.cmprm));
   else if('diff' in d){UI.diffFirst=!!d.diff;render(true)}
+  else if('ylog' in d){UI.spendLog=!!d.ylog;store.set('spendLog',UI.spendLog);render(true)}
   else if('by' in d){UI.compareBy=d.by;store.set('by',d.by);render(true)}
   else if('themetoggle' in d){const r=document.documentElement,dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;r.dataset.theme=dark?'light':'dark';store.set('theme',r.dataset.theme)}
   else if('openLocal' in d)openLocal();
