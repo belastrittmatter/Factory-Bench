@@ -562,11 +562,11 @@ const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
 const ONE='one Claude Code session per attempt',NO_SESSIONS='sessions unknown (no Claude Code telemetry)';
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged)){const t='staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ');p.push(['staged',t,t])}
-  // sessions of each attempt; "up to" when not every attempt had the most; none at all = no telemetry, so unknown, not one
-  const ns=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id).length),most=Math.max(0,...ns),upto=ns.some(k=>k!==most)?'up to ':'';
+  // sessions of each attempt; an attempt without any is unknown (no telemetry), not 0: "up to" and counts use known attempts only
+  const ns=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id).length),kn=ns.filter(k=>k>0),most=Math.max(0,...kn),unk=ns.length-kn.length;
   if(!most)p.push(['unknown',NO_SESSIONS,NO_SESSIONS]);
-  else if(most>1)p.push(['sessions',`${upto}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt']);
-  else if(upto)p.push(['one','up to one Claude Code session per attempt',ONE]);
+  else{if(most>1)p.push(['sessions',`${kn.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt']);
+    if(unk)p.push(['unknown',`sessions unknown for ${unk} of ${ns.length} attempts`,'sessions unknown for some attempts'])}
   if(n)p.push(['subagents',plural(n,'subagent'),'Claude Code with subagents']);
   if(ls.length){const t='lanes: '+[...new Set(ls)].join(' → ');p.push(['lanes',t,t])}return p};
 const runLabel=(p,general)=>p.map(x=>x[general?2:1]).join(', ')||ONE;
