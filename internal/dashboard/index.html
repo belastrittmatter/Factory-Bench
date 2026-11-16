@@ -124,6 +124,7 @@ td.t{white-space:normal;min-width:160px;max-width:380px}
 .chart .grid line{stroke:var(--line);stroke-width:1}
 .chart .axis{stroke:var(--ink);stroke-width:1}
 .chart .hl{stroke:var(--ink);stroke-width:1}
+.chart .sync{stroke:var(--text-3);stroke-width:1;stroke-dasharray:3 3;pointer-events:none}
 .legend{display:flex;flex-wrap:wrap;gap:4px 16px;font-size:12px;color:var(--text-2);margin:0 0 10px}
 .legend span{display:inline-flex;align-items:center;gap:6px}.legend i{width:8px;height:8px;display:inline-block}
 .hbars{display:flex;flex-direction:column;gap:9px}
@@ -290,6 +291,14 @@ document.addEventListener('pointermove',e=>{
 document.addEventListener('pointerleave',()=>tip.style.opacity=0);
 
 // ---------- charts (inline SVG)
+// time charts register their t -> x map; hovering any of them draws a line at that instant on every one on the page
+const TMAP={};let tmN=0;
+const tmap=(X,t0,t1)=>{const id='tm'+(++tmN);TMAP[id]={X,t0,t1};if(tmN%200===0)Object.keys(TMAP).forEach(k=>{if(!document.querySelector(`[data-tmap="${k}"]`)&&k!==id)delete TMAP[k]});return ` data-tmap="${id}"`};
+document.addEventListener('pointermove',e=>{const sv=e.target.closest&&e.target.closest('svg[data-tmap]'),all=document.querySelectorAll('svg[data-tmap]');
+  if(!sv||!TMAP[sv.dataset.tmap]){all.forEach(x=>x.querySelector(':scope>.sync')?.setAttribute('visibility','hidden'));return}
+  const m=TMAP[sv.dataset.tmap],x=e.clientX-sv.getBoundingClientRect().left;let lo=m.t0,hi=m.t1;for(let k=0;k<50;k++){const mid=(lo+hi)/2;if(m.X(mid)<x)lo=mid;else hi=mid}
+  all.forEach(o=>{const n=TMAP[o.dataset.tmap];if(!n)return;let l=o.querySelector(':scope>.sync');if(!l){l=document.createElementNS('http://www.w3.org/2000/svg','line');l.setAttribute('class','sync');o.append(l)}
+    const ok=lo>=n.t0&&lo<=n.t1,X=n.X(lo),hh=o.viewBox.baseVal.height;l.setAttribute('x1',X);l.setAttribute('x2',X);l.setAttribute('y1',0);l.setAttribute('y2',hh-18);l.setAttribute('visibility',ok?'visible':'hidden')})});
 const niceStep=v=>{const p=10**Math.floor(Math.log10(v)),f=v/p;return(f<=1?1:f<=2?2:f<=2.5?2.5:f<=5?5:10)*p};
 // axis scale: 3-5 round ticks just above the data max; count axes step by whole numbers
 const scale=(v,count)=>{v=Math.max(v,count?1:1e-6);let st=niceStep(v/4);if(count)st=Math.max(1,Math.round(st));const n=Math.ceil(v/st-1e-9);return{max:st*n,ticks:[...Array(n+1)].map((_,k)=>k*st)}};
@@ -352,7 +361,7 @@ function area(w,h,pts,fmt,color,o={}){
   let quiet='';pts.forEach((p,i)=>{if(i&&+p.t-+pts[i-1].t>=QUIET_MS){const a=X(+pts[i-1].t),b=X(+p.t),y=Y(pts[i-1].v);quiet+=`<path d="M${a},${y}H${b}" stroke="var(--surface)" stroke-width="3" stroke-dasharray="5 5"/>`+(b-a>70?`<text x="${(a+b)/2}" y="${y-6}" text-anchor="middle" style="fill:var(--text-3);font-size:10px">no events ${esc(fmtDur((+p.t-+pts[i-1].t)/1000))}</text>`:'')}});
   const id='a'+Math.random().toString(36).slice(2,7);
   let hit='';pts.forEach((p,i)=>{const a=i?X((+pts[i-1].t+ +p.t)/2):pl,b=i<pts.length-1?X((+p.t+ +pts[i+1].t)/2):w-pr;hit+=`<rect x="${a}" y="${pt}" width="${Math.max(1,b-a)}" height="${ih}" fill="transparent" data-tip="${esc(p.tip)}" data-x="${X(+p.t)}" data-y="${Y(p.v)}"/>`});
-  return `<svg class="chart xh" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".10"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${laneBands(o.bands,X,pt,ih,pl,w-pr)}${g}
+  return `<svg class="chart xh" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"${tmap(X,t0,t1)}><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".10"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>${laneBands(o.bands,X,pt,ih,pl,w-pr)}${g}
    <path d="${d}L${X(t1)},${Y(pts[pts.length-1].v)}L${X(t1)},${pt+ih}L${pl},${pt+ih}Z" fill="url(#${id})"/><path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round"/>${quiet}
    <line class="hl" x1="0" x2="0" y1="${pt}" y2="${pt+ih}" visibility="hidden"/><circle r="4.5" fill="${color}" stroke="var(--surface)" stroke-width="2" visibility="hidden"/>${hit}</svg>`;
 }
@@ -373,7 +382,8 @@ function callBars(w,h,items,series,fmt,bands){
   if(lastEnd<0&&items.length)g=g.replace('</g>',`<text x="${pl}" y="${h-6}">${esc(fmtTime(items[0].t))}</text><text x="${w-pr}" y="${h-6}" text-anchor="end">${esc(fmtTime(items.at(-1).t))}</text></g>`);
   let m='';items.forEach((it,i)=>{let y=pt+ih;series.forEach(s=>{const v=s.values[i]||0;if(!v)return;const hh=Math.max(.5,v/max*ih);y-=hh;m+=`<rect x="${cx(i)-bw/2}" y="${y}" width="${bw}" height="${hh}" fill="${s.color}"/>`});
     m+=`<rect x="${pl+i*step}" y="${pt}" width="${step}" height="${ih}" fill="transparent" data-tip="${esc(it.tip+'\n'+series.filter(s=>s.values[i]).map(s=>s.name+': '+fmt(s.values[i])).join('\n'))}"/>`});
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img">${bd}${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
+  const tX=t=>{let k=0;while(k+1<items.length&&+items[k+1].t<=t)k++;return cx(k)};
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}" role="img"${items.length?tmap(tX,+items[0].t,+items.at(-1).t):''}>${bd}${g}<line class="axis" x1="${pl}" x2="${w-pr}" y1="${pt+ih}" y2="${pt+ih}"/>${m}</svg>`;
 }
 // horizontal bars with an optional failure part: rows [{label,value,fail,tip,href}]
 function hbars(rows,fmt,color){
@@ -579,11 +589,11 @@ function dispatchEv(d,labels){
    ${n?`<details class="tool" style="grid-column:3;border:0"><summary>show ${plural(n,'model call')}</summary>${table([{h:'Time',f:c=>esc(fmtTime(T(c.ts)))},{h:'Model',f:c=>esc(c.model)},{h:'Phase',f:c=>esc(c.phase??'?')},{h:'Tokens',n:1,f:c=>tok(c.tokens)},{h:'Cost',n:1,f:c=>usd(c.cost_usd)},{h:'Duration',n:1,f:c=>dur(nil(c.duration_ms)?null:c.duration_ms/1000)}],d.calls)}</details>`:''}</div>`;
 }
 
-let gLegend=[],gPhases=[];
+let gLegend=[];
 // gantt of an issue: one swimlane row per lane (a bar per dispatch), extra rows (f.rows: {label, bars:[{at,end,color,tip}]}), the board,
 // each attempt with its Claude Code sessions (f.sessions) as phase-coloured segments when it ran several, then GitHub markers
 function gantt(w,atts,tl,f){
-  gPhases=[];if(!atts.length)return'';const xr=f.rows||[];
+  if(!atts.length)return'';const xr=f.rows||[];
   const bar={};f.attempts.forEach(a=>bar[a.attempt_id]=a);
   // board: state moves from the run manifest and human waits from the factory, as reported
   const board=[...(f.moves||[]).map(m=>({at:m.At,label:m.State,tip:'board state: '+m.State})),...(f.waits||[]).map(x=>({at:x.ts,label:x.type==='human.waiting'?'waiting'+(x.reason?': '+x.reason:''):'resumed',tip:x.type.replace('.',' ')+(x.reason?'\n'+x.reason:'')}))].sort((a,b)=>+T(a.at)-+T(b.at));
@@ -612,7 +622,7 @@ function gantt(w,atts,tl,f){
       prev={lane:d.lane,x2,c}});
     y+=lanes.length*rowH;m+=`<line class="axis" x1="0" x2="${w}" y1="${y-1}" y2="${y-1}"/>`;
   }
-  xr.forEach(r=>{m+=lab(y,r.label);r.bars.forEach(b=>{const by=r.h>rowH?y+7+b.k*20:cy(y)-9;m+=`<rect x="${b.x1}" y="${by}" width="${b.x2-b.x1}" height="${r.h>rowH?16:18}" rx="3" fill="${b.color}" ${b.op?`fill-opacity="${b.op}"`:''} data-tip="${esc(b.tip)}"/>`});y+=r.h});
+  xr.forEach(r=>{m+=lab(y,r.label);r.bars.forEach(b=>{const by=r.h>rowH?y+7+b.k*20:cy(y)-9;m+=`<rect x="${b.x1}" y="${by}" width="${b.x2-b.x1}" height="${r.h>rowH?16:18}" rx="3" fill="${b.color}" stroke="var(--surface)" stroke-width="1" ${b.op?`fill-opacity="${b.op}"`:''} data-tip="${esc(b.tip)}"/>`});y+=r.h});
   if(board.length){m+=lab(y,'board');board.forEach((b,i)=>{const x=X(+T(b.at)),room=Math.min(i+1<board.length?X(+T(board[i+1].at))-x:w-x,...ax.gaps.map(([a])=>X(a)-x).filter(r=>r>=0)),c=cy(y);
       m+=`<path d="M${x},${c-9}l8,9l-8,9l-8,-9z" fill="var(--hot)" data-tip="${esc(b.tip+'\n'+fmtWhen(b.at))}"/>${room>70?`<text x="${x+13}" y="${c+4}" style="fill:var(--text)">${esc(b.label)}</text>`:''}`});y+=rowH}
   const labels=attLabels(atts),SC={completed:'var(--s3)',running:'var(--s1)',waiting_for_human:'var(--s4)',failed:'var(--crit)',cancelled:'var(--text-3)'};
@@ -620,16 +630,13 @@ function gantt(w,atts,tl,f){
   const y0=y,drawn=new Set();
   rowsOf.forEach(a=>{const b=bar[a.attempt_id]||{},x1=X(+T(a.started_at)),x2=X(endOf(a)),open=b.bar_state==='waiting'||b.bar_state==='idle',ry=y0+rowOf[a.attempt_id]*rowH,c=cy(ry),p=a.staged&&a.stage&&rowAt[a.parent_attempt_id];
     const all=(f.sessions||[]).filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id&&s.session);
-    const ss=all.reduce((r,s)=>{const l=r.at(-1);if(l&&l.phase===s.phase){l.last_ts=s.last_ts;l.n++;l.cost_usd=nil(l.cost_usd)||nil(s.cost_usd)?null:l.cost_usd+s.cost_usd}else r.push({...s,n:1});return r},[]);if(ss.length<2)ss.length=0;
     // staged run: a solid elbow from the parent's bar for a handoff to the next stage, a dashed red one for a retry
     if(p){const mid=(p.x2+x1)/2;m+=`<path d="M${p.x2},${p.c}H${mid}V${c}H${x1}" fill="none" stroke="${a.stage==='retry'?'var(--crit)':'var(--text-3)'}" stroke-width="1.5" ${a.stage==='retry'?'stroke-dasharray="3 2"':''}/>`}
     rowAt[a.attempt_id]={x2,c};
     m+=(drawn.has(rowOf[a.attempt_id])?'':lab(ry,labels[a.attempt_id]))+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]}${p?' · '+how(a):''} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}${all.length>1?` · ${all.length} Claude Code sessions`:''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
-      ss.map((s,i)=>{const ph=s.phase?s.phase.split(',').join(' + '):'unknown phase',col=phaseColor(s.phase?.includes(',')?null:s.phase),s1=X(+T(s.first_ts)),s2=Math.max(s1+2,X(+T(s.last_ts)));if(!gPhases.some(p=>p.name===ph))gPhases.push({name:ph,color:col});
-        return `<rect x="${s1}" y="${c-5}" width="${s2-s1}" height="10" rx="2" fill="${col}" stroke="var(--surface)" stroke-width="1" data-tip="${esc(`${labels[a.attempt_id]} · ${ph}${s.n>1?` · ${s.n} sessions`:''}\n${fmtWhen(s.first_ts)} · ${fmtDur((+T(s.last_ts)-+T(s.first_ts))/1000)}${nil(s.cost_usd)?'':' · '+fmtUsd(s.cost_usd)}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`}).join('')+
       (open?`<line x1="${x2}" x2="${X(ax.t1)}" y1="${c}" y2="${c}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-56)}" y="${c-8}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');drawn.add(rowOf[a.attempt_id])});y=y0+nRows*rowH;
   if(ev.length){gLegend=uniq(ev.map(l=>evKind(l)[2])).map(n=>({name:n,color:evKind(ev.find(l=>evKind(l)[2]===n))[1]}));m+=lab(y,'GitHub');ev.forEach(l=>{m+=`<rect x="${X(+T(l.TS))-6}" y="${cy(y)-9}" width="12" height="18" rx="2" fill="${evKind(l)[1]}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}">${g}${m}</svg>`;
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${tmap(X,ax.t0,ax.t1)}>${g}${m}</svg>`;
 }
 
 V.item=async(repo,issue)=>{
@@ -654,7 +661,7 @@ V.item=async(repo,issue)=>{
    ${kpi('Dispatches',f.manifest?lanes.length:'n/a',f.manifest?`<span data-tip="${esc('Sent back: the card returned to a lane that had already worked on it, after another lane\nRe-run: the same lane was dispatched again right after itself')}">${bounces} sent back · ${redis} re-runs</span>`:'needs --runs')}
   </div>
   <div class="grid">
-  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. ':''}Then board state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${d.attempts.some(a=>a.staged)?`<div class="legend" style="margin:8px 0 4px"><span><i style="width:16px;height:2px;background:var(--text-3)"></i>handoff to the next stage</span><span><i style="width:16px;height:0;background:transparent;border-top:2px dashed var(--crit)"></i>retry of a failed attempt</span></div>`:''}${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>dispatch of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,{...f,sessions:d.sessions});return g+(gPhases.length?`<div class="legend" style="margin-top:6px"><span class="muted">Claude Code sessions inside an attempt, by phase:</span>${gPhases.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
+  <div class="card c12"><h3>Timeline</h3><div class="hint">${f.manifest&&lanes.length?'Top rows: which lane worked on the card, one bar per dispatch, a thin line for each hand-off. ':''}Then board state, each attempt (click to open) and GitHub events. Long stretches without data are cut out and marked.</div>${d.attempts.some(a=>a.staged)?`<div class="legend" style="margin:8px 0 4px"><span><i style="width:16px;height:2px;background:var(--text-3)"></i>handoff to the next stage</span><span><i style="width:16px;height:0;background:transparent;border-top:2px dashed var(--crit)"></i>retry of a failed attempt</span></div>`:''}${f.manifest&&lanes.length?`<div class="legend" style="margin:8px 0 4px"><span><i style="background:var(--text-2)"></i>dispatch</span><span><i style="background:transparent;outline:1px dashed var(--text-2);outline-offset:-1px"></i>dispatch of a failed attempt</span><span><span style="display:inline-grid;place-items:center;width:16px;height:16px;border-radius:50%;background:var(--crit);color:#fff;font-size:11px;font-weight:700;line-height:1">↩</span>sent back: the line from the previous lane is red</span></div>`:''}${(()=>{gLegend=[];const g=gantt(w,d.attempts,d.timeline,{...f,sessions:d.sessions});return g+(gLegend.length?`<div class="legend" style="margin-top:6px"><span class="muted">GitHub row:</span>${gLegend.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`:'')})()}</div>
   <div class="card c8"><h3>Events</h3><div class="hint">Lifecycle, review and CI events from <span class="mono">report item</span>; model calls are grouped per dispatch (open a row for its calls). Toggle kinds to filter.</div>${timelineHtml(d.timeline,f.dispatches,labels)}</div>
   <div class="c4" style="display:flex;flex-direction:column;gap:14px;min-width:0">
    <div class="card"><h3>Attempts</h3>${table([{h:'Attempt · lanes',c:'t',f:a=>{const ls=uniq(lanes.filter(x=>x.attempt_id===a.attempt_id).map(x=>x.lane));return `<b>${esc(labels[a.attempt_id])}</b>${a.role&&!a.staged?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span><div style="display:flex;flex-wrap:wrap;gap:2px 10px;margin-top:3px">${ls.length?ls.map(laneChip).join(''):'<span class="muted">no lanes reported</span>'}</div>`}},{h:'State · PR',f:a=>`${chip(a.status||a.state)}<div>${a.pr_url?`<a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a>`:'<span class="muted">no PR</span>'}</div>`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
@@ -688,7 +695,8 @@ V.attempt=async(f,id)=>{
   // timeline rows: a row per phase with its session bands when the attempt ran several sessions, and one row of subagents (first to last model call each)
   const inWin=(a,b)=>d.usage.filter(u=>u.ts>=a&&u.ts<=b).reduce((t,u)=>t+(u.cost_usd||0),0),span=b=>fmtWhen(b.at)+' · '+fmtDur((+T(b.end)-+T(b.at))/1000);
   const subs=Object.values(d.usage.filter(u=>u.agent_id).reduce((m,u)=>{const x=m[u.agent_id]=m[u.agent_id]||{at:u.ts,end:u.ts,n:0,c:0,id:u.agent_id};x.end=u.ts;x.n++;x.c+=u.cost_usd||0;return m},{}));
-  const grows=[...(sess.length>1?[...new Set(sb.map(b=>b.ph))].map(ph=>({label:ph,bars:sb.filter(b=>b.ph===ph).map(b=>({...b,tip:`${b.lane}\n${span(b)} · ${fmtUsd(inWin(b.at,b.end))}`}))})):[]),
+  const sp=sess.map((s,i)=>({at:s.first_ts,end:s.last_ts,i,ph:s.phase?s.phase.split(',').join(' + '):'unknown phase',color:phaseColor(s.phase?.includes(',')?null:s.phase)}));
+  const grows=[...(sess.length>1?[...new Set(sp.map(b=>b.ph))].map(ph=>({label:ph,bars:sp.filter(b=>b.ph===ph).map(b=>({...b,tip:`${ph} · session ${b.i+1} of ${sess.length}\n${span(b)} · ${fmtUsd(inWin(b.at,b.end))}`}))})):[]),
     ...(subs.length?[{label:'subagents',bars:subs.map(x=>({...x,color:'var(--s7)',op:.6,tip:`subagent ${shortId(x.id)}\n${span(x)}\n${plural(x.n,'model call')} · ${fmtUsd(x.c)}`}))}]:[])];
   const bandWord=bands===d.dispatches?'dispatches':'Claude Code sessions (by phase)';
   const ph=d.phases.map(p=>({v:p.cost_usd||0,color:phaseColor(p.phase),tip:`${p.phase??'unknown phase'}\n${fmtTok(p.tokens)} tokens · ${fmtUsd(p.cost_usd)}${p.unpriced?' +?':''}\n${plural(p.sessions,'model call')}`}));
@@ -696,7 +704,7 @@ V.attempt=async(f,id)=>{
   const local=meta.local||meta.transcripts;
   // tool call strip: one row per tool, dot per call
   let strip='';if(tl.length){const names=d.tools.map(t=>t.tool_name).slice(0,10),t0=ax0,t1=Math.max(ax1,t0+1),pl=96,X=t=>pl+(t-t0)/(t1-t0)*(w*.62-pl-8),h=names.length*22+26;
-    strip=`<svg class="chart" viewBox="0 0 ${w*.62} ${h}" width="${w*.62}" height="${h}">`+names.map((n,i)=>`<text x="0" y="${i*22+15}" style="fill:var(--text-2)">${esc(n.length>13?n.slice(0,12)+'…':n)}</text><line class="axis" x1="${pl}" x2="${w*.62-8}" y1="${i*22+11}" y2="${i*22+11}" style="stroke:var(--line)"/>`).join('')+
+    strip=`<svg class="chart" viewBox="0 0 ${w*.62} ${h}" width="${w*.62}" height="${h}"${tmap(X,t0,t1)}>`+names.map((n,i)=>`<text x="0" y="${i*22+15}" style="fill:var(--text-2)">${esc(n.length>13?n.slice(0,12)+'…':n)}</text><line class="axis" x1="${pl}" x2="${w*.62-8}" y1="${i*22+11}" y2="${i*22+11}" style="stroke:var(--line)"/>`).join('')+
     tl.filter(t=>names.includes(t.tool_name)).map(t=>`<circle cx="${X(+T(t.ts))}" cy="${names.indexOf(t.tool_name)*22+11}" r="${t.success===0?4.5:3}" opacity="${t.success===0?1:.8}" fill="${t.success===0?'var(--crit)':'var(--ink)'}" stroke="none" data-tip="${esc(`${t.tool_name} · ${t.success===0?'failed':nil(t.success)?'result unknown':'ok'}\n${fmtWhen(t.ts)} · ${nil(t.duration_ms)?'?':t.duration_ms+' ms'}${t.error_type?'\n'+t.error_type:''}${t.agent_id?'\nsubagent '+t.agent_id:''}`)}"/>`).join('')+
     [0,.5,1].map(k=>`<text x="${X(t0+(t1-t0)*k)}" y="${h-4}" text-anchor="${k?k===1?'end':'middle':'start'}">${esc(fmtTime(new Date(t0+(t1-t0)*k)))}</text>`).join('')+'</svg>'}
   return `<div class="crumbs"><a href="#items">Issues</a>›<a href="${itemHref(a.repo,a.issue)}">${esc(a.repo)}#${a.issue}</a>›<span>${esc(id)}</span></div>`+topbar(`Attempt <span class="mono" style="font-size:15px;font-weight:500">${esc(shortId(id))}</span>`,(local?`<button class="btn" data-open-local>${ico('lock')} Conversation</button>`:''))+
@@ -710,7 +718,7 @@ V.attempt=async(f,id)=>{
    ${kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':'')}
   </div>
   <div class="grid">
-   ${lanes.length||grows.length?`<div class="card c12"><h3>Timeline</h3><div class="hint">${[lanes.length&&'Which lane worked on this attempt and when, one bar per dispatch with a line for each hand-off',grows.length>(subs.length?1:0)&&'Claude Code sessions by phase, back-to-back sessions of one phase merged',subs.length&&'subagents from their first to their last model call'].filter(Boolean).join(' · ')}${lanes.length||sess.length>1?' · bars are the same bands as in the charts below':''}</div>${(()=>{gLegend=[];return gantt(w,[a],[],{dispatches:d.dispatches,rows:grows,moves:[],waits:[],attempts:[],hideAttempts:true})})()}</div>`:''}
+   ${lanes.length||grows.length?`<div class="card c12"><h3>Timeline</h3><div class="hint">${[lanes.length&&'Which lane worked on this attempt and when, one bar per dispatch with a line for each hand-off',grows.length>(subs.length?1:0)&&'one bar per Claude Code session, in the row of its phase',subs.length&&'subagents from their first to their last model call'].filter(Boolean).join(' · ')}${lanes.length||sess.length>1?' · bars are the same bands as in the charts below':''}</div>${(()=>{gLegend=[];return gantt(w,[a],[],{dispatches:d.dispatches,rows:grows,moves:[],waits:[],attempts:[],hideAttempts:true})})()}</div>`:''}
    <div class="card c8"><h3>Cumulative cost</h3><div class="hint">Each step is one priced model call; bands are the ${bandWord} it ran in · dashed = no events reported for a while (a long tool call or a telemetry gap)</div>${d.usage.length?area(cw,210,pts,fmtUsd,'var(--s1)',{t0:ax0,t1:ax1,bands})+quietNote:'<div class="empty">No usage reported</div>'}</div>
    <div class="card c4"><h3>Phase split</h3><div class="hint">Cost by phase, tokens second</div>${d.phases.length?segbar(ph)+`<div class="stat-list">${d.phases.map(p=>`<div><span class="chip" style="color:${phaseColor(p.phase)}"><span style="color:var(--text-2)">${esc(p.phase??'unknown')}</span></span><b>${usd(p.cost_usd,p.unpriced>0)} <span class="muted">· ${tok(p.tokens)}</span></b></div>`).join('')}</div>`:'<div class="empty">No phase data</div>'}
      <h3 style="margin-top:18px">Models</h3>${hbars(Object.entries(d.usage.reduce((m,u)=>{m[u.model]=(m[u.model]||0)+(u.cost_usd||0);return m},{})).map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}
