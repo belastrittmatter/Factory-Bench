@@ -293,7 +293,7 @@ document.addEventListener('pointerleave',()=>tip.style.opacity=0);
 // ---------- charts (inline SVG)
 // time charts register their t -> x map; hovering any of them draws a line at that instant on every one on the page
 const TMAP={};let tmN=0;
-const tmap=(X,t0,t1)=>{const id='tm'+(++tmN);TMAP[id]={X,t0,t1};if(tmN%200===0)Object.keys(TMAP).forEach(k=>{if(!document.querySelector(`[data-tmap="${k}"]`)&&k!==id)delete TMAP[k]});return ` data-tmap="${id}"`};
+const tmap=(X,t0,t1)=>{const id='tm'+(++tmN);TMAP[id]={X,t0,t1};return ` data-tmap="${id}"`};
 document.addEventListener('pointermove',e=>{const sv=e.target.closest&&e.target.closest('svg[data-tmap]'),all=document.querySelectorAll('svg[data-tmap]');
   if(!sv||!TMAP[sv.dataset.tmap]){all.forEach(x=>x.querySelector(':scope>.sync')?.setAttribute('visibility','hidden'));return}
   // svgs are scaled to their card: cursor px -> viewBox units; on a chart with its own snapping line (.xh) take the snapped point's x and draw no second line there
@@ -899,6 +899,8 @@ async function render(soft){
   const my=++token,p=(location.hash.slice(1)||'overview').split('/').map(decodeURIComponent),v=V[p[0]]?p[0]:'overview';
   clearTimeout(timer);renderNav();
   if(!soft){$('#main').innerHTML=topbar('&nbsp;')+'<div class="empty">Loading…</div>';$('#drawer-root').innerHTML=''}
+  // forget the time maps of charts no longer on the page, before this render registers its own
+  Object.keys(TMAP).forEach(k=>{if(!document.querySelector(`[data-tmap="${k}"]`))delete TMAP[k]});
   try{
     if(v==='attempt'){if(!SERIES)await loadSeries();CUR_ATTEMPT=await get(`/api/attempt?factory=${enc(p[1])}&id=${enc(p[2])}`)}
     const html=await V[v](...p.slice(1));if(my!==token)return;
