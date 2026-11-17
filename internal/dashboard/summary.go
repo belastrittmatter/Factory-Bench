@@ -59,7 +59,7 @@ func summarize(rows []report.ItemRow, lanes map[string][]string) summary {
 			s.Merged++
 		}
 		if l := lanes[k]; len(l) > 0 {
-			b, r := rework(l)
+			b, r, _ := rework(l)
 			s.IssuesWithDispatches++
 			s.Bounces += b
 			s.Redispatches += r

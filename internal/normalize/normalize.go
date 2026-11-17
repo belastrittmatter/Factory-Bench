@@ -50,6 +50,7 @@ type usage struct {
 	CacheRead, CacheWrite, Reasoning, Duration *int64
 	Cost                                       *float64
 	Provenance, PriceVersion, Phase, Agent     *string
+	Step                                       *string // worker step (factorybench.step), OTLP only
 }
 
 type gate struct {
@@ -394,8 +395,8 @@ func Run(db *sql.DB) error {
 			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
 	}
 	for _, u := range d.Usage {
-		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
-			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent)
+		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
+			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step)
 	}
 	for _, g := range d.Gates {
 		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)

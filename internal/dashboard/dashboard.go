@@ -50,11 +50,12 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
 // sessionsSQL is every Claude Code session (distinct OTLP session.id) of the attempts a matching filter, oldest first:
-// its first and last event and phase(s), sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
+// its first and last event, phase(s) and step (one, normally), phases sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
 func sessionsSQL(filter string) string {
 	return `SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session,
 	min(ts) AS first_ts, max(ts) AS last_ts,
-	group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
+	group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
+	group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
 	WHERE source = 'otlp' AND (factory_id, json_extract(payload, '$."factorybench.attempt"')) IN (SELECT factory_id, attempt_id FROM attempts a WHERE ` + filter + `)
 	GROUP BY 1, 2, 3 HAVING session IS NOT NULL ORDER BY first_ts`
 }
@@ -345,7 +346,10 @@ func (s *server) item(r *http.Request) (any, error) {
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
 			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
 		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
-		"prs":      `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
+		"gates": `SELECT g.factory_id, g.attempt_id, g.ts, g.name, g.passed, g.reason FROM gates g JOIN attempts a USING (factory_id, attempt_id)
+			WHERE a.repo = ?1 AND a.issue = ?2 ORDER BY g.ts, g.rowid`,
+		"step_usage": stepUsageSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"prs":        `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
 		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
@@ -363,6 +367,10 @@ func (s *server) item(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
+	for k, v := range stepData(res["sessions"].([]map[string]any), res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+		res[k] = v
+	}
+	delete(res, "step_usage")
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
 	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
@@ -392,7 +400,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"attempt", `SELECT a.*, ` + lastEventSQL + ` AS last_event, EXISTS (SELECT 1 FROM events e WHERE e.factory_id = a.factory_id
 			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id) AS has_wait_events
 			FROM attempts a WHERE factory_id = ?1 AND attempt_id = ?2`},
-		{"usage", `SELECT ts, model, agent_id, phase, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
+		{"usage", `SELECT ts, model, agent_id, phase, step, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"phases", `SELECT phase, count(*) AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
 			sum(cost_usd IS NULL) AS unpriced, sum(duration_ms) AS duration_ms FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY phase`},
 		{"tools", `SELECT tool_name, count(*) AS calls, sum(success = 0) AS failed, sum(success IS NULL) AS unknown, sum(duration_ms) AS duration_ms
@@ -400,9 +408,11 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"tool_calls", `SELECT ts, agent_id, tool_name, success, duration_ms, error_type FROM tool_calls WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts DESC, rowid DESC LIMIT 500`},
 		{"agents", `SELECT agent_id, parent_agent_id, agent_type, is_async, model, final_model, tool_calls, duration_ms, status, started_at FROM agent_runs WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY started_at`},
 		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
-		{"gates", `SELECT ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
+		{"gates", `SELECT factory_id, attempt_id, ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts, rowid`},
+		{"step_usage", stepUsageSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
 		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
-			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase FROM events
+			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
+			group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
 			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
 		// the attempts of this attempt's run (factory × issue), for its run format
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
@@ -420,6 +430,16 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	}
 	withStatus(a, time.Now(), s.o.Idle)
 	withStages(res["run"].([]map[string]any))
+	own := []map[string]any{} // the run's sessions of this attempt, which carry the step
+	for _, x := range res["run_sessions"].([]map[string]any) {
+		if x["attempt_id"] == id {
+			own = append(own, x)
+		}
+	}
+	for k, v := range stepData(own, res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+		res[k] = v
+	}
+	delete(res, "step_usage")
 	res["attempt"] = a[0]
 	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
 	at := res["attempt"].(map[string]any)

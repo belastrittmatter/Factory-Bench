@@ -71,6 +71,7 @@
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:05:00.000Z"
       },
       {
@@ -88,6 +89,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:21:00.000Z"
       },
       {
@@ -105,6 +107,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "step": null,
         "ts": "2026-11-11T10:20:00.000Z"
       }
     ],

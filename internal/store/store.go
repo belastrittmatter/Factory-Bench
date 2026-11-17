@@ -20,7 +20,7 @@ import (
 var schema string
 
 // SchemaVersion is the user_version that Open creates or migrates to.
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 // Open opens (and on first use migrates) the SQLite database at path.
 func Open(path string) (*sql.DB, error) {
@@ -36,9 +36,9 @@ func Open(path string) (*sql.DB, error) {
 	switch v {
 	case 0:
 		_, err = db.Exec(fmt.Sprintf("%s;PRAGMA user_version = %d", schema, SchemaVersion))
-	case 1, 2:
+	case 1, 2, 3:
 		if err = migrate(db, v); err == nil {
-			log.Print("database migrated to v3: run `factorybench replay` to fill the new derived tables and columns")
+			log.Printf("database migrated to v%d: run `factorybench replay` to fill the new derived tables and columns", SchemaVersion)
 		}
 	}
 	if err != nil {
@@ -47,21 +47,17 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// migrate upgrades a v1 or v2 database to v3 in one transaction. Only events holds source data;
+// migrate upgrades a v1, v2 or v3 database to SchemaVersion in one transaction. Only events holds source data;
 // every other change is to derived tables, which `replay` refills.
 func migrate(db *sql.DB, from int) error {
 	q := ""
 	if from < 2 {
 		q = "ALTER TABLE attempts ADD COLUMN waiting_since TEXT;"
 	}
-	// SQLite can't alter the CHECK on events.source to allow 'otlp', so the table is copied.
-	q += "ALTER TABLE events RENAME TO events_v2;" + create("events") + ";INSERT INTO events SELECT * FROM events_v2; DROP TABLE events_v2;" +
-		create("tool_calls") + ";" + create("agent_runs") + ";" + create("api_errors") + `;
-		ALTER TABLE usage ADD COLUMN agent_id TEXT;
-		ALTER TABLE prs ADD COLUMN additions INTEGER;
-		ALTER TABLE prs ADD COLUMN deletions INTEGER;
-		ALTER TABLE prs ADD COLUMN changed_files INTEGER;
-		PRAGMA user_version = 3`
+	if from < 3 {
+		q += v3
+	}
+	q += fmt.Sprintf("ALTER TABLE usage ADD COLUMN step TEXT; PRAGMA user_version = %d", SchemaVersion)
 	tx, err := db.Begin()
 	if err != nil {
 		return err
@@ -72,6 +68,14 @@ func migrate(db *sql.DB, from int) error {
 	}
 	return tx.Commit()
 }
+
+// v3 is the v2 -> v3 step. SQLite can't alter the CHECK on events.source to allow 'otlp', so the table is copied.
+var v3 = "ALTER TABLE events RENAME TO events_v2;" + create("events") + ";INSERT INTO events SELECT * FROM events_v2; DROP TABLE events_v2;" +
+	create("tool_calls") + ";" + create("agent_runs") + ";" + create("api_errors") + `;
+		ALTER TABLE usage ADD COLUMN agent_id TEXT;
+		ALTER TABLE prs ADD COLUMN additions INTEGER;
+		ALTER TABLE prs ADD COLUMN deletions INTEGER;
+		ALTER TABLE prs ADD COLUMN changed_files INTEGER;`
 
 // create returns the CREATE TABLE statement for table from schema.sql, so migrations and fresh databases agree.
 func create(table string) string {

@@ -170,7 +170,8 @@ func deref(s *string) string {
 }
 
 // factorybench.phase from OTEL_RESOURCE_ATTRIBUTES survives intake and tags the usage row, so the scorecard
-// gets verification tokens; a value outside the contract's phases leaves the row unphased.
+// gets verification tokens; a value outside the contract's phases leaves the row unphased. factorybench.step
+// rides along the same way: trimmed, and a record without it keeps usage.step NULL.
 func TestOTLPPhase(t *testing.T) {
 	db, err := store.Open(filepath.Join(t.TempDir(), "fb.db"))
 	if err != nil {
@@ -197,8 +198,12 @@ func TestOTLPPhase(t *testing.T) {
 	defer srv.Close()
 	for i, phase := range []string{"review", "testing"} {
 		kv := func(k, v string) string { return fmt.Sprintf(`{"key":%q,"value":{"stringValue":%q}}`, k, v) }
-		body := fmt.Sprintf(`{"resourceLogs":[{"resource":{"attributes":[%s,%s]},"scopeLogs":[{"logRecords":[{"attributes":[%s,%s,%s,%s,%s,%s,%s]}]}]}]}`,
-			kv("factorybench.attempt", "a"), kv("factorybench.phase", phase), kv("event.name", "api_request"), kv("session.id", "s"),
+		step := kv("factorybench.step", " green ")
+		if i > 0 {
+			step = kv("other", "x")
+		}
+		body := fmt.Sprintf(`{"resourceLogs":[{"resource":{"attributes":[%s,%s,%s]},"scopeLogs":[{"logRecords":[{"attributes":[%s,%s,%s,%s,%s,%s,%s]}]}]}]}`,
+			kv("factorybench.attempt", "a"), kv("factorybench.phase", phase), step, kv("event.name", "api_request"), kv("session.id", "s"),
 			kv("event.sequence", fmt.Sprint(i)), kv("event.timestamp", fmt.Sprintf("2026-11-12T06:0%d:00Z", i+1)),
 			kv("model", "claude-sonnet-4-5"), kv("input_tokens", "100"), kv("output_tokens", "50"))
 		req, _ := http.NewRequest("POST", srv.URL, strings.NewReader(body))
@@ -213,10 +218,10 @@ func TestOTLPPhase(t *testing.T) {
 	if err := Run(db); err != nil {
 		t.Fatal(err)
 	}
-	var phases string
-	db.QueryRow(`SELECT group_concat(coalesce(phase, '-'), ',') FROM (SELECT phase FROM usage ORDER BY ts)`).Scan(&phases)
-	if phases != "review,-" {
-		t.Errorf("phases %q, want review,-", phases)
+	var phases, steps string
+	db.QueryRow(`SELECT group_concat(coalesce(phase, '-'), ','), group_concat(coalesce(step, '-'), ',') FROM (SELECT phase, step FROM usage ORDER BY ts)`).Scan(&phases, &steps)
+	if phases != "review,-" || steps != "green,-" {
+		t.Errorf("phases %q, steps %q, want review,- and green,-", phases, steps)
 	}
 	var out strings.Builder
 	if err := report.Factories(db, &out, false, time.Date(2026, 11, 12, 7, 0, 0, 0, time.UTC)); err != nil {

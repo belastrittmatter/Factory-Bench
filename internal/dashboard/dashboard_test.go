@@ -521,3 +521,109 @@ func TestWithStages(t *testing.T) {
 		t.Errorf("got %s", g)
 	}
 }
+
+// Named steps: sessions analyzer → green → reviewer → green in one attempt (green is sent back to once), gates, and a
+// session of another issue that the issue's filter keeps out. Gate red fails then passes in a1 and passes at once in a2.
+func TestSteps(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fb.db")
+	rw, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ev := func(id, att, session, step, ts string) string {
+		st := ""
+		if step != "" {
+			st = `,"factorybench.step":"` + step + `"`
+		}
+		return `INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', '` + id + `', 'otlp.api_request', '` + ts +
+			`', 'x', '{"factorybench.attempt":"` + att + `","session.id":"` + session + `","factorybench.phase":"implement"` + st + `}')`
+	}
+	use := func(att, step, ts, cost string) string {
+		return `INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, step) VALUES ('f', '` + att + `', 'm', '` + ts + `', 1, 1, ` + cost + `, '` + step + `')`
+	}
+	for _, q := range []string{
+		`INSERT INTO work_items (repo, issue, first_seen) VALUES ('o/r', 7, 'x'), ('o/r', 8, 'x')`,
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES
+			('f', 'a1', 'o/r', 7, 'v', 'failed', '2026-11-10T10:00:00.000Z', '2026-11-10T11:00:00.000Z'),
+			('f', 'a2', 'o/r', 7, 'v', 'completed', '2026-11-10T12:00:00.000Z', '2026-11-10T13:00:00.000Z'),
+			('f', 'b1', 'o/r', 8, 'v', 'completed', '2026-11-10T10:00:00.000Z', '2026-11-10T11:00:00.000Z')`,
+		ev("1", "a1", "s1", "analyzer", "2026-11-10T10:00:00.000Z"), ev("2", "a1", "s1", "analyzer", "2026-11-10T10:05:00.000Z"),
+		ev("3", "a1", "s2", "green", "2026-11-10T10:10:00.000Z"), ev("4", "a1", "s2", "green", "2026-11-10T10:20:00.000Z"),
+		ev("5", "a1", "s3", " reviewer ", "2026-11-10T10:30:00.000Z"),
+		ev("6", "a1", "s4", "green", "2026-11-10T10:40:00.000Z"), ev("7", "a1", "s4", "green", "2026-11-10T10:45:00.000Z"),
+		ev("8", "a1", "s5", "", "2026-11-10T10:50:00.000Z"), // no step: not a step row
+		ev("9", "b1", "s9", "other", "2026-11-10T10:00:00.000Z"),
+		use("a1", "analyzer", "2026-11-10T10:00:00.000Z", "0.25"), use("a1", "green", "2026-11-10T10:10:00.000Z", "1"),
+		use("a1", "green", "2026-11-10T10:40:00.000Z", "0.5"), use("a1", "reviewer", "2026-11-10T10:30:00.000Z", "NULL"),
+		use("b1", "other", "2026-11-10T10:00:00.000Z", "9"),
+		`INSERT INTO gates VALUES ('f', 'a1', '2026-11-10T10:21:00.000Z', 'unit', 1, NULL), ('f', 'a1', '2026-11-10T10:31:00.000Z', 'e2e', 0, 'timeout'),
+			('f', 'a1', '2026-11-10T10:02:00.000Z', 'red', 0, 'no failing test'), ('f', 'a1', '2026-11-10T10:04:00.000Z', 'red', 1, NULL),
+			('f', 'a2', '2026-11-10T12:10:00.000Z', 'red', 1, NULL), ('f', 'b1', '2026-11-10T10:01:00.000Z', 'red', 0, NULL)`,
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatal(err, q)
+		}
+	}
+	rw.Close()
+	db, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	h := Handler(db, Options{Addr: "127.0.0.1:8081"})
+
+	var item map[string]any
+	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	var steps []string
+	for _, s := range item["steps"].([]any) {
+		steps = append(steps, s.(map[string]any)["step"].(string))
+	}
+	if strings.Join(steps, " ") != "analyzer green reviewer green" {
+		t.Errorf("steps %v", steps)
+	}
+	if s := item["steps"].([]any)[1].(map[string]any); s["cost_usd"] != 1.0 || s["at"] != "2026-11-10T10:10:00.000Z" || s["end"] != "2026-11-10T10:20:00.000Z" || s["phase"] != "implement" {
+		t.Errorf("green session: %v", s)
+	}
+	stats := map[string]map[string]any{}
+	for _, s := range item["step_stats"].([]any) {
+		stats[s.(map[string]any)["step"].(string)] = s.(map[string]any)
+	}
+	if g := stats["green"]; g["sessions"] != 2.0 || g["cost_usd"] != 1.5 || g["sent_back"] != 1.0 || g["ms"] != 15*60e3 {
+		t.Errorf("green stats: %v", g)
+	}
+	if r := stats["reviewer"]; r["cost_usd"] != nil || r["unpriced"] != 1.0 || r["sent_back"] != 0.0 { // unknown cost stays unknown
+		t.Errorf("reviewer stats: %v", r)
+	}
+	if _, ok := stats["other"]; ok || len(stats) != 3 {
+		t.Errorf("another issue's steps leaked in: %v", stats)
+	}
+	if r := item["step_runs"].([]any); len(r) != 1 || r[0].(map[string]any)["sent_back"] != 1.0 || r[0].(map[string]any)["reruns"] != 0.0 {
+		t.Errorf("step runs: %v", r)
+	}
+	if g := item["gates"].([]any); len(g) != 5 || g[0].(map[string]any)["name"] != "red" || g[4].(map[string]any)["attempt_id"] != "a2" {
+		t.Errorf("gates: %v", g)
+	}
+	gs := map[string]map[string]any{}
+	for _, g := range item["gate_stats"].([]any) {
+		gs[g.(map[string]any)["name"].(string)] = g.(map[string]any)
+	}
+	if r := gs["red"]; r["results"] != 3.0 || r["failed"] != 1.0 || r["first_try_passed"] != 1.0 || r["attempts"] != 2.0 {
+		t.Errorf("red: %v", r)
+	}
+	if e := gs["e2e"]; e["failed"] != 1.0 || e["first_try_passed"] != 0.0 {
+		t.Errorf("e2e: %v", e)
+	}
+
+	var at map[string]any
+	get(t, h, "/api/attempt?factory=f&id=a2", &at)
+	if len(at["steps"].([]any)) != 0 || len(at["gate_stats"].([]any)) != 1 {
+		t.Errorf("a2 steps %v gates %v", at["steps"], at["gate_stats"])
+	}
+	get(t, h, "/api/attempt?factory=f&id=a1", &at)
+	if len(at["steps"].([]any)) != 4 || len(at["step_stats"].([]any)) != 3 {
+		t.Errorf("a1 steps %v stats %v", at["steps"], at["step_stats"])
+	}
+	if s := at["sessions"].([]any); s[2].(map[string]any)["step"] != "reviewer" || s[4].(map[string]any)["step"] != nil {
+		t.Errorf("a1 sessions: %v", s)
+	}
+}

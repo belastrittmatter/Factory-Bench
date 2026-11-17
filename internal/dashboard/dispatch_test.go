@@ -131,7 +131,12 @@ func TestRework(t *testing.T) {
 		{[]string{"x", "y", "x", "z", "y"}, 2, 0},
 		{[]string{"x", "x", "y", "x", "x"}, 1, 2},
 	} {
-		if b, r := rework(c.lanes); b != c.bounces || r != c.redo {
+		b, r, back := rework(c.lanes)
+		n := 0
+		for _, k := range back {
+			n += k
+		}
+		if b != c.bounces || r != c.redo || n != b {
 			t.Errorf("rework(%v) = %d, %d; want %d, %d", c.lanes, b, r, c.bounces, c.redo)
 		}
 	}
