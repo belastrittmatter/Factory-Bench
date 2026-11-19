@@ -146,10 +146,7 @@ func (d *result) otlp(e event, g *agents) {
 		if !contract.Phases[phase] {
 			phase = ""
 		}
-		step := strings.TrimSpace(at.text("factorybench.step")) // free text; cut, not rejected, past 64 characters
-		if r := []rune(step); len(r) > 64 {
-			step = strings.TrimSpace(string(r[:64]))
-		}
+		step := stepName(at.text("factorybench.step"))
 		// subagent tokens come only from here: subagent_completed.total_tokens is the last request's size
 		d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: e.AttemptID, Model: model, TS: e.TS, Input: *in,
 			Output: *out, CacheRead: at.num("cache_read_tokens"), CacheWrite: at.num("cache_creation_tokens"),

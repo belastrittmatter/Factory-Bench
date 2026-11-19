@@ -50,7 +50,7 @@ type usage struct {
 	CacheRead, CacheWrite, Reasoning, Duration *int64
 	Cost                                       *float64
 	Provenance, PriceVersion, Phase, Agent     *string
-	Step                                       *string // worker step (factorybench.step), OTLP only
+	Step                                       *string // worker step (factorybench.step on OTLP logs, payload.step on usage events)
 }
 
 type gate struct {
@@ -105,6 +105,15 @@ type result struct {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// stepName is a worker step as stored: free text, trimmed, cut (not rejected) past 64 characters.
+func stepName(s string) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > 64 {
+		s = strings.TrimSpace(string(r[:64]))
+	}
+	return s
+}
 
 func str(s string) *string {
 	if s == "" {
@@ -222,7 +231,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
-				Phase: str(p.Phase), Agent: str(p.AgentID)}, p.ReportedCostUSD))
+				Phase: str(p.Phase), Step: str(stepName(p.Step)), Agent: str(p.AgentID)}, p.ReportedCostUSD))
 		case "activity":
 			r := runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			if r != nil && r.Phase == nil && contract.Phases[p.Phase] {

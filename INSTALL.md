@@ -66,6 +66,7 @@ factorybench emit usage --attempt "$A" --key usage:1 \
 - **Token classes don't overlap.** `input` is non-cached input; `cache_read` / `cache_write` are separate.
 - **Unknown is missing, not zero.** No usage known, no `usage` event.
 - **`model`** exactly as the provider names it (prices match by exact name). **`reported_cost_usd`** only if the provider reported one.
+- **`phase`** (`implement` / `verify` / `review`) and **`step`** (free text, e.g. `engineer`, `reviewer-bugs`, up to 64 characters) on a `usage` event say which stage the session served; send both. Without Claude Code there are no OTLP logs to carry `factorybench.step`, so this is how the issue page gets its row per step. Sending them is safe: only the `usage` event carries tokens, so nothing is counted twice.
 - Optional: `gate` (the factory's own checks), `human.waiting` / `human.resumed` / `human.steering`, `activity` (one tool call each).
 
 Event ids are `<attempt>:<key>`. Keys must be **fixed per call site** (`started`, `usage:1`, `pr`, `finished`), never random, so retries are harmless duplicates.

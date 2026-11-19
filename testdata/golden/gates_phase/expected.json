@@ -89,7 +89,7 @@
         "phase": "implement",
         "price_version": "2026-11-11",
         "reasoning": null,
-        "step": null,
+        "step": "engineer",
         "ts": "2026-11-11T10:04:00.000Z"
       },
       {
@@ -107,7 +107,7 @@
         "phase": "verify",
         "price_version": "2026-11-11",
         "reasoning": null,
-        "step": null,
+        "step": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
         "ts": "2026-11-11T10:07:00.000Z"
       },
       {
