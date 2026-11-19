@@ -36,7 +36,8 @@
             "input": 2000,
             "output": 500,
             "cache_read": 1000,
-            "phase": "implement"
+            "phase": "implement",
+            "step": "  engineer  "
           }
         },
         {
@@ -73,7 +74,8 @@
             "input": 800,
             "output": 100,
             "cache_read": 1000,
-            "phase": "verify"
+            "phase": "verify",
+            "step": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           }
         },
         {
