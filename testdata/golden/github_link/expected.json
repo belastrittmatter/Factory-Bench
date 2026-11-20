@@ -2,6 +2,7 @@
   "derived": {
     "agent_runs": [],
     "api_errors": [],
+    "attempt_labels": [],
     "attempts": [
       {
         "attempt_id": "a1",
@@ -57,6 +58,8 @@
         "started_at": "2026-11-11T10:08:00Z"
       }
     ],
+    "context_scores": [],
+    "context_turns": [],
     "gates": [],
     "pr_commits": [
       {

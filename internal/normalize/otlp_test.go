@@ -224,7 +224,7 @@ func TestOTLPPhase(t *testing.T) {
 		t.Errorf("phases %q, steps %q, want review,- and green,-", phases, steps)
 	}
 	var out strings.Builder
-	if err := report.Factories(db, &out, false, time.Date(2026, 11, 12, 7, 0, 0, 0, time.UTC)); err != nil {
+	if err := report.Factories(db, &out, false, nil, time.Date(2026, 11, 12, 7, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "150 (150 / 1 PRs)") {

@@ -57,6 +57,7 @@
         "ts": "2026-11-12T06:25:09.000Z"
       }
     ],
+    "attempt_labels": [],
     "attempts": [
       {
         "attempt_id": "cc-phase0-killed-sigkill",
@@ -115,6 +116,8 @@
         "started_at": "2026-11-12T06:24:00Z"
       }
     ],
+    "context_scores": [],
+    "context_turns": [],
     "gates": [],
     "pr_commits": [
       {

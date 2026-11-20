@@ -39,9 +39,14 @@ export FACTORYBENCH_URL=http://localhost:8080 FACTORYBENCH_TOKEN=<token>
 
 The dashboard (Overview, Live, Issues, issue and attempt detail with lane flow, Compare, Factories; see [docs/dashboard.md](docs/dashboard.md)) uses the same report code as the CLI. It reads through a read-only handle; its only writes are on the Factories page (register a factory, issue a new token, revoke one, edit its commit email and login), and only when bound to a loopback address. Tokens are shown once and only their hash is stored. It binds to loopback by default; `--addr :8090` shares it on the network without a login, so use it on a trusted network only. Two optional local views read files on request and are served only on a loopback address: `--runs <super-board runs dir>` (run manifests, worker logs, lane flow) and `--transcripts <Claude project dir>` (transcripts, matched through the `session.id` on the attempt's OTLP events). They contain prompts and code and are never stored. Tool inputs are never shown, only their argument names and sizes. A running attempt with no event for `--idle` (default 10m) shows as idle; lanes, board states and dispatch outcomes are read from the manifests as they are written, with no list of lane names built in.
 
+## Context creators
+
+A factory's Context creator is the step that talks with a person before any code is written. Any factory can record those conversations by sending `context.turn` events (see [INSTALL.md](INSTALL.md)); FactoryBench then reports conversation metrics next to cost, time and gates, and `./factorybench report context --db fb.db` adds the effort curve, per-move numbers and simulated against real. Events and metrics: [docs/context-bench.md](docs/context-bench.md).
+
 ## Docs
 
 - **[INSTALL.md](INSTALL.md)**: integrate a factory (written so a coding agent can follow it).
 - [docs/reference.md](docs/reference.md): concepts, contract rules, metric definitions, storage.
+- [docs/context-bench.md](docs/context-bench.md): Context creator events and metrics.
 - [spec/events.schema.json](spec/events.schema.json): the event contract, with one example per type in [spec/examples/](spec/examples/).
 - [docs/diagrams/](docs/diagrams/): issue flow, event path, attempt states, DB schema, code map; regenerate with `python3 docs/diagrams/generate.py`.

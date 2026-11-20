@@ -54,6 +54,13 @@ CREATE TABLE attempts (
   PRIMARY KEY (factory_id, attempt_id)
 );
 
+CREATE TABLE attempt_labels (               -- the labels of attempt.started, one row each (--label filters, max-turns: curve)
+  factory_id        TEXT NOT NULL,
+  attempt_id        TEXT NOT NULL,
+  label             TEXT NOT NULL,
+  PRIMARY KEY (factory_id, attempt_id, label)
+);
+
 CREATE TABLE usage (                        -- one row per usage event
   factory_id        TEXT NOT NULL,
   attempt_id        TEXT NOT NULL,
@@ -119,6 +126,66 @@ CREATE TABLE gates (                        -- factory-internal gate results (ga
   name         TEXT NOT NULL,               -- e.g. build, guard, test
   passed       INTEGER NOT NULL,            -- 1 | 0
   reason       TEXT
+);
+
+CREATE TABLE context_turns (                -- one row per context.turn event; a later event for the same (attempt, n) replaces it
+  factory_id       TEXT NOT NULL,
+  attempt_id       TEXT NOT NULL,
+  n                INTEGER NOT NULL,        -- turn number from 1, conversation order
+  ts               TEXT NOT NULL,
+  speaker          TEXT NOT NULL CHECK (speaker IN ('factory', 'person')),
+  move             TEXT,                    -- factory turns: capture | mirror | show | suggest | expand | sharpen | challenge | narrow | ask | confirm
+  words            INTEGER NOT NULL,
+  dont_know        INTEGER NOT NULL,        -- 1 | 0, person tags
+  could_not_answer INTEGER NOT NULL,
+  already_said     INTEGER NOT NULL,
+  in_attachments   INTEGER NOT NULL,
+  suggestion       TEXT,                    -- accepted | rejected | none
+  frustration      INTEGER,                 -- 0..5, NULL if not sent
+  confirmed        INTEGER NOT NULL,
+  revealed         TEXT NOT NULL,           -- JSON array of hidden-truth ids first stated by this turn
+  tagged_by        TEXT,                    -- person | tagger | simulator
+  PRIMARY KEY (factory_id, attempt_id, n)
+);
+
+CREATE TABLE context_scores (               -- one row per Context creator attempt (context.score); a later event replaces it
+  factory_id       TEXT NOT NULL,
+  attempt_id       TEXT NOT NULL,
+  ts               TEXT NOT NULL,
+  scenario         TEXT NOT NULL,
+  truth_items      INTEGER NOT NULL,
+  truth_g4         INTEGER NOT NULL,
+  truth_latent     INTEGER NOT NULL,
+  truth_traps      INTEGER NOT NULL,
+  full_items       INTEGER NOT NULL,        -- captured.full
+  partial_items    INTEGER NOT NULL,
+  g4_full          INTEGER NOT NULL,
+  g4_partial       INTEGER NOT NULL,
+  latent_drawn     INTEGER NOT NULL,
+  latent_by_move   TEXT NOT NULL,           -- JSON object: move -> latent entries drawn after it
+  traps_raised     INTEGER NOT NULL,
+  traps_followed   INTEGER NOT NULL,
+  invented         INTEGER NOT NULL,
+  invented_unmarked INTEGER NOT NULL,
+  map_tag_errors   INTEGER NOT NULL,
+  requirements     INTEGER NOT NULL,
+  untraced         INTEGER NOT NULL,
+  noise_left       INTEGER NOT NULL,
+  missing_slots    INTEGER NOT NULL,
+  contradictions   INTEGER NOT NULL,
+  builders_agree   INTEGER NOT NULL,
+  builders_total   INTEGER NOT NULL,
+  sim_violations   INTEGER NOT NULL,
+  cost_person      REAL NOT NULL,           -- what the benchmark spent, USD; never part of the factory's cost
+  cost_judge       REAL NOT NULL,
+  cost_builders    REAL NOT NULL,
+  cost_build       REAL NOT NULL,
+  built            INTEGER NOT NULL,        -- 1 if the run was built (the build_* columns are then set)
+  hidden_pass      INTEGER,
+  hidden_total     INTEGER,
+  build_escalations INTEGER,
+  build_repairs    INTEGER,
+  PRIMARY KEY (factory_id, attempt_id)
 );
 
 CREATE TABLE prs (

@@ -1,0 +1,21 @@
+{
+  "spec": "factorybench/v1",
+  "id": "ctx-7a1c:turn:3",
+  "type": "context.turn",
+  "ts": "2026-11-21T10:15:12Z",
+  "attempt_id": "ctx-7a1c",
+  "payload": {
+    "n": 3,
+    "speaker": "person",
+    "words": 41,
+    "dont_know": true,
+    "could_not_answer": false,
+    "already_said": false,
+    "in_attachments": false,
+    "suggestion": "none",
+    "frustration": 1,
+    "confirmed": false,
+    "revealed": [],
+    "tagged_by": "simulator"
+  }
+}

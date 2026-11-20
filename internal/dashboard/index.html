@@ -145,6 +145,11 @@ table.cmp td.sub{font-family:inherit;font-size:13px}table.cmp td:not(.sub){paddi
 .hb .val{font-family:var(--mono);font-size:12px;min-width:52px;text-align:right}
 .segbar{display:flex;height:8px;overflow:hidden;gap:2px;margin:4px 0 10px}
 .segbar i{display:block;height:100%}
+.strip{display:flex;flex-wrap:wrap;gap:3px;margin:6px 0 10px}
+.strip .tn{display:flex;flex-direction:column;gap:2px;width:16px}
+.strip .tn>i{display:flex;flex-direction:column;height:16px}
+.strip .tn>i>b{flex:1}
+.strip .tn .tp{background:var(--surface-2);box-shadow:inset 0 0 0 1px var(--line-2)}
 .stat-list{display:flex;flex-direction:column}
 .stat-list div{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12.5px}
 .stat-list div:last-child{border-bottom:0}
@@ -395,6 +400,25 @@ function hbars(rows,fmt,color){
 }
 function segbar(parts){const t=parts.reduce((a,p)=>a+p.v,0)||1;return `<div class="segbar">${parts.filter(p=>p.v>0).map(p=>`<i style="width:${p.v/t*100}%;background:${p.color}" data-tip="${esc(p.tip)}"></i>`).join('')}</div>`}
 const legend=items=>`<div class="legend">${items.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`;
+
+const MOVE_COLOR={capture:'var(--s1)',mirror:'var(--s2)',show:'var(--s3)',suggest:'var(--s4)',expand:'var(--s5)',sharpen:'var(--s6)',challenge:'var(--s7)',narrow:'var(--s8)',ask:'var(--hot)',confirm:'var(--accent)'};
+const PERSON_TAG={dont_know:["don't know",'var(--warn)'],could_not_answer:['could not answer','var(--crit)'],already_said:['asked again','var(--s7)'],in_attachments:['asked what was given','var(--s5)'],confirmed:['confirmed','var(--good)']};
+function convoStrip(c){
+  const cell=t=>{const fac=t.Speaker==='factory',tags=t.Tags.map(x=>PERSON_TAG[x][0]);
+    const tip=`Turn ${t.N} · ${fac?t.Move:'person'}\n${plural(t.Words,'word')}`+(tags.length?'\n'+tags.join(', '):'')+(t.Suggestion&&t.Suggestion!=='none'?`\nsuggestion ${t.Suggestion}`:'')+(t.Frustration!=null?`\nfrustration ${t.Frustration}`:'')+(t.Revealed.length?`\nrevealed ${t.Revealed.join(', ')}`:'')+(t.TaggedBy?`\ntags set by ${t.TaggedBy}`:'');
+    const fr=t.Frustration>0?`box-shadow:inset 0 0 0 1px var(--line-2),inset 0 -${t.Frustration*2}px 0 var(--crit)`:'';
+    return `<span class="tn" data-tip="${esc(tip)}"><i>${fac?`<b style="background:${MOVE_COLOR[t.Move]}"></b>`:''}</i><i class="tp" ${fac?'style="visibility:hidden"':fr?`style="${fr}"`:''}>${fac?'':t.Tags.map(x=>`<b style="background:${PERSON_TAG[x][1]}"></b>`).join('')}</i></span>`};
+  const moves=[...new Set(c.Turns.filter(t=>t.Speaker==='factory').map(t=>t.Move))],tags=[...new Set(c.Turns.flatMap(t=>t.Tags))];
+  return `<div class="strip">${c.Turns.map(cell).join('')}</div>`+
+    legend([...moves.map(m=>({name:m,color:MOVE_COLOR[m]})),...tags.map(x=>({name:PERSON_TAG[x][0],color:PERSON_TAG[x][1]}))]);
+}
+const ctxVal=v=>v==='n/a'?'<span class="muted">n/a</span>':esc(v);
+function ctxTable(units){return table([{h:'Metric',c:'t',f:r=>esc(r.l)},...units.map((u,i)=>({h:`${esc(u.Factory)} <span class="muted">${esc(u.Runs)}</span>`,f:r=>ctxVal(r.v[i])}))],units[0].Metrics.map((m,i)=>({l:m.Label,v:units.map(u=>u.Metrics[i].Value)})))}
+const SIM_WARN_TIP="A scored run broke a rule of the simulated person: its numbers are less trustworthy";
+const CTX_HINT="Same numbers as report items. Rates show their counts and n/a means nothing to divide by. The benchmark's own cost is not part of the factory's cost.";
+const ctxRunTitle=r=>`<b class="mono">${esc(r.Attempt)}</b> <span class="muted">${esc(r.Factory)}${r.Labels.length?' · '+esc(r.Labels.join(' · ')):''}</span>`;
+const contextCard=c=>!c||!c.Units.length?'':`<div class="card c12"><h3>Context</h3><div class="hint">${CTX_HINT}</div>${ctxTable(c.Units)}${c.Runs.filter(r=>r.Turns.length).map(r=>`<div style="margin-top:14px">${ctxRunTitle(r)}${convoStrip(r)}</div>`).join('')}</div>`;
+const contextAttemptCard=(c,f)=>!c?'':`<div class="card c12"><h3>Context</h3><div class="hint">This attempt's conversation and its ${c.Scored?'score against the hidden truth':'conversation metrics (not scored)'}. ${CTX_HINT}</div>${c.Turns.length?convoStrip(c):''}${ctxTable([{Factory:f,Runs:c.Scored?'scored':'not scored',Metrics:c.Metrics}])}</div>`;
 
 // ---------- global filters (persisted per viewer)
 const F=Object.assign({range:'7d',factory:'',config:'',repo:''},store.get('filters',{}));
@@ -699,6 +723,7 @@ V.item=async(repo,issue)=>{
      ${d.reviews.length?`<h3 style="margin-top:10px">Reviews</h3>${d.reviews.map(r=>`<div style="display:flex;gap:8px;margin:4px 0">${chip(r.state)}<span>${esc(r.reviewer)}</span><span class="muted" style="margin-left:auto">${esc(fmtWhen(r.submitted_at))}</span></div>`).join('')}`:''}</div>
    <div class="card"><h3>CI checks</h3>${d.units.map(u=>`<div class="stat-list" style="margin-bottom:8px"><div><span>first push${d.units.length>1?' · '+esc(u.Factory):''}${u.Staged&&u.CIFirstPush==='n/a'?`<div class="muted">no check ran after the handoff to ${esc((fAtts(u.Factory).find(a=>a.stage==='handoff')||{}).role||'the next stage')}</div>`:''}</span><b>${u.CIFirstPush==='n/a'?'<span class="muted">n/a</span>':(u.CIFirstPush.startsWith('100%')?chip('pass','good'):chip('fail','crit'))+' <span class="muted">'+esc(u.CIFirstPush)+'</span>'}</b></div></div>`).join('')}${d.checks.length?hbars(Object.entries(d.checks.reduce((m,c)=>{const x=m[c.name]=m[c.name]||{n:0,f:0};x.n++;if(/failure|timed_out/.test(c.conclusion))x.f++;return m},{})).map(([k,x])=>({label:k,value:x.n,fail:x.f,color:'var(--s3)',tip:`${k}\n${x.n} runs · ${x.f} failed`})),v=>v+' runs'):'<div class="empty">No check runs</div>'}</div>
    ${d.gate_stats.length?`<div class="card"><h3>Checks</h3><div class="hint">The factory's own gate results per check name. First try: attempts whose first result for it passed</div>${table([{h:'Check',c:'t',f:x=>esc(x.name)},{h:'Results',n:1,f:x=>x.results},{h:'Failed',n:1,f:x=>x.failed?`<b style="color:var(--crit)">${x.failed}</b>`:'0'},{h:'First try',n:1,f:x=>`${Math.round(x.first_try_passed/x.attempts*100)}% <span class="muted">${x.first_try_passed} of ${x.attempts}</span>`}],d.gate_stats)}</div>`:''}
+   ${contextCard(d.context)}
   </div></div>`;
 };
 
@@ -766,6 +791,7 @@ V.attempt=async(f,id)=>{
    <div class="card c8"><h3>Tool calls over time</h3><div class="hint">One dot per call (newest 500), failed calls in red</div>${strip||'<div class="empty">No tool calls</div>'}</div>
    <div class="card c4"><h3>Failures</h3><div class="hint">Failed tool calls, API errors, failed gates: what, error class, lane, time</div>
      ${[...d.tool_calls.filter(t=>t.success===0).map(t=>({ts:t.ts,k:'tool',t:t.tool_name,e:t.error_type,lane:t.lane})),...d.api_errors.map(e=>({ts:e.ts,k:'api',t:e.kind,e:[e.status_code,e.error].filter(v=>!nil(v)).join(' '),lane:e.lane})),...d.gates.filter(g=>!g.passed).map(g=>({ts:g.ts,k:'gate',t:g.name,e:g.reason,lane:g.lane}))].sort((x,y)=>x.ts<y.ts?1:-1).slice(0,12).map(x=>`<div style="display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;gap:10px;margin:5px 0;align-items:baseline">${chip(x.k,'crit')}<span style="min-width:0;overflow-wrap:anywhere">${esc(x.t)}${x.e?` <span class="muted">· ${esc(x.e)}</span>`:''}</span>${x.lane?laneChip(x.lane):'<span class="muted">no lane</span>'}<span class="muted" style="white-space:nowrap">${esc(fmtTime(T(x.ts)))}</span></div>`).join('')||'<div class="empty">No failures</div>'}</div>
+   ${contextAttemptCard(d.context,f)}
    ${d.agents.length?`<div class="card c12"><h3>Subagents</h3>${table([{h:'Agent',f:r=>`<span class="mono">${esc(shortId(r.agent_id))}</span>`},{h:'Parent',f:r=>r.parent_agent_id?`<span class="mono">${esc(shortId(r.parent_agent_id))}</span>`:'main'},{h:'Type',f:r=>esc(r.agent_type??'?')},{h:'Model',f:r=>esc(r.final_model??r.model??'?')},{h:'Status',f:r=>chip(r.status)},{h:'Tool calls',n:1,f:r=>r.tool_calls},{h:'Duration',n:1,f:r=>dur(nil(r.duration_ms)?null:r.duration_ms/1000)}],d.agents)}</div>`:''}
   </div>`;
 };
@@ -785,13 +811,13 @@ function runTypeRow(sc,atts,gk,ss){
   const rows=sc.rows.slice(),i=rows.findIndex(r=>r.Label==='work items')+1;rows.splice(i,0,{Label:'run format',Values:vals,raw:true});return {...sc,rows}}
 // one table, a column per picked group, a row per metric, section rows between; same numbers as report factories
 function scoreTable(sc,groups){
-  const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=l=>(SECTIONS.find(([,re])=>re.test(l))||['Other'])[0],n=groups.length;
-  const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(v=>r.raw?null:metricNum(v)),ok=nums.filter(n=>n!==null),dir=LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
+  const gi=groups.map(g=>sc.groups.indexOf(g)),secOf=r=>r.Section||(SECTIONS.find(([,re])=>re.test(r.Label))||['Other'])[0],n=groups.length;
+  const rows=sc.rows.map(r=>{const vals=gi.map(i=>r.Values[i]),nums=vals.map(v=>r.raw?null:metricNum(v)),ok=nums.filter(n=>n!==null),dir=r.Section==='Context'?r.Dir||0:LOWER.test(r.Label)?-1:HIGHER.test(r.Label)?1:0;
     const max=Math.max(...ok.map(Math.abs),0),spread=ok.length>1&&max?(Math.max(...ok)-Math.min(...ok))/max:0,best=dir&&ok.length>1&&spread?(dir<0?Math.min(...ok):Math.max(...ok)):null;return{...r,vals,nums,max,spread,best,dir}});
-  const secs=[...SECTIONS.map(x=>x[0]),'Other'].map(s=>[s,rows.filter(r=>secOf(r.Label)===s)]).filter(([,rs])=>rs.length);
+  const secs=[...SECTIONS.map(x=>x[0]),'Context','Other'].map(s=>[s,rows.filter(r=>secOf(r)===s)]).filter(([,rs])=>rs.length);
   const head=groups.map(g=>{const [f,...c]=g.split(' ');return `<th class="gh"><div class="ghc"><i style="background:${colorOf('group',g)}"></i><div><b>${esc(f)}</b>${c.length?`<span class="mono">${esc(c.join(' ')).replace(/[+@]/g,'$&<wbr>')}</span>`:''}</div>${n>1?`<button class="iconbtn" data-cmprm="${esc(g)}" aria-label="Remove ${esc(g)}">${ico('close')}</button>`:''}</div></th>`}).join('');
   const cell=(r,v,i)=>{const x=r.nums[i],top=r.best!==null&&x===r.best;
-    return `<td class="${top?'best':''}">${r.raw?`<span data-tip="${esc(FORMAT_TIP)}">${esc(v)}</span>`:na(v.split(' (')[0])}${n>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`};
+    return `<td class="${top?'best':''}">${r.raw?`<span data-tip="${esc(FORMAT_TIP)}">${esc(v)}</span>`:na(v.split(' (')[0])}${r.Warn&&r.Warn[i]?` <b style="color:var(--crit)" data-tip="${esc(SIM_WARN_TIP)}">⚠</b>`:''}${n>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`};
   return `<table class="cmp"><colgroup><col class="lab">${groups.map(()=>'<col>').join('')}</colgroup><thead><tr><th></th>${head}</tr></thead>${secs.map(([s,rs])=>{if(UI.diffFirst)rs=rs.slice().sort((a,b)=>b.spread-a.spread);
     return `<tbody><tr class="sec"><th colspan="${n+1}">${s}</th></tr>${rs.map(r=>`<tr><td class="sub">${esc(fixStr(r.Label))}${r.dir?`<span class="muted"> ${r.dir<0?'↓':'↑'}</span>`:''}</td>${r.vals.map((v,i)=>cell(r,v,i)).join('')}</tr>`).join('')}</tbody>`}).join('')}</table>`;
 }

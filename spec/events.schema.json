@@ -8,7 +8,7 @@
   "properties": {
     "spec": { "const": "factorybench/v1" },
     "id": { "type": "string", "minLength": 1, "description": "Unique per factory, stable across retries (idempotency key)." },
-    "type": { "enum": ["attempt.started", "usage", "activity", "human.waiting", "human.resumed", "human.steering", "pr.linked", "attempt.finished", "gate"] },
+    "type": { "enum": ["attempt.started", "usage", "activity", "human.waiting", "human.resumed", "human.steering", "pr.linked", "attempt.finished", "gate", "context.turn", "context.score"] },
     "ts": { "type": "string", "format": "date-time", "description": "When it happened, RFC 3339 UTC." },
     "attempt_id": { "type": "string", "minLength": 1 },
     "payload": { "type": "object" }
@@ -81,6 +81,86 @@
       "type": "object", "required": ["name", "passed"],
       "description": "One factory-internal gate result, e.g. build, guard, or test.",
       "properties": { "name": { "type": "string", "minLength": 1 }, "passed": { "type": "boolean" }, "reason": { "type": "string" } }
+    },
+    "context.turn": {
+      "type": "object",
+      "required": ["n", "speaker", "words"],
+      "description": "One turn of a Context creator conversation, on the Context creator's attempt. See docs/context-bench.md.",
+      "properties": {
+        "n": { "type": "integer", "minimum": 1, "description": "Turn number from 1, in conversation order (the person's opening message is 1)." },
+        "speaker": { "enum": ["factory", "person"], "description": "factory = the Context creator." },
+        "move": { "enum": ["capture", "mirror", "show", "suggest", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"], "description": "Required when speaker is factory." },
+        "words": { "$ref": "#/$defs/count", "description": "Words in the turn's text." },
+        "dont_know": { "type": "boolean", "description": "Person turns: the person said they don't know or the factory should decide." },
+        "could_not_answer": { "type": "boolean", "description": "Person turns: could not answer because the question needed knowledge they don't have." },
+        "already_said": { "type": "boolean", "description": "Person turns: was asked for something already said." },
+        "in_attachments": { "type": "boolean", "description": "Person turns: was asked for something in the files they handed over." },
+        "suggestion": { "enum": ["accepted", "rejected", "none"], "description": "Person turns: the response to a show or suggest turn." },
+        "frustration": { "type": "integer", "minimum": 0, "maximum": 5, "description": "Person turns." },
+        "confirmed": { "type": "boolean", "description": "Person turns: confirmed the start." },
+        "revealed": { "type": "array", "items": { "type": "string" }, "description": "Ids of hidden-truth entries this turn stated for the first time (benchmarks only)." },
+        "tagged_by": { "enum": ["person", "tagger", "simulator"], "description": "Who set the person tags." },
+        "text": { "type": "string", "description": "The turn's text, for evidence; leave it out where privacy matters." }
+      },
+      "if": { "properties": { "speaker": { "const": "factory" } }, "required": ["speaker"] },
+      "then": { "required": ["move"] }
+    },
+    "context.score": {
+      "type": "object",
+      "required": ["scenario", "truth", "captured"],
+      "description": "One per Context creator attempt, sent by the harness after scoring against the hidden truth. Counts only; rates are computed by report. Absent counts are 0; build is absent when the run was not built. See docs/context-bench.md.",
+      "properties": {
+        "scenario": { "type": "string", "minLength": 1 },
+        "subject": { "type": "string" },
+        "persona": { "type": "string" },
+        "truth": {
+          "type": "object",
+          "description": "Size of the hidden truth: g4 and latent entries are subsets of items.",
+          "properties": { "items": { "$ref": "#/$defs/count" }, "g4": { "$ref": "#/$defs/count" }, "latent": { "$ref": "#/$defs/count" }, "traps": { "$ref": "#/$defs/count" }, "noise": { "$ref": "#/$defs/count" } }
+        },
+        "captured": {
+          "type": "object",
+          "description": "Truth items the change folder captured fully or partly; g4_* and latent count the G4 and latent entries among them.",
+          "properties": { "full": { "$ref": "#/$defs/count" }, "partial": { "$ref": "#/$defs/count" }, "g4_full": { "$ref": "#/$defs/count" }, "g4_partial": { "$ref": "#/$defs/count" }, "latent": { "$ref": "#/$defs/count" } }
+        },
+        "latent_by_move": {
+          "type": "object",
+          "description": "Latent entries drawn out, by the factory move before the person stated them.",
+          "propertyNames": { "enum": ["capture", "mirror", "show", "suggest", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"] },
+          "additionalProperties": { "$ref": "#/$defs/count" }
+        },
+        "traps": {
+          "type": "object",
+          "description": "raised: traps the Context creator raised; followed: traps whose change followed the person's resolution.",
+          "properties": { "raised": { "$ref": "#/$defs/count" }, "followed": { "$ref": "#/$defs/count" } }
+        },
+        "invented": { "$ref": "#/$defs/count" },
+        "invented_unmarked": { "$ref": "#/$defs/count" },
+        "map_tag_errors": { "$ref": "#/$defs/count" },
+        "assumed_marked": { "$ref": "#/$defs/count" },
+        "requirements": { "$ref": "#/$defs/count" },
+        "untraced": { "$ref": "#/$defs/count" },
+        "noise_left": { "$ref": "#/$defs/count" },
+        "missing_slots": { "$ref": "#/$defs/count" },
+        "contradictions": { "$ref": "#/$defs/count" },
+        "builders": {
+          "type": "object",
+          "description": "Gate 4: requirements the builder sessions agreed on, out of the compared total.",
+          "properties": { "agree": { "$ref": "#/$defs/count" }, "total": { "$ref": "#/$defs/count" } }
+        },
+        "vague_warnings": { "$ref": "#/$defs/count" },
+        "sim_violations": { "$ref": "#/$defs/count" },
+        "bench_cost_usd": {
+          "type": "object",
+          "description": "What the benchmark itself spent. Never added to the factory's cost: only the Context creator's own model sessions are usage events.",
+          "properties": { "person": { "type": "number", "minimum": 0 }, "judge": { "type": "number", "minimum": 0 }, "builders": { "type": "number", "minimum": 0 }, "build": { "type": "number", "minimum": 0 } }
+        },
+        "build": {
+          "type": "object",
+          "description": "Absent when the run was not built.",
+          "properties": { "hidden_pass": { "$ref": "#/$defs/count" }, "hidden_total": { "$ref": "#/$defs/count" }, "tasks": { "$ref": "#/$defs/count" }, "merged": { "$ref": "#/$defs/count" }, "escalations": { "$ref": "#/$defs/count" }, "repairs": { "$ref": "#/$defs/count" } }
+        }
+      }
     }
   },
   "allOf": [
@@ -92,6 +172,8 @@
     { "if": { "properties": { "type": { "const": "human.steering" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/human.steering" } } } },
     { "if": { "properties": { "type": { "const": "pr.linked" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/pr.linked" } } } },
     { "if": { "properties": { "type": { "const": "attempt.finished" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/attempt.finished" } } } },
-    { "if": { "properties": { "type": { "const": "gate" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/gate" } } } }
+    { "if": { "properties": { "type": { "const": "gate" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/gate" } } } },
+    { "if": { "properties": { "type": { "const": "context.turn" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/context.turn" } } } },
+    { "if": { "properties": { "type": { "const": "context.score" } } }, "then": { "properties": { "payload": { "$ref": "#/$defs/context.score" } } } }
   ]
 }

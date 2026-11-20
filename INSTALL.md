@@ -72,7 +72,31 @@ Event ids are `<attempt>:<key>`. Keys must be **fixed per call site** (`started`
 
 `factorybench emit` always exits 0; a failed send goes to `~/.factorybench/spool.jsonl` (or `$FACTORYBENCH_SPOOL`). Run `factorybench emit --flush` at factory start to resend it. Without the binary, `POST $FACTORYBENCH_URL/v1/events` with `Authorization: Bearer $FACTORYBENCH_TOKEN` and a JSON **array** of events; full sequence in [scripts/fake-factory.sh](scripts/fake-factory.sh).
 
-## 4. Verify
+## 4. Context creators
+
+A Context creator is the step that talks with a person before any code is written. Report its conversation live, from the factory itself, with no benchmark harness: it is an ordinary attempt with `role` `context`, plus one `context.turn` event per turn. Fields are in [docs/context-bench.md](docs/context-bench.md#events).
+
+```bash
+A=ctx-$(uuidgen)   # the Context creator's attempt, on the work item the conversation is about
+factorybench emit attempt.started --attempt "$A" --key started \
+  --json '{"work_item":{"repo":"acme/app","issue":412},"role":"context","factory_config_version":"myfactory@1.2.0+context-prompt@4f1c9a","labels":["max-turns:30"]}'
+
+# every message, in conversation order, the person's first message being n 1
+factorybench emit context.turn --attempt "$A" --key turn:1 --json '{"n":1,"speaker":"person","words":41}'
+factorybench emit context.turn --attempt "$A" --key turn:2 --json '{"n":2,"speaker":"factory","move":"ask","words":18}'
+factorybench emit context.turn --attempt "$A" --key turn:3 --json '{"n":3,"speaker":"person","words":9,"dont_know":true,"suggestion":"none","frustration":1,"tagged_by":"tagger"}'
+
+factorybench emit attempt.finished --attempt "$A" --key finished --json '{"status":"completed"}'
+```
+
+- `speaker` is `factory` (the Context creator) or `person`. A `factory` turn needs a `move`: `capture`, `mirror`, `show`, `suggest`, `expand`, `sharpen`, `challenge`, `narrow`, `ask` or `confirm`. `words` is the length of the turn's text.
+- Person tags (`dont_know`, `could_not_answer`, `already_said`, `in_attachments`, `confirmed`, `suggestion`, `frustration` 0 to 5) are optional: send only what you know, and say who set them with `tagged_by` (`person`, `tagger` or `simulator`). Don't guess a tag. A tag left out is false, which the reports count as such.
+- `text` is optional: leave it out where the conversation is private. Never put the change folder or code in an event. `revealed` and `context.score` are for benchmarks against a hidden truth; a live factory has none.
+- Keys are `turn:<n>`, fixed per turn, so a resend is a harmless duplicate and a late or out-of-order turn lands in its place.
+- Send the Context creator's model sessions as `usage` events (or as Claude Code telemetry, section 2) and its gates as `gate` events, like any attempt. When the same factory then builds from the change on the same work item, make that build a second attempt with another `role` and `parent_attempt_id` set to the Context attempt: it is a handoff, so the build's stages, cost and time are reported with it.
+- Change `factory_config_version` when the Context creator's prompt or model changes: the Context section compares by it (`report factories --by config`).
+
+## 5. Verify
 
 Run one real attempt, or a throwaway one on a repo that doesn't exist:
 
@@ -84,7 +108,7 @@ factorybench emit attempt.finished --attempt $A --key finished --json '{"status"
 
 No stderr output means both were accepted. On the FactoryBench host: `factorybench report live`, `report item example/fb-smoke-test#1`, `report factories`.
 
-## 5. Troubleshooting
+## 6. Troubleshooting
 
 | Symptom | Fix |
 |---|---|
