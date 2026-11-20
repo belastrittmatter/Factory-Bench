@@ -386,10 +386,7 @@ func validateContextScore(raw []byte) error {
 			return fmt.Errorf("payload.%s must be >= 0", c.name)
 		}
 	}
-	parts := []struct {
-		name        string
-		part, whole int64
-	}{
+	parts := []partOfTotal{
 		{"captured.full + captured.partial must be <= truth.items", s.Captured.Full + s.Captured.Partial, s.Truth.Items},
 		{"captured.g4_full + captured.g4_partial must be <= truth.g4", s.Captured.G4Full + s.Captured.G4Partial, s.Truth.G4},
 		{"captured.latent must be <= truth.latent", s.Captured.Latent, s.Truth.Latent},
@@ -400,14 +397,11 @@ func validateContextScore(raw []byte) error {
 		{"builders.agree must be <= builders.total", s.Builders.Agree, s.Builders.Total},
 	}
 	if s.Build != nil {
-		parts = append(parts, struct {
-			name        string
-			part, whole int64
-		}{"build.hidden_pass must be <= build.hidden_total", s.Build.HiddenPass, s.Build.HiddenTotal})
+		parts = append(parts, partOfTotal{"build.hidden_pass must be <= build.hidden_total", s.Build.HiddenPass, s.Build.HiddenTotal})
 	}
 	for _, p := range parts {
-		if p.part > p.whole {
-			return errors.New("payload." + p.name)
+		if p.part > p.total {
+			return errors.New("payload." + p.rule)
 		}
 	}
 	for name, c := range map[string]float64{"person": s.BenchCostUSD.Person, "judge": s.BenchCostUSD.Judge, "builders": s.BenchCostUSD.Builders, "build": s.BenchCostUSD.Build} {
@@ -416,4 +410,10 @@ func validateContextScore(raw []byte) error {
 		}
 	}
 	return nil
+}
+
+// partOfTotal is a count that report divides by total: above it, every report that sums it shows a rate over 100%.
+type partOfTotal struct {
+	rule        string
+	part, total int64
 }

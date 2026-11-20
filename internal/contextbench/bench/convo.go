@@ -97,7 +97,7 @@ func CheckPerson(truth *scenario.Truth, seen map[string]bool, move string, tags 
 
 type personSource interface {
 	reply(ctx context.Context, turns []protocol.Turn, move, message string) (protocol.PersonReply, error)
-	left() bool
+	closedInput() bool
 }
 
 type simPerson struct {
@@ -115,7 +115,7 @@ func newSimPerson(c *Caller, model string, s *scenario.Scenario, personaID, pers
 	return &simPerson{caller: c, model: model, s: s, system: sys}, nil
 }
 
-func (p *simPerson) left() bool { return false }
+func (p *simPerson) closedInput() bool { return false }
 
 func (p *simPerson) reply(ctx context.Context, turns []protocol.Turn, move, message string) (protocol.PersonReply, error) {
 	var out protocol.PersonReply
@@ -137,12 +137,12 @@ func (p *simPerson) reply(ctx context.Context, turns []protocol.Turn, move, mess
 }
 
 type humanPerson struct {
-	in   *bufio.Reader
-	out  io.Writer
-	gone bool
+	in          *bufio.Reader
+	out         io.Writer
+	inputClosed bool
 }
 
-func (h *humanPerson) left() bool { return h.gone }
+func (h *humanPerson) closedInput() bool { return h.inputClosed }
 
 func (h *humanPerson) reply(_ context.Context, turns []protocol.Turn, move, message string) (protocol.PersonReply, error) {
 	n := turns[len(turns)-1].Turn + 1
@@ -158,7 +158,7 @@ func (h *humanPerson) reply(_ context.Context, turns []protocol.Turn, move, mess
 			lines = append(lines, trimmed)
 		}
 		if err != nil {
-			h.gone = true
+			h.inputClosed = true
 			break
 		}
 	}
@@ -247,7 +247,7 @@ func (c *conversation) run(ctx context.Context) (out convoOut, _ error) {
 	seen := map[string]bool{}
 	for n := 1; ; n++ {
 		left := c.maxTurns - n
-		if c.person.left() {
+		if c.person.closedInput() {
 			left = 0
 		}
 		var reply protocol.SubjectReply
