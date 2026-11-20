@@ -77,7 +77,7 @@ func singleSession(t *testing.T) []byte {
 				t.Fatal(err)
 			}
 		}
-		err = firstErr(Items(db, &out, "", "", now), Factories(db, &out, false, now), Factories(db, &out, true, now))
+		err = firstErr(Items(db, &out, "", "", nil, now), Factories(db, &out, false, nil, now), Factories(db, &out, true, nil, now))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -108,7 +108,7 @@ func TestSingleSessionUnchanged(t *testing.T) {
 // 10:12:30 and passes on the first push after the handoff (b1 started 10:16).
 func TestStagedRun(t *testing.T) {
 	db := loadGolden(t, "../../testdata/golden/staged_retry/events.json")
-	d, err := loadMetrics(db)
+	d, err := loadMetrics(db, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +208,7 @@ func TestStagedCIIgnoresLatePlanCheck(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO checks VALUES ('acme/app', 30, 'lint', 's1', 'failure', '2026-11-11T10:17:00Z', '2026-11-11T10:18:00Z')`); err != nil {
 		t.Fatal(err)
 	}
-	d, err := loadMetrics(db)
+	d, err := loadMetrics(db, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

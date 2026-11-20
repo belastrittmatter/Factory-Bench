@@ -2,6 +2,28 @@
   "derived": {
     "agent_runs": [],
     "api_errors": [],
+    "attempt_labels": [
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "label": "agent:ready"
+      },
+      {
+        "attempt_id": "b1",
+        "factory_id": "fa",
+        "label": "perf"
+      },
+      {
+        "attempt_id": "b2",
+        "factory_id": "fa",
+        "label": "agent:ready"
+      },
+      {
+        "attempt_id": "b2",
+        "factory_id": "fa",
+        "label": "perf"
+      }
+    ],
     "attempts": [
       {
         "attempt_id": "b1",
@@ -35,6 +57,8 @@
       }
     ],
     "checks": [],
+    "context_scores": [],
+    "context_turns": [],
     "gates": [
       {
         "attempt_id": "b1",

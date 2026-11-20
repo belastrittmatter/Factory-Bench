@@ -1,0 +1,494 @@
+{
+  "factories": {
+    "fa": "fa-bot@example.com",
+    "fb": "fb-bot@example.com"
+  },
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-21T10:00:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/chat",
+              "issue": 2
+            },
+            "factory_config_version": "plain@abc/m1",
+            "role": "context",
+            "labels": [
+              "scenario:s1",
+              "persona:unsure",
+              "max-turns:10"
+            ]
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:1",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:05Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 1,
+            "speaker": "person",
+            "words": 20,
+            "revealed": [
+              "i1"
+            ],
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:2",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:10Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 2,
+            "speaker": "factory",
+            "words": 10,
+            "move": "ask"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:3",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:20Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 3,
+            "speaker": "person",
+            "words": 5,
+            "dont_know": true,
+            "could_not_answer": true,
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:4",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:30Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 4,
+            "speaker": "factory",
+            "words": 30,
+            "move": "show"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:5",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:40Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 5,
+            "speaker": "person",
+            "words": 12,
+            "suggestion": "accepted",
+            "frustration": 1,
+            "revealed": [
+              "i2",
+              "L1"
+            ],
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:6",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:00:50Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 6,
+            "speaker": "factory",
+            "words": 8,
+            "move": "mirror"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:7",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:01:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 7,
+            "speaker": "person",
+            "words": 6,
+            "already_said": true,
+            "frustration": 3,
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:8",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:01:10Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 8,
+            "speaker": "factory",
+            "words": 4,
+            "move": "confirm"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:turn:9",
+          "type": "context.turn",
+          "ts": "2026-11-21T10:01:20Z",
+          "attempt_id": "c1",
+          "payload": {
+            "n": 9,
+            "speaker": "person",
+            "words": 2,
+            "confirmed": true,
+            "frustration": 0,
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-21T10:01:30Z",
+          "attempt_id": "c1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:gate:context-change",
+          "type": "gate",
+          "ts": "2026-11-21T10:01:40Z",
+          "attempt_id": "c1",
+          "payload": {
+            "name": "context-change",
+            "passed": true
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:gate:context-agreement",
+          "type": "gate",
+          "ts": "2026-11-21T10:01:50Z",
+          "attempt_id": "c1",
+          "payload": {
+            "name": "context-agreement",
+            "passed": false,
+            "reason": "2 of 8 requirements disagree"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:score",
+          "type": "context.score",
+          "ts": "2026-11-21T10:02:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "scenario": "s1",
+            "subject": "plain",
+            "persona": "unsure",
+            "truth": {
+              "items": 10,
+              "g4": 2,
+              "latent": 2,
+              "traps": 2,
+              "noise": 1
+            },
+            "captured": {
+              "full": 4,
+              "partial": 2,
+              "g4_full": 1,
+              "g4_partial": 1,
+              "latent": 1
+            },
+            "latent_by_move": {
+              "show": 1
+            },
+            "traps": {
+              "raised": 1,
+              "followed": 1
+            },
+            "invented": 2,
+            "invented_unmarked": 1,
+            "map_tag_errors": 1,
+            "assumed_marked": 1,
+            "requirements": 8,
+            "untraced": 2,
+            "noise_left": 0,
+            "missing_slots": 1,
+            "contradictions": 0,
+            "builders": {
+              "agree": 6,
+              "total": 8
+            },
+            "vague_warnings": 0,
+            "sim_violations": 0,
+            "bench_cost_usd": {
+              "person": 0.5,
+              "judge": 0.25,
+              "builders": 0.125,
+              "build": 0.0
+            },
+            "build": {
+              "hidden_pass": 3,
+              "hidden_total": 4,
+              "tasks": 2,
+              "merged": 1,
+              "escalations": 1,
+              "repairs": 2
+            }
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-21T10:02:10Z",
+          "attempt_id": "c1",
+          "payload": {
+            "status": "completed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-21T10:03:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/chat",
+              "issue": 2
+            },
+            "factory_config_version": "plain@abc/m1",
+            "role": "build",
+            "labels": [
+              "scenario:s1",
+              "persona:unsure",
+              "max-turns:10"
+            ],
+            "parent_attempt_id": "c1"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-21T10:05:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 3000,
+            "output": 500,
+            "phase": "implement"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "b1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-21T10:06:00Z",
+          "attempt_id": "b1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "factory": "fb",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-21T09:00:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/chat",
+              "issue": 3
+            },
+            "factory_config_version": "other@1",
+            "role": "build",
+            "labels": [
+              "agent:ready"
+            ]
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "p1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-21T09:10:00Z",
+          "attempt_id": "p1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:started",
+          "type": "attempt.started",
+          "ts": "2026-11-21T11:00:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "work_item": {
+              "repo": "acme/chat",
+              "issue": 2
+            },
+            "factory_config_version": "file:x@def/m1",
+            "role": "context",
+            "labels": [
+              "scenario:s1",
+              "persona:talkative",
+              "max-turns:20"
+            ]
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:turn:3",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:30Z",
+          "attempt_id": "c2",
+          "payload": {
+            "n": 3,
+            "speaker": "person",
+            "words": 30,
+            "suggestion": "rejected",
+            "frustration": 4,
+            "tagged_by": "tagger"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:turn:1",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:05Z",
+          "attempt_id": "c2",
+          "payload": {
+            "n": 1,
+            "speaker": "person",
+            "words": 50,
+            "tagged_by": "tagger"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:turn:2",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:20Z",
+          "attempt_id": "c2",
+          "payload": {
+            "n": 2,
+            "speaker": "factory",
+            "words": 20,
+            "move": "suggest"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:turn:3:resend",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:30Z",
+          "attempt_id": "c2",
+          "payload": {
+            "n": 3,
+            "speaker": "person",
+            "words": 31,
+            "suggestion": "rejected",
+            "frustration": 4,
+            "tagged_by": "tagger"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:turn:bad",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:40Z",
+          "attempt_id": "c2",
+          "payload": {
+            "n": 4,
+            "speaker": "factory",
+            "words": 3
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "ghost:turn:1",
+          "type": "context.turn",
+          "ts": "2026-11-21T11:00:05Z",
+          "attempt_id": "ghost",
+          "payload": {
+            "n": 1,
+            "speaker": "person",
+            "words": 9,
+            "tagged_by": "simulator"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c2:score",
+          "type": "context.score",
+          "ts": "2026-11-21T11:01:00Z",
+          "attempt_id": "c2",
+          "payload": {
+            "scenario": "s1",
+            "subject": "plain",
+            "persona": "talkative",
+            "truth": {
+              "items": 10,
+              "g4": 2,
+              "latent": 2,
+              "traps": 2,
+              "noise": 1
+            },
+            "captured": {
+              "full": 2,
+              "partial": 0,
+              "g4_full": 0,
+              "g4_partial": 0,
+              "latent": 0
+            },
+            "sim_violations": 1,
+            "bench_cost_usd": {
+              "person": 0.25,
+              "judge": 0.125,
+              "builders": 0.0,
+              "build": 0.0
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "report": [
+    "acme/chat#2"
+  ],
+  "report_context": true,
+  "now": "2026-11-22T00:00:00Z"
+}

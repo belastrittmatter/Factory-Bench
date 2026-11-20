@@ -1,0 +1,215 @@
+acme/chat#2   outcome open · survival n/a
+  11-21 10:00  fa  attempt c1 started                                                             role context · config plain@abc/m1
+  11-21 10:01      session c1 claude-haiku-5-5: 1.0k in / ? cache read / ? cache write / 200 out  <$0.01 est. (prices 2026-11-13)
+  11-21 10:01      gate context-change passed                                                     
+  11-21 10:01      gate context-agreement failed: 2 of 8 requirements disagree                    
+  11-21 10:02      attempt c1 completed                                                           2m10s, <$0.01 est.
+  11-21 10:03      attempt b1 started · handoff from attempt c1                                   role build · config plain@abc/m1
+  11-21 10:05      session b1 claude-haiku-5-5: 3.0k in / ? cache read / ? cache write / 500 out  <$0.01 est. (prices 2026-11-13)
+  11-21 10:06      attempt b1 completed                                                           3m0s, <$0.01 est.
+  11-21 11:00      attempt c2 started                                                             role context · config file:x@def/m1
+  totals  fa  3 attempts · 2 stages · 0 retries (2 completed, 1 running) · 2 sessions · tokens 4.0k in / 700 out / ? cache · 14h0m0s active / 14h0m0s elapsed · 0 human waits (0s) · <$0.01 est. +? · usage coverage 2/3 attempts
+
+$ report items
+item         title  factory  outcome  attempts                           tokens  cost    active   elapsed  human  PR  escaped
+acme/chat#2         fa       open     2 attempts · 2 stages · 0 retries  4.7k    <$0.01  6m0s     6m0s     0      -   0
+acme/chat#2         fa       open     1                                  ?       ?       13h0m0s  13h0m0s  0      -   0
+acme/chat#3         fb       open     1                                  ?       ?       10m0s    10m0s    0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+Context
+item         factory  runs          context turns / conversation  person words / conversation  moves                       could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration                recall      weighted recall  G4 recall    items per turn  latent drawn        traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests                                                       simulator violations            bench cost (not factory cost)
+acme/chat#2  fa       1 (1 scored)  4.0 (4/1)                     45.0 (45/1)                  ask 1, confirm 1, mirror 1  20% (1/5)         1.0 (1/1) / conversation  0.0 (0/1) / conversation  100% (1/1)            100% (1/1)            1.3 mean, 3 max (3 turns)  50% (5/10)  57% (8/14)       75% (1.5/2)  1.2 (5/4)       50% (1/2) · show 1  50% (1/2)     50% (1/2)       2.0 (2/1) / run · 1 not marked assumed  1.0 (1/1) / run  0.0 (0/1) / run  1.0 (1/1) / run  0.0 (0/1) / run  75% (6/8)     75% (6/8)          75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  0.0 (0/1) / run                 $0.88 (person $0.50, judge $0.25, builders $0.12, build $0.00)
+acme/chat#2  fa       1 (1 scored)  1.0 (1/1)                     81.0 (81/1)                  suggest 1                   0% (0/2)          0.0 (0/1) / conversation  0.0 (0/1) / conversation  0% (0/1)              n/a                   4.0 mean, 4 max (1 turn)   20% (2/10)  14% (2/14)       0% (0/2)     2.0 (2/1)       0% (0/2)            0% (0/2)      0% (0/2)        0.0 (0/1) / run · 0 not marked assumed  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  n/a           n/a                n/a                                                                1.0 (1/1) / run ⚠ 1 run marked  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)
+
+$ report factories
+metric                       fa                                                   fb
+work items                   1                                                    1
+attempts                     3 (0 failed) · 2 stages · 0 retries in 1 staged run  1 (0 failed)
+sessions                     2                                                    0
+tokens / issue               4.7k +? (1 attempt(s) without usage)                 ?
+time / issue                 13h6m0s active / 13h6m0s elapsed                     10m0s active / 10m0s elapsed
+cost total                   <$0.01 est. +? (1 attempt(s) without usage)          ?
+cost / issue                 <$0.01 +?                                            ?
+cost / merged issue          n/a (0 merged)                                       n/a (0 merged)
+verification tokens / PR     n/a (no PRs)                                         n/a (no PRs)
+issues closed by agent       n/a (no github login)                                n/a (no github login)
+first-pass plan approval     n/a                                                  n/a
+first-pass PR approval       n/a                                                  n/a
+review rounds / PR           n/a                                                  n/a
+human interventions / issue  0.0 (0/1)                                            0.0 (0/1)
+escaped defects              n/a (no PRs)                                         n/a (no PRs)
+usage coverage               67% (2/3) attempts                                   0% (0/1) attempts
+activity coverage            0% (0/3) attempts                                    0% (0/1) attempts
+unpriced sessions            0                                                    0
+rejected events              1                                                    0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Context
+metric                         fa                                                                 fb
+context turns / conversation   2.5 (5/2)                                                          n/a
+person words / conversation    63.0 (126/2)                                                       n/a
+moves                          ask 1, confirm 1, mirror 1                                         n/a
+could not answer               14% (1/7)                                                          n/a
+asked again                    0.5 (1/2) / conversation                                           n/a
+asked what was given           0.0 (0/2) / conversation                                           n/a
+suggestions accepted           50% (1/2)                                                          n/a
+don't-know recovered           100% (1/1)                                                         n/a
+frustration                    2.0 mean, 4 max (4 turns)                                          n/a
+recall                         35% (7/20)                                                         n/a
+weighted recall                36% (10/28)                                                        n/a
+G4 recall                      38% (1.5/4)                                                        n/a
+items per turn                 1.4 (7/5)                                                          n/a
+latent drawn                   25% (1/4) · show 1                                                 n/a
+traps raised                   25% (1/4)                                                          n/a
+traps followed                 25% (1/4)                                                          n/a
+invented                       1.0 (2/2) / run · 1 not marked assumed                             n/a
+map tag errors                 0.5 (1/2) / run                                                    n/a
+noise left                     0.0 (0/2) / run                                                    n/a
+missing slots                  0.5 (1/2) / run                                                    n/a
+contradictions                 0.0 (0/2) / run                                                    n/a
+traceability                   75% (6/8)                                                          n/a
+builder agreement              75% (6/8)                                                          n/a
+hidden tests                   75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  n/a
+simulator violations           0.5 (1/2) / run ⚠ 1 run marked                                     n/a
+bench cost (not factory cost)  $1.25 (person $0.75, judge $0.38, builders $0.12, build $0.00)     n/a
+
+Gates (defects caught)
+  factory  source   gate               failed / runs
+  fa       factory  context-agreement  100% (1/1)
+  fa       factory  context-change     0% (0/1)
+
+CI suite
+  none
+
+$ report items --label max-turns:20
+item         title  factory  outcome  attempts  tokens  cost  active   elapsed  human  PR  escaped
+acme/chat#2         fa       open     1         ?       ?     13h0m0s  13h0m0s  0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+Context
+item         factory  runs          context turns / conversation  person words / conversation  moves      could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration               recall      weighted recall  G4 recall  items per turn  latent drawn  traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests  simulator violations            bench cost (not factory cost)
+acme/chat#2  fa       1 (1 scored)  1.0 (1/1)                     81.0 (81/1)                  suggest 1  0% (0/2)          0.0 (0/1) / conversation  0.0 (0/1) / conversation  0% (0/1)              n/a                   4.0 mean, 4 max (1 turn)  20% (2/10)  14% (2/14)       0% (0/2)   2.0 (2/1)       0% (0/2)      0% (0/2)      0% (0/2)        0.0 (0/1) / run · 0 not marked assumed  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  n/a           n/a                n/a           1.0 (1/1) / run ⚠ 1 run marked  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)
+
+$ report factories --by config
+metric                       fa file:x@def/m1                  fa plain@abc/m1                                      fb other@1
+work items                   1                                 1                                                    1
+attempts                     1 (0 failed)                      2 (0 failed) · 2 stages · 0 retries in 1 staged run  1 (0 failed)
+sessions                     0                                 2                                                    0
+tokens / issue               ?                                 4.7k                                                 ?
+time / issue                 13h0m0s active / 13h0m0s elapsed  6m0s active / 6m0s elapsed                           10m0s active / 10m0s elapsed
+cost total                   ?                                 <$0.01 est.                                          ?
+cost / issue                 ?                                 <$0.01                                               ?
+cost / merged issue          n/a (0 merged)                    n/a (0 merged)                                       n/a (0 merged)
+verification tokens / PR     n/a (no PRs)                      n/a (no PRs)                                         n/a (no PRs)
+issues closed by agent       n/a (no github login)             n/a (no github login)                                n/a (no github login)
+first-pass plan approval     n/a                               n/a                                                  n/a
+first-pass PR approval       n/a                               n/a                                                  n/a
+review rounds / PR           n/a                               n/a                                                  n/a
+human interventions / issue  0.0 (0/1)                         0.0 (0/1)                                            0.0 (0/1)
+escaped defects              n/a (no PRs)                      n/a (no PRs)                                         n/a (no PRs)
+usage coverage               0% (0/1) attempts                 100% (2/2) attempts                                  0% (0/1) attempts
+activity coverage            0% (0/1) attempts                 0% (0/2) attempts                                    0% (0/1) attempts
+unpriced sessions            0                                 0                                                    0
+rejected events              1                                 1                                                    0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Context
+metric                         fa file:x@def/m1                                                fa plain@abc/m1                                                    fb other@1
+context turns / conversation   1.0 (1/1)                                                       4.0 (4/1)                                                          n/a
+person words / conversation    81.0 (81/1)                                                     45.0 (45/1)                                                        n/a
+moves                          suggest 1                                                       ask 1, confirm 1, mirror 1                                         n/a
+could not answer               0% (0/2)                                                        20% (1/5)                                                          n/a
+asked again                    0.0 (0/1) / conversation                                        1.0 (1/1) / conversation                                           n/a
+asked what was given           0.0 (0/1) / conversation                                        0.0 (0/1) / conversation                                           n/a
+suggestions accepted           0% (0/1)                                                        100% (1/1)                                                         n/a
+don't-know recovered           n/a                                                             100% (1/1)                                                         n/a
+frustration                    4.0 mean, 4 max (1 turn)                                        1.3 mean, 3 max (3 turns)                                          n/a
+recall                         20% (2/10)                                                      50% (5/10)                                                         n/a
+weighted recall                14% (2/14)                                                      57% (8/14)                                                         n/a
+G4 recall                      0% (0/2)                                                        75% (1.5/2)                                                        n/a
+items per turn                 2.0 (2/1)                                                       1.2 (5/4)                                                          n/a
+latent drawn                   0% (0/2)                                                        50% (1/2) · show 1                                                 n/a
+traps raised                   0% (0/2)                                                        50% (1/2)                                                          n/a
+traps followed                 0% (0/2)                                                        50% (1/2)                                                          n/a
+invented                       0.0 (0/1) / run · 0 not marked assumed                          2.0 (2/1) / run · 1 not marked assumed                             n/a
+map tag errors                 0.0 (0/1) / run                                                 1.0 (1/1) / run                                                    n/a
+noise left                     0.0 (0/1) / run                                                 0.0 (0/1) / run                                                    n/a
+missing slots                  0.0 (0/1) / run                                                 1.0 (1/1) / run                                                    n/a
+contradictions                 0.0 (0/1) / run                                                 0.0 (0/1) / run                                                    n/a
+traceability                   n/a                                                             75% (6/8)                                                          n/a
+builder agreement              n/a                                                             75% (6/8)                                                          n/a
+hidden tests                   n/a                                                             75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  n/a
+simulator violations           1.0 (1/1) / run ⚠ 1 run marked                                  0.0 (0/1) / run                                                    n/a
+bench cost (not factory cost)  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)  $0.88 (person $0.50, judge $0.25, builders $0.12, build $0.00)     n/a
+
+Gates (defects caught)
+  factory          source   gate               failed / runs
+  fa plain@abc/m1  factory  context-agreement  100% (1/1)
+  fa plain@abc/m1  factory  context-change     0% (0/1)
+
+CI suite
+  none
+
+$ report context
+2 runs with context data · 2 scored · 5 factory turns
+
+Effort curve (runs by max-turns label)
+max-turns  runs          person words / conversation  recall      builder agreement  hidden tests
+10         1 (1 scored)  45.0 (45/1)                  50% (5/10)  75% (6/8)          75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run
+20         1 (1 scored)  81.0 (81/1)                  20% (2/10)  n/a                n/a
+
+Moves
+move     used  ids revealed next turn  latent drawn  suggestion accepted
+mirror   1     0                       0             n/a
+show     1     2                       1             100% (1/1)
+suggest  1     0                       0             0% (0/1)
+ask      1     0                       0             n/a
+confirm  1     0                       0             n/a
+
+Simulated against real (by who set the person tags)
+scenario  persons    runs          person words / conversation  could not answer  asked again               don't-know recovered  recall
+s1        simulated  1 (1 scored)  45.0 (45/1)                  20% (1/5)         1.0 (1/1) / conversation  100% (1/1)            50% (5/10)
+s1        real       1 (1 scored)  81.0 (81/1)                  0% (0/2)          0.0 (0/1) / conversation  n/a                   20% (2/10)
+
+$ report context --label max-turns:10
+1 run with context data · 1 scored · 4 factory turns
+
+Effort curve (runs by max-turns label)
+max-turns  runs          person words / conversation  recall      builder agreement  hidden tests
+10         1 (1 scored)  45.0 (45/1)                  50% (5/10)  75% (6/8)          75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run
+
+Moves
+move     used  ids revealed next turn  latent drawn  suggestion accepted
+mirror   1     0                       0             n/a
+show     1     2                       1             100% (1/1)
+ask      1     0                       0             n/a
+confirm  1     0                       0             n/a
+
+Simulated against real (by who set the person tags)
+scenario  persons    runs          person words / conversation  could not answer  asked again               don't-know recovered  recall
+s1        simulated  1 (1 scored)  45.0 (45/1)                  20% (1/5)         1.0 (1/1) / conversation  100% (1/1)            50% (5/10)
+
+$ report context --label scenario:s1 --label persona:talkative
+1 run with context data · 1 scored · 1 factory turn
+
+Effort curve (runs by max-turns label)
+max-turns  runs          person words / conversation  recall      builder agreement  hidden tests
+20         1 (1 scored)  81.0 (81/1)                  20% (2/10)  n/a                n/a
+
+Moves
+move     used  ids revealed next turn  latent drawn  suggestion accepted
+suggest  1     0                       0             0% (0/1)
+
+Simulated against real (by who set the person tags)
+scenario  persons  runs          person words / conversation  could not answer  asked again               don't-know recovered  recall
+s1        real     1 (1 scored)  81.0 (81/1)                  0% (0/2)          0.0 (0/1) / conversation  n/a                   20% (2/10)
+
+$ report context --label scenario:none
+no context data yet
+
+$ report live
+factory  issue        attempt  status   elapsed  active   human wait  tokens  cost     last event
+fa       acme/chat#2  c2       running  13h0m0s  13h0m0s  0s          ?       unknown  12h59m0s ago

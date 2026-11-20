@@ -2,6 +2,7 @@
   "derived": {
     "agent_runs": [],
     "api_errors": [],
+    "attempt_labels": [],
     "attempts": [
       {
         "attempt_id": "b1",
@@ -35,6 +36,8 @@
       }
     ],
     "checks": [],
+    "context_scores": [],
+    "context_turns": [],
     "gates": [],
     "pr_commits": [],
     "prs": [],

@@ -42,8 +42,9 @@ type goldenCase struct {
 		Capture string            `json:"capture"`
 		Bodies  []json.RawMessage `json:"bodies"`
 	} `json:"otlp"`
-	Report []string `json:"report"`
-	Now    string   `json:"now"` // report time, RFC 3339; default fixedNow
+	Report        []string `json:"report"`
+	ReportContext bool     `json:"report_context"`
+	Now           string   `json:"now"`
 }
 
 func TestGolden(t *testing.T) {
@@ -156,7 +157,7 @@ func runGolden(t *testing.T, dir string) {
 			t.Fatal(err)
 		}
 	}
-	derived, reports := snapshot(t, db, gc.Report, now)
+	derived, reports := snapshot(t, db, gc.Report, gc.ReportContext, now)
 
 	var rejected []map[string]any
 	rows, err := db.Query(`SELECT factory_id, id, rejected FROM events WHERE rejected IS NOT NULL ORDER BY factory_id, id`)
@@ -185,7 +186,7 @@ func runGolden(t *testing.T, dir string) {
 	if err := Run(db); err != nil {
 		t.Fatal(err)
 	}
-	derived2, reports2 := snapshot(t, db, gc.Report, now)
+	derived2, reports2 := snapshot(t, db, gc.Report, gc.ReportContext, now)
 	if !bytes.Equal(derived, derived2) || !bytes.Equal(reports, reports2) {
 		t.Fatalf("replay changed the result:\n%s\n---\n%s", derived, derived2)
 	}
@@ -196,7 +197,7 @@ var itemRe = regexp.MustCompile(`^(.+)#(\d+)$`)
 // fixedNow makes reports of unfinished attempts deterministic.
 var fixedNow = time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
 
-func snapshot(t *testing.T, db *sql.DB, items []string, now time.Time) (derived, reports []byte) {
+func snapshot(t *testing.T, db *sql.DB, items []string, context bool, now time.Time) (derived, reports []byte) {
 	d, err := dump(db)
 	if err != nil {
 		t.Fatal(err)
@@ -217,12 +218,32 @@ func snapshot(t *testing.T, db *sql.DB, items []string, now time.Time) (derived,
 		buf.WriteString("\n")
 	}
 	buf.WriteString("$ report items\n")
-	if err := report.Items(db, &buf, "", "", now); err != nil {
+	if err := report.Items(db, &buf, "", "", nil, now); err != nil {
 		t.Fatal(err)
 	}
 	buf.WriteString("\n$ report factories\n")
-	if err := report.Factories(db, &buf, false, now); err != nil {
+	if err := report.Factories(db, &buf, false, nil, now); err != nil {
 		t.Fatal(err)
+	}
+	if context {
+		buf.WriteString("\n$ report items --label max-turns:20\n")
+		if err := report.Items(db, &buf, "", "", []string{"max-turns:20"}, now); err != nil {
+			t.Fatal(err)
+		}
+		buf.WriteString("\n$ report factories --by config\n")
+		if err := report.Factories(db, &buf, true, nil, now); err != nil {
+			t.Fatal(err)
+		}
+		for _, labels := range [][]string{nil, {"max-turns:10"}, {"scenario:s1", "persona:talkative"}, {"scenario:none"}} {
+			buf.WriteString("\n$ report context")
+			for _, l := range labels {
+				buf.WriteString(" --label " + l)
+			}
+			buf.WriteString("\n")
+			if err := report.Context(db, &buf, "", labels); err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 	buf.WriteString("\n$ report live\n")
 	if err := report.Live(db, &buf, now); err != nil {

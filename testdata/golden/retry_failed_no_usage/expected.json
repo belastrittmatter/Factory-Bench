@@ -2,6 +2,18 @@
   "derived": {
     "agent_runs": [],
     "api_errors": [],
+    "attempt_labels": [
+      {
+        "attempt_id": "a1",
+        "factory_id": "fa",
+        "label": "agent:ready"
+      },
+      {
+        "attempt_id": "a1",
+        "factory_id": "fa",
+        "label": "bug"
+      }
+    ],
     "attempts": [
       {
         "attempt_id": "a1",
@@ -50,6 +62,8 @@
       }
     ],
     "checks": [],
+    "context_scores": [],
+    "context_turns": [],
     "gates": [],
     "pr_commits": [],
     "prs": [],

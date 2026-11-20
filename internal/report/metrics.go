@@ -78,15 +78,19 @@ type metricsData struct {
 	agents   map[string]int     // factory \x00 attempt -> subagent runs
 	apiErrs  map[string]int     // factory \x00 attempt
 	linked   map[string]string  // factory \x00 attempt -> first pr.linked ts
+	labels   map[string][]string
+	turns    map[string][]mTurn
+	scores   map[string]*mScore
 }
 
-func loadMetrics(db *sql.DB) (*metricsData, error) {
+func loadMetrics(db *sql.DB, labels []string) (*metricsData, error) {
 	d := &metricsData{usage: map[string][]mUse{}, gates: map[string][]mGate{}, items: map[string]*mItem{},
 		login: map[string]string{}, bot: map[string]bool{}, prs: map[string]*mPR{}, reviews: map[string][]mReview{},
 		commits: map[string][]mCommit{}, checks: map[string][]mCheck{}, human: map[string][]mEvent{}, rejected: map[string]int{},
-		tools: map[string][]mTool{}, agents: map[string]int{}, apiErrs: map[string]int{}, linked: map[string]string{}}
+		tools: map[string][]mTool{}, agents: map[string]int{}, apiErrs: map[string]int{}, linked: map[string]string{},
+		labels: map[string][]string{}, turns: map[string][]mTurn{}, scores: map[string]*mScore{}}
 	key := func(repo string, n int64) string { return fmt.Sprintf("%s#%d", repo, n) }
-	return d, firstErr(
+	err := firstErr(
 		store.Each(db, `SELECT factory_id, attempt_id, repo, issue, coalesce(role, ''), config_version, state, started_at,
 			parent_attempt_id, ended_at, pr_url, human_wait_ms FROM attempts ORDER BY started_at, factory_id, attempt_id`,
 			func(r *sql.Rows) error {
@@ -205,7 +209,34 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			d.linked[f+"\x00"+id] = ts
 			return err
 		}),
+		store.Each(db, `SELECT factory_id, attempt_id, label FROM attempt_labels ORDER BY label`, func(r *sql.Rows) error {
+			var f, id, l string
+			err := r.Scan(&f, &id, &l)
+			d.labels[f+"\x00"+id] = append(d.labels[f+"\x00"+id], l)
+			return err
+		}),
+		loadContext(db, d, "", ""),
 	)
+	if err != nil || len(labels) == 0 {
+		return d, err
+	}
+	kept := d.atts[:0]
+	for _, a := range d.atts {
+		if hasLabels(d.labels[a.factory+"\x00"+a.id], labels) {
+			kept = append(kept, a)
+		}
+	}
+	d.atts = kept
+	return d, nil
+}
+
+func hasLabels(have, want []string) bool {
+	for _, l := range want {
+		if !slices.Contains(have, l) {
+			return false
+		}
+	}
+	return true
 }
 
 func firstErr(errs ...error) error {
@@ -236,6 +267,7 @@ type unit struct {
 	planN, planPass, prN, prPass                  int // first-pass approvals: denominators and passes
 	reviewedPRs, changesReq                       int
 	run                                           runStats
+	ctx                                           ctxStats
 }
 
 // runStats are the tool call, subagent and PR metrics of a unit, summed into its card by merge.
@@ -325,27 +357,34 @@ func stagesText(stages, retries int) string {
 func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	var units []*unit
 	byKey := map[string]*unit{}
-	run := func(a *mAtt) string { return fmt.Sprintf("%s\x00%s#%d", a.factory, a.repo, a.issue) }
+	// A run is one parent chain: its key is the factory and the root attempt's id. Attempts are ordered by start,
+	// so a parent comes before its children.
+	type root struct{ id, config string }
+	roots := map[string]root{} // factory \x00 attempt -> root of its chain
+	for _, a := range d.atts {
+		r, ok := roots[a.factory+"\x00"+a.parent.String]
+		if !ok {
+			r = root{a.id, a.config}
+		}
+		roots[a.factory+"\x00"+a.id] = r
+	}
+	run := func(a *mAtt) string { return a.factory + "\x00" + roots[a.factory+"\x00"+a.id].id }
 	in := make([]StageAttempt, len(d.atts))
 	for i, a := range d.atts {
 		in[i] = StageAttempt{a.factory, a.id, a.parent.String, a.role, a.state, run(a)}
 	}
 	kinds, staged := Stages(in)
-	firstConfig := map[string]string{}
-	for i, a := range d.atts { // ordered by start, so a run's first attempt comes first
+	for i, a := range d.atts {
 		a.stage = kinds[i]
-		if _, ok := firstConfig[run(a)]; !ok {
-			firstConfig[run(a)] = a.config
-		}
 	}
 	for _, a := range d.atts {
 		g := a.factory
 		if byConfig && staged[run(a)] { // a staged run stays one unit, under the config it started with
-			g += " " + firstConfig[run(a)]
+			g += " " + roots[a.factory+"\x00"+a.id].config
 		} else if byConfig {
 			g += " " + a.config
 		}
-		k := g + "\x00" + fmt.Sprintf("%s#%d", a.repo, a.issue)
+		k := run(a) + "\x00" + g + "\x00" + fmt.Sprintf("%s#%d", a.repo, a.issue)
 		u := byKey[k]
 		if u == nil {
 			it := d.items[fmt.Sprintf("%s#%d", a.repo, a.issue)]
@@ -406,6 +445,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		}
 		u.run.subagents += d.agents[k]
 		u.run.apiErrors += d.apiErrs[k]
+		u.ctx.add(d.turns[k], d.scores[k])
 		ids[a.id] = a
 		u.attempts++
 		if a.state == "failed" && !u.staged {
@@ -659,17 +699,19 @@ func (u *unit) tokensString() string {
 }
 
 // Items prints one row per (work item, factory).
-func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) error {
-	d, err := loadMetrics(db)
+func Items(db *sql.DB, w io.Writer, factory, outcome string, labels []string, now time.Time) error {
+	d, err := loadMetrics(db, labels)
 	if err != nil {
 		return err
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "item\ttitle\tfactory\toutcome\tattempts\ttokens\tcost\tactive\telapsed\thuman\tPR\tescaped")
+	var shown []*unit
 	for _, u := range buildUnits(d, false, now) {
 		if (factory != "" && u.factory != factory) || (outcome != "" && u.outcome != outcome) {
 			continue
 		}
+		shown = append(shown, u)
 		title := u.item.title
 		if r := []rune(title); len(r) > 40 {
 			title = string(r[:39]) + "…"
@@ -688,8 +730,10 @@ func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) erro
 	if err := tw.Flush(); err != nil {
 		return err
 	}
-	_, err = fmt.Fprintln(w, legend+"\nopen one: factorybench report item <owner/repo#n>")
-	return err
+	if _, err = fmt.Fprintln(w, legend+"\nopen one: factorybench report item <owner/repo#n>"); err != nil {
+		return err
+	}
+	return printContextUnits(w, shown)
 }
 
 // ItemRow is one row of `report items` plus the per-unit PR columns, preformatted: "?" and "n/a" are unknown, never 0.
@@ -726,50 +770,54 @@ func (u *unit) attemptsText() string {
 
 // ItemRows returns one row per (work item, factory), newest first, from the same units as Items.
 func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
-	d, err := loadMetrics(db)
+	d, err := loadMetrics(db, nil)
 	if err != nil {
 		return nil, err
 	}
 	var out []ItemRow
 	for _, u := range buildUnits(d, false, now) {
-		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
-			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
-			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
-		if u.staged {
-			r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
-		}
-		var prs []string
-		for _, p := range u.prs {
-			prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
-		}
-		r.PRs = strings.Join(prs, ", ")
-		if u.run.nToPR > 0 {
-			r.ToPR = dur(u.run.toPR)
-			if u.staged {
-				r.ToPR += stagedToPR
-			}
-			v := u.run.toPR.Seconds()
-			r.ToPRSeconds = &v
-		}
-		r.HasPR, r.Merged = len(u.prs) > 0, u.outcome == "merged"
-		if u.cost.sessions > u.cost.nUnk {
-			v := u.cost.rep + u.cost.est
-			r.CostUSD = &v
-		}
-		r.CostLowerBound = u.cost.nUnk > 0 || u.attempts > u.withUsage
-		if u.run.nToMerge > 0 {
-			r.ToMerge = dur(u.run.toMerge)
-		}
-		if u.reviewedPRs > 0 {
-			r.ReviewRounds = fmt.Sprintf("%d on %d reviewed PRs", u.changesReq, u.reviewedPRs)
-		}
-		if u.run.ciN > 0 {
-			r.CIFirstPush = rate(u.run.ciPass, u.run.ciN)
-		}
-		if u.run.sizedPRs > 0 {
-			r.Size = fmt.Sprintf("+%d -%d, %d files", u.run.added, u.run.deleted, u.run.files)
-		}
-		out = append(out, r)
+		out = append(out, u.row())
 	}
 	return out, nil
+}
+
+func (u *unit) row() ItemRow {
+	r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
+		Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
+		Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
+	if u.staged {
+		r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
+	}
+	var prs []string
+	for _, p := range u.prs {
+		prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
+	}
+	r.PRs = strings.Join(prs, ", ")
+	if u.run.nToPR > 0 {
+		r.ToPR = dur(u.run.toPR)
+		if u.staged {
+			r.ToPR += stagedToPR
+		}
+		v := u.run.toPR.Seconds()
+		r.ToPRSeconds = &v
+	}
+	r.HasPR, r.Merged = len(u.prs) > 0, u.outcome == "merged"
+	if u.cost.sessions > u.cost.nUnk {
+		v := u.cost.rep + u.cost.est
+		r.CostUSD = &v
+	}
+	r.CostLowerBound = u.cost.nUnk > 0 || u.attempts > u.withUsage
+	if u.run.nToMerge > 0 {
+		r.ToMerge = dur(u.run.toMerge)
+	}
+	if u.reviewedPRs > 0 {
+		r.ReviewRounds = fmt.Sprintf("%d on %d reviewed PRs", u.changesReq, u.reviewedPRs)
+	}
+	if u.run.ciN > 0 {
+		r.CIFirstPush = rate(u.run.ciPass, u.run.ciN)
+	}
+	if u.run.sizedPRs > 0 {
+		r.Size = fmt.Sprintf("+%d -%d, %d files", u.run.added, u.run.deleted, u.run.files)
+	}
+	return r
 }

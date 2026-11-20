@@ -373,18 +373,11 @@ func (s *server) item(r *http.Request) (any, error) {
 	delete(res, "step_usage")
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
-	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
-	all, err := report.ItemRows(s.db, time.Now())
+	units, ctx, err := report.WorkItem(s.db, repo, n, time.Now())
 	if err != nil {
 		return nil, err
 	}
-	units := []report.ItemRow{}
-	for _, u := range all {
-		if u.Item == fmt.Sprintf("%s#%d", repo, n) {
-			units = append(units, u)
-		}
-	}
-	res["units"] = units
+	res["units"], res["context"] = units, ctx
 	return res, nil
 }
 
@@ -467,6 +460,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		}
 	}
 	res["dispatches"] = mine
+	if res["context"], err = report.ContextOfAttempt(s.db, f, id); err != nil {
+		return nil, err
+	}
 	var tcs []toolCall
 	err = store.Each(s.db, `SELECT ts, tool_name, success FROM tool_calls WHERE factory_id = ? AND attempt_id = ? ORDER BY ts`, func(r *sql.Rows) error {
 		var ts string
