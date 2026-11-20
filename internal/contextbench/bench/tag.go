@@ -22,7 +22,6 @@ func PersonTurns(turns []protocol.Turn) []int {
 	return out
 }
 
-// TagTranscript has the tagger fill the person-protocol tags of every person turn of the transcript.
 func TagTranscript(ctx context.Context, c *Caller, bucket, model string, s *scenario.Scenario, turns []protocol.Turn) (map[int]protocol.PersonTags, error) {
 	want := PersonTurns(turns)
 	out := map[int]protocol.PersonTags{}

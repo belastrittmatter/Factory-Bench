@@ -31,7 +31,6 @@ var areaTitles = map[string]string{
 	"screens": "Screens", "failures": "Failures", "limits": "Limits",
 }
 
-// RenderCeiling renders the change folder a perfect subject would write, straight from truth.json.
 func RenderCeiling(s *scenario.Scenario) *Folder {
 	f := New()
 	t := s.Truth

@@ -360,14 +360,13 @@
               "repo": "acme/chat",
               "issue": 2
             },
-            "factory_config_version": "plain@abc/m1",
+            "factory_config_version": "file:x@def/m1",
             "role": "context",
             "labels": [
               "scenario:s1",
               "persona:talkative",
               "max-turns:20"
-            ],
-            "parent_attempt_id": "b1"
+            ]
           }
         },
         {

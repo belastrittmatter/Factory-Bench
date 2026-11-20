@@ -104,8 +104,8 @@ A Context creator run is an attempt with `role: "context"`. When the same factor
 
 | Metric | Definition |
 |---|---|
-| context turns / issue | factory turns ÷ work items with a context attempt |
-| person words / issue | words of person turns ÷ those work items |
+| context turns / conversation | factory turns ÷ attempts with turns (a bench run of a scenario always uses the same work item, so per work item would count runs) |
+| person words / conversation | words of person turns ÷ those attempts |
 | moves | the three most used moves, with counts |
 | could not answer | person turns with `could_not_answer` ÷ person turns |
 | asked again / asked what was given | person turns with `already_said` / with `in_attachments`, per conversation |

@@ -27,7 +27,6 @@ import (
 	"factorybench/internal/emit"
 )
 
-// Defaults of the command line.
 const (
 	DefaultSubjectModel = "claude-sonnet-5-5"
 	DefaultPersonModel  = "claude-opus-5-5"
@@ -38,20 +37,18 @@ const (
 	DefaultOut          = "context-runs"
 )
 
-// Env is where a command runs: the scenarios, the model runner, the event sink and the terminal.
 type Env struct {
 	ScenariosDir   string
 	CalibrationDir string // calibration/<id>.json; by default next to the scenarios directory
 	Runner         claude.Runner
 	// Send delivers events; by default the way `factorybench emit` does (FACTORYBENCH_URL, spooled on failure).
-	Send        func(evs ...[]byte) bool
+	Send        func(evs ...[]byte)
 	Stdin       io.Reader
 	Stdout      io.Writer
 	Stderr      io.Writer
 	stdinReader *bufio.Reader
 }
 
-// NewEnv returns the environment of a bench over a scenarios directory.
 func NewEnv(scenariosDir string) *Env {
 	return &Env{
 		ScenariosDir: scenariosDir, CalibrationDir: filepath.Join(filepath.Dir(filepath.Clean(scenariosDir)), "calibration"),
@@ -66,7 +63,6 @@ func (e *Env) runner() claude.Runner {
 	return claude.Exec{Program: claude.Program()}
 }
 
-// stdin returns one buffered reader for the terminal, shared by every human run of the process.
 func (e *Env) stdin() *bufio.Reader {
 	if e.stdinReader == nil {
 		e.stdinReader = bufio.NewReader(e.Stdin)
@@ -74,17 +70,14 @@ func (e *Env) stdin() *bufio.Reader {
 	return e.stdinReader
 }
 
-// Models are the model of each role.
 type Models struct {
 	Subject, Person, Judge, Builder, Tagger string
 }
 
-// DefaultModels returns the defaults.
 func DefaultModels() Models {
 	return Models{DefaultSubjectModel, DefaultPersonModel, DefaultJudgeModel, DefaultBuilderModel, DefaultJudgeModel}
 }
 
-// Options of one run.
 type Options struct {
 	Scenario string // an id under the scenarios directory, or a path to a scenario directory
 	Subject  string
@@ -95,11 +88,10 @@ type Options struct {
 	Models   Models
 	MaxCost  float64
 	Out      string
-	NoText   bool // leave the text of the turns out of the context.turn events
+	NoText   bool
 	Yes      bool
 }
 
-// Prepared is a run resolved and checked, ready to plan or execute.
 type Prepared struct {
 	Opts        Options
 	Scenario    *scenario.Scenario
@@ -110,13 +102,12 @@ type Prepared struct {
 	MaxTurns    int
 }
 
-// ParseSubject resolves a --subject value.
 func ParseSubject(arg string) (SubjectSpec, error) {
 	switch {
 	case arg == "none" || arg == "ceiling":
-		return SubjectSpec{Kind: arg, Name: arg}, nil
+		return SubjectSpec{Kind: SubjectKind(arg), Name: arg}, nil
 	case arg == "plain":
-		return SubjectSpec{Kind: "plain", Name: arg, Prompt: prompts.Plain()}, nil
+		return SubjectSpec{Kind: SubjectPlain, Name: arg, Prompt: prompts.Plain()}, nil
 	case strings.HasPrefix(arg, "file:"):
 		p := strings.TrimPrefix(arg, "file:")
 		b, err := os.ReadFile(p)
@@ -126,7 +117,10 @@ func ParseSubject(arg string) (SubjectSpec, error) {
 		if strings.TrimSpace(string(b)) == "" {
 			return SubjectSpec{}, fmt.Errorf("subject %s: the file is empty", arg)
 		}
-		return SubjectSpec{Kind: "file", Name: arg, Prompt: string(b)}, nil
+		if n := len(claude.SystemPrompt(claude.Request{Role: prompts.RoleSubject, System: string(b)})); n > claude.MaxArgBytes {
+			return SubjectSpec{}, fmt.Errorf("subject %s: the prompt is %d bytes, over the %d argument limit", arg, n, claude.MaxArgBytes)
+		}
+		return SubjectSpec{Kind: SubjectFile, Name: arg, Prompt: string(b)}, nil
 	}
 	return SubjectSpec{}, fmt.Errorf("subject %q is not none, plain, ceiling or file:<path>", arg)
 }
@@ -175,22 +169,38 @@ func (e *Env) Prepare(o Options) (*Prepared, error) {
 			return nil, err
 		}
 		p.PersonaID, p.PersonaText = o.Person, txt
-		if o.Models.Person == o.Models.Subject {
-			return nil, fmt.Errorf("refusing to run: the person and the subject are both %s; they must be different models so they do not understand each other more easily than a real person would", o.Models.Person)
+		if sameModel(o.Models.Person, o.Models.Subject) {
+			return nil, fmt.Errorf("refusing to run: the person (%s) and the subject (%s) may be the same model; they must be different models so they do not understand each other more easily than a real person would", o.Models.Person, o.Models.Subject)
 		}
 	}
 	return p, nil
 }
 
-// SessionPlan is one line of the plan: a kind of model session and how many the run may start.
+// sameModel reports whether a and b are, or may resolve to, one model: a bare alias such as "opus" names the newest
+// model of its family, which may be the full name on the other side.
+func sameModel(a, b string) bool {
+	if a == b {
+		return true
+	}
+	family := func(m string) string {
+		for _, f := range []string{"opus", "sonnet", "haiku"} {
+			if m == f || strings.Contains(m, "-"+f) {
+				return f
+			}
+		}
+		return ""
+	}
+	bare := func(m string) bool { return m == family(m) }
+	return (bare(a) || bare(b)) && family(a) != "" && family(a) == family(b)
+}
+
 type SessionPlan struct {
 	Role  string
 	Model string
 	Count string
-	Max   int // the most sessions of this kind
+	Max   int
 }
 
-// Sessions lists the sessions the run may start.
 func (p *Prepared) Sessions() []SessionPlan {
 	m := p.Opts.Models
 	var out []SessionPlan
@@ -205,13 +215,14 @@ func (p *Prepared) Sessions() []SessionPlan {
 	out = append(out, SessionPlan{"judge", m.Judge, "1", 1})
 	out = append(out, SessionPlan{"builder", m.Builder, fmt.Sprint(p.Opts.Builders), p.Opts.Builders})
 	out = append(out, SessionPlan{"comparison", m.Judge, "1", 1})
+	for i := range out {
+		out[i].Max *= TriesPerAsk
+	}
 	return out
 }
 
-// builds reports whether the run is built after scoring.
 func (p *Prepared) builds() bool { return p.Opts.BuildCmd != "" && p.Scenario.Buildable() }
 
-// PrintPlan says what the run would do and what it could cost at most.
 func (p *Prepared) PrintPlan(w io.Writer) {
 	s := p.Scenario
 	fmt.Fprintf(w, "scenario  %s (%s, work item %s#%d, first_run=%v, %d turns max)\n", s.ID, s.Kind, s.WorkItem.Repo, s.WorkItem.Issue, s.FirstRun, p.MaxTurns)
@@ -230,20 +241,19 @@ func (p *Prepared) PrintPlan(w io.Writer) {
 	} else {
 		fmt.Fprintln(w, "events    FACTORYBENCH_URL is not set: local evidence only")
 	}
-	fmt.Fprintf(w, "cap       $%g per session; at most %d sessions here: $%.2f [INFERENCE: a ceiling from the cap, not an estimate of the cost]\n",
+	fmt.Fprintf(w, "cap       $%g per session; at most %d sessions here, repairs included: $%.2f [INFERENCE: a ceiling from the cap, not an estimate of the cost]\n",
 		p.Opts.MaxCost, total, float64(total)*p.Opts.MaxCost)
 }
 
-// Outcome is a finished run.
 type Outcome struct {
 	Dir     string
 	Run     string
 	Attempt string
-	Status  string // completed or failed
+	Status  string
 	Note    string
 	Score   *contract.ContextScore // nil when scoring did not finish
-	Gates   map[string]bool        // the gate events sent, by name
-	Turns   int                    // turns of the Context creator
+	Gates   map[string]bool
+	Turns   int
 	// SubjectCostUSD is what the Context creator's own sessions reported; the bench's spending is Score.BenchCostUSD.
 	SubjectCostUSD float64
 }
@@ -291,7 +301,6 @@ func writeJSON(path string, v any) error {
 	return os.WriteFile(path, append(b, '\n'), 0o644)
 }
 
-// WriteTranscript writes transcript.jsonl.
 func WriteTranscript(path string, turns []protocol.Turn) error {
 	var buf bytes.Buffer
 	for _, t := range turns {
@@ -305,7 +314,6 @@ func WriteTranscript(path string, turns []protocol.Turn) error {
 	return os.WriteFile(path, buf.Bytes(), 0o644)
 }
 
-// ReadTranscript reads transcript.jsonl.
 func ReadTranscript(path string) ([]protocol.Turn, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -372,8 +380,6 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 	evs.started(started, &contract.WorkItem{Repo: s.WorkItem.Repo, Issue: s.WorkItem.Issue}, version, labels)
 	evs.flush()
 
-	// finish sends attempt.finished and returns the outcome; an invalid run (a model failed or broke its protocol)
-	// is a failed attempt, anything else is the harness's own error and is returned.
 	finish := func(runErr error) (*Outcome, error) {
 		out.SubjectCostUSD = subjectCost
 		status, note := StatusCompleted, out.Note
@@ -400,9 +406,9 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 	var folder *change.Folder
 	taggedBy := TaggedBySimulator
 	switch p.Subject.Kind {
-	case "none":
+	case SubjectNone:
 		folder = change.None(s)
-	case "ceiling":
+	case SubjectCeiling:
 		if folder, err = change.Ceiling(s); err != nil {
 			return finish(err)
 		}
@@ -438,7 +444,7 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 			return finish(cerr)
 		}
 	}
-	if p.Subject.Kind == "none" || p.Subject.Kind == "ceiling" {
+	if !p.Subject.Converses() {
 		if werr := WriteTranscript(filepath.Join(dir, "transcript.jsonl"), nil); werr != nil {
 			return finish(werr)
 		}
@@ -462,10 +468,10 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 		reason string
 		sent   bool
 	}{
-		{GateFrame, g.Gate1, firstFailure(g.Failures, 1), s.FirstRun},
-		{GateChange, sc.Gate2, firstFailure(g.Failures, 2), true},
-		{GateTestable, g.Gate3, firstFailure(g.Failures, 3), true},
-		{GateAgreement, sc.Gate4, sc.Gate4Reason, sc.Gate4Known},
+		{Gate1Frame, g.Gate1, firstFailure(g.Failures, 1), s.FirstRun},
+		{Gate2Change, sc.Gate2, firstFailure(g.Failures, 2), true},
+		{Gate3Testable, g.Gate3, firstFailure(g.Failures, 3), true},
+		{Gate4Agreement, sc.Gate4 != nil && *sc.Gate4, sc.Gate4Reason, sc.Gate4 != nil},
 	}
 	for _, gt := range gates {
 		if gt.sent {
@@ -474,7 +480,7 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 		}
 	}
 	if err := writeJSON(filepath.Join(dir, "gates.json"), map[string]any{
-		"gate1": g.Gate1, "gate2": sc.Gate2, "gate3": g.Gate3, "gate4": sc.Gate4, "gate4_known": sc.Gate4Known,
+		"gate1": g.Gate1, "gate2": sc.Gate2, "gate3": g.Gate3, "gate4": sc.Gate4,
 		"requirements": g.Requirements, "failures": nonNil(g.Failures), "vague_warnings": nonNil(g.VagueWarnings), "notes": nonNil(g.Notes),
 	}); err != nil {
 		return finish(err)
@@ -499,6 +505,9 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 	if p.builds() {
 		b, cost, note, berr := e.runBuild(ctx, p, dir, attempt, labels)
 		buildCost, build = cost, b
+		if ctx.Err() != nil {
+			return finish(ctx.Err())
+		}
 		if berr != nil {
 			out.Note = joinNote(out.Note, "build failed: "+berr.Error())
 		} else if note != "" {
@@ -519,7 +528,6 @@ func (e *Env) execute(ctx context.Context, p *Prepared) (*Outcome, error) {
 	return finish(nil)
 }
 
-// firstFailure returns the first failure message of a gate, "" when it passed.
 func firstFailure(failures []string, gate int) string {
 	prefix := "gate " + strconv.Itoa(gate) + ":"
 	for _, f := range failures {
@@ -544,7 +552,6 @@ func joinNote(a, b string) string {
 	return a + "; " + b
 }
 
-// buildJSON is the build command's build.json.
 type buildJSON struct {
 	HiddenPass  int64   `json:"hidden_pass"`
 	HiddenTotal int64   `json:"hidden_total"`
@@ -556,10 +563,6 @@ type buildJSON struct {
 	Note        string  `json:"note"`
 }
 
-// runBuild runs the build command on the change folder. A command that fails (exit status not 0, or no
-// build.json) could not build: it returns an error and a nil build, never zeros. The command gets the attempt's id
-// and labels in FACTORYBENCH_CONTEXT_ATTEMPT and FACTORYBENCH_CONTEXT_LABELS, so the build attempt it reports can
-// name its Context attempt as the parent and carry the same labels.
 func (e *Env) runBuild(ctx context.Context, p *Prepared, runDir, attempt string, labels []string) (*contract.ContextBuild, float64, string, error) {
 	o := p.Opts
 	out := filepath.Join(runDir, "build")

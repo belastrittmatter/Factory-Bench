@@ -13,12 +13,12 @@ func TestPersonPromptEnforcesTheSixRules(t *testing.T) {
 	}
 	for _, want := range []string{
 		"PERSONA: unsure", "PERSONA TEXT HERE",
-		"Answer only from the truth", `"I don't know" or "you decide"`, // 1
-		"LAST move is `show` or `suggest`", "`latent_hint`", // 2
-		"Vague traps stay vague until sharpened", "only then give the precise value", // 3
-		"Non-technical personas cannot answer technical questions", "`could_not_answer`", // 4
-		"A trap gets its resolution once it is raised", "Do not volunteer a resolution", // 5
-		"Never reveal that you have a truth file", "Never mention truth", // 6
+		"Answer only from the truth", `"I don't know" or "you decide"`,
+		"LAST move is `show` or `suggest`", "`latent_hint`",
+		"Vague traps stay vague until sharpened", "only then give the precise value",
+		"Non-technical personas cannot answer technical questions", "`could_not_answer`",
+		"A trap gets its resolution once it is raised", "Do not volunteer a resolution",
+		"Never reveal that you have a truth file", "Never mention truth",
 		"`revealed`", "`dont_know`", "`already_said`", "`in_attachments`", "`suggestion`", "`frustration`", "`confirmed`",
 	} {
 		if !strings.Contains(s, want) {

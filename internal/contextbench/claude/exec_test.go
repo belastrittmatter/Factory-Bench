@@ -12,7 +12,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	fakeclaude.MaybeRun() // when started through the fake-claude symlink, act as claude
+	fakeclaude.MaybeRun()
 	os.Exit(m.Run())
 }
 

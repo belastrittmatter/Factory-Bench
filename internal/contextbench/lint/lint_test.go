@@ -20,7 +20,6 @@ func TestTestdataIsClean(t *testing.T) {
 	}
 }
 
-// bench makes a scratch scenarios directory with one scenario copied from testdata and patched.
 func bench(t *testing.T, patch func(dir string)) Dirs {
 	t.Helper()
 	root := t.TempDir()

@@ -70,7 +70,10 @@ type Payload struct {
 	Status string `json:"status"`
 }
 
-// Speakers and moves of context.turn events (docs/context-bench.md).
+// RoleContext is the role of a Context creator attempt. Normalize never infers its parent: bench runs of one
+// scenario share a work item, and each is a run of its own.
+const RoleContext = "context"
+
 var (
 	Speakers    = map[string]bool{"factory": true, "person": true}
 	Moves       = map[string]bool{"capture": true, "mirror": true, "show": true, "suggest": true, "expand": true, "sharpen": true, "challenge": true, "narrow": true, "ask": true, "confirm": true}
@@ -164,7 +167,6 @@ type ContextBenchCost struct {
 	Build    float64 `json:"build"`
 }
 
-// Total is the sum of every bench cost part.
 func (c ContextBenchCost) Total() float64 { return c.Person + c.Judge + c.Builders + c.Build }
 
 // ContextBuild is the hidden-test result of building from the Context creator's change.
@@ -298,12 +300,11 @@ func ParseContextScore(raw []byte) ContextScore {
 	return s
 }
 
-// required reports the first of keys that is absent from the JSON object raw.
 func required(raw []byte, keys ...string) string {
 	var m map[string]json.RawMessage
 	_ = json.Unmarshal(raw, &m)
 	for _, k := range keys {
-		if _, ok := m[k]; !ok {
+		if v, ok := m[k]; !ok || string(v) == "null" {
 			return k
 		}
 	}
@@ -383,6 +384,30 @@ func validateContextScore(raw []byte) error {
 	for _, c := range counts {
 		if c.v < 0 {
 			return fmt.Errorf("payload.%s must be >= 0", c.name)
+		}
+	}
+	parts := []struct {
+		name        string
+		part, whole int64
+	}{
+		{"captured.full + captured.partial must be <= truth.items", s.Captured.Full + s.Captured.Partial, s.Truth.Items},
+		{"captured.g4_full + captured.g4_partial must be <= truth.g4", s.Captured.G4Full + s.Captured.G4Partial, s.Truth.G4},
+		{"captured.latent must be <= truth.latent", s.Captured.Latent, s.Truth.Latent},
+		{"traps.raised must be <= truth.traps", s.Traps.Raised, s.Truth.Traps},
+		{"traps.followed must be <= truth.traps", s.Traps.Followed, s.Truth.Traps},
+		{"invented_unmarked must be <= invented", s.InventedUnmarked, s.Invented},
+		{"untraced must be <= requirements", s.Untraced, s.Requirements},
+		{"builders.agree must be <= builders.total", s.Builders.Agree, s.Builders.Total},
+	}
+	if s.Build != nil {
+		parts = append(parts, struct {
+			name        string
+			part, whole int64
+		}{"build.hidden_pass must be <= build.hidden_total", s.Build.HiddenPass, s.Build.HiddenTotal})
+	}
+	for _, p := range parts {
+		if p.part > p.whole {
+			return errors.New("payload." + p.name)
 		}
 	}
 	for name, c := range map[string]float64{"person": s.BenchCostUSD.Person, "judge": s.BenchCostUSD.Judge, "builders": s.BenchCostUSD.Builders, "build": s.BenchCostUSD.Build} {

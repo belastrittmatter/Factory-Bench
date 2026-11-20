@@ -54,7 +54,6 @@ const tagProps = `
 
 const tagRequired = `"revealed", "dont_know", "could_not_answer", "already_said", "in_attachments", "suggestion", "frustration", "confirmed"`
 
-// PersonSchema is the JSON schema of the person reply.
 var PersonSchema = mustJSON(`{
   "type": "object",
   "properties": {
@@ -64,7 +63,6 @@ var PersonSchema = mustJSON(`{
   "additionalProperties": false
 }`)
 
-// TaggerSchema is the JSON schema of the tagger reply.
 var TaggerSchema = mustJSON(`{
   "type": "object",
   "properties": {
@@ -80,7 +78,6 @@ var TaggerSchema = mustJSON(`{
   "additionalProperties": false
 }`)
 
-// JudgeSchema is the JSON schema of the judge reply.
 var JudgeSchema = mustJSON(`{
   "type": "object",
   "properties": {
@@ -116,7 +113,6 @@ var JudgeSchema = mustJSON(`{
   "additionalProperties": false
 }`)
 
-// BuilderSchema is the JSON schema of a builder reply.
 var BuilderSchema = mustJSON(`{
   "type": "object",
   "properties": {
@@ -135,7 +131,6 @@ var BuilderSchema = mustJSON(`{
   "additionalProperties": false
 }`)
 
-// CompareSchema is the JSON schema of the comparison reply.
 var CompareSchema = mustJSON(`{
   "type": "object",
   "properties": {
@@ -148,7 +143,6 @@ var CompareSchema = mustJSON(`{
   "additionalProperties": false
 }`)
 
-// ReplaySchema is the JSON schema of the replay judge reply.
 var ReplaySchema = mustJSON(`{
   "type": "object",
   "properties": {

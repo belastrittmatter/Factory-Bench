@@ -13,24 +13,20 @@ import (
 	"time"
 )
 
-// Moves is the subject's move vocabulary.
 var Moves = []string{"capture", "mirror", "show", "suggest", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"}
 
 // IsShowOrSuggest reports whether a move is one that may draw a latent item out.
 func IsShowOrSuggest(move string) bool { return move == "show" || move == "suggest" }
 
-// File is one file of a change folder as the subject returns it.
 type File struct {
 	Path    string `json:"path"`
 	Content string `json:"content"`
 }
 
-// Change is the change folder a subject returns with done: true.
 type Change struct {
 	Files []File `json:"files"`
 }
 
-// SubjectReply is what the subject model returns each turn.
 type SubjectReply struct {
 	Move    string  `json:"move"`
 	Message string  `json:"message"`
@@ -51,19 +47,17 @@ type PersonTags struct {
 	Confirmed      bool     `json:"confirmed"`
 }
 
-// PersonReply is what the person model returns each turn.
 type PersonReply struct {
 	Reply string `json:"reply"`
 	PersonTags
 	At time.Time `json:"at,omitzero"` // when the harness got it; never part of the model's reply
 }
 
-// SubjectSaid is the subject's side of a transcript line (the change folder is stored apart).
 type SubjectSaid struct {
 	Move    string    `json:"move"`
 	Message string    `json:"message"`
 	Done    bool      `json:"done"`
-	At      time.Time `json:"at,omitzero"` // when the harness got it
+	At      time.Time `json:"at,omitzero"`
 }
 
 // Turn is one line of transcript.jsonl: turn 0 is the person's first message (the brief), every other turn is
@@ -75,10 +69,8 @@ type Turn struct {
 	Violations []string     `json:"violations,omitempty"`
 }
 
-// ValidSuggestion lists the legal values of PersonTags.Suggestion.
 var ValidSuggestion = []string{"accepted", "rejected", "none"}
 
-// SafePath reports whether p is a clean relative path inside a folder.
 func SafePath(p string) error {
 	if p == "" {
 		return fmt.Errorf("empty path")
@@ -92,7 +84,6 @@ func SafePath(p string) error {
 	return nil
 }
 
-// decodeStrict decodes raw into v and fails when a required key is missing. Unknown extra keys are tolerated.
 func decodeStrict(raw []byte, v any, required ...string) error {
 	var keys map[string]json.RawMessage
 	if err := json.Unmarshal(raw, &keys); err != nil {
@@ -142,6 +133,13 @@ func ParseSubject(raw []byte, final, plain bool) (SubjectReply, error) {
 			}
 			seen[f.Path] = true
 		}
+		for p := range seen {
+			for d := path.Dir(p); d != "."; d = path.Dir(d) {
+				if seen[d] {
+					return r, fmt.Errorf("change.files: %q is a file and also the folder of %q", d, p)
+				}
+			}
+		}
 	}
 	return r, nil
 }
@@ -175,12 +173,10 @@ func validateTags(t *PersonTags) error {
 	return nil
 }
 
-// TaggerReply is what the tagger returns: the tags of every person turn.
 type TaggerReply struct {
 	Turns []TaggedTurn `json:"turns"`
 }
 
-// TaggedTurn is the tags of one person turn.
 type TaggedTurn struct {
 	Turn int `json:"turn"`
 	PersonTags

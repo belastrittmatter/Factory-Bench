@@ -42,14 +42,13 @@ Everything that calls a model needs --yes; without it the command prints its pla
 // Main runs the `context` subcommands (args are what follows "context") and returns the process exit code.
 func Main(args []string) int { return Run(args, os.Stdin, os.Stdout, os.Stderr) }
 
-// Run is Main with its terminal given.
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" || args[0] == "help" {
 		fmt.Fprint(stdout, usage)
 		return 0
 	}
 	cmd, rest := args[0], args[1:]
-	if cmd == "fake-claude" { // the program the dry run points FACTORYBENCH_CLAUDE at
+	if cmd == "fake-claude" {
 		return fakeclaude.Main(rest, stdin, stdout, stderr)
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
@@ -107,7 +106,6 @@ func (c *cli) fail(err error) int {
 	return 1
 }
 
-// addShared registers the flags run and matrix share.
 func (c *cli) addShared(fs *flag.FlagSet) {
 	m := bench.DefaultModels()
 	fs.StringVar(&c.scenariosDir, "scenarios", "", "directory of scenarios (one directory each)")
@@ -172,7 +170,7 @@ func printOutcome(w io.Writer, o *bench.Outcome) {
 	}
 	fmt.Fprintln(w)
 	var gates []string
-	for _, g := range []string{bench.GateFrame, bench.GateChange, bench.GateTestable, bench.GateAgreement} {
+	for _, g := range []string{bench.Gate1Frame, bench.Gate2Change, bench.Gate3Testable, bench.Gate4Agreement} {
 		if passed, ok := o.Gates[g]; ok {
 			gates = append(gates, fmt.Sprintf("%s %v", strings.TrimPrefix(g, "context-"), passed))
 		}
@@ -258,7 +256,7 @@ func (c *cli) matrix(args []string) int {
 	var runs []bench.Options
 	for _, s := range sc {
 		for _, sub := range subs {
-			if sub != "plain" && !strings.HasPrefix(sub, "file:") { // none and ceiling: one run per scenario
+			if sub != "plain" && !strings.HasPrefix(sub, "file:") {
 				o := c.opts
 				o.Scenario, o.Subject, o.Person = s, sub, ""
 				runs = append(runs, o)
@@ -277,7 +275,6 @@ func (c *cli) matrix(args []string) int {
 			}
 		}
 	}
-	// check every run before starting any
 	prepared := make([]*bench.Prepared, len(runs))
 	for i, o := range runs {
 		p, err := env.Prepare(o)
@@ -307,9 +304,14 @@ func (c *cli) matrix(args []string) int {
 	errs := make([]error, len(runs))
 	sem := make(chan struct{}, max(c.jobs, 1))
 	var wg sync.WaitGroup
+	started := 0
 	for i := range runs {
-		wg.Add(1)
 		sem <- struct{}{}
+		if c.ctx.Err() != nil {
+			break
+		}
+		started++
+		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
@@ -330,8 +332,11 @@ func (c *cli) matrix(args []string) int {
 			}
 		}
 	}
-	fmt.Fprintf(c.stdout, "%d runs, %d not completed\n", len(runs), bad)
-	if bad > 0 {
+	fmt.Fprintf(c.stdout, "%d runs, %d not completed\n", started, bad)
+	if started < len(runs) {
+		fmt.Fprintf(c.stdout, "interrupted: %d of %d runs not started\n", len(runs)-started, len(runs))
+	}
+	if bad > 0 || started < len(runs) {
 		return 1
 	}
 	return 0

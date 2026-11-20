@@ -28,14 +28,6 @@ func metricMap(s *ctxStats) map[string]string {
 	return m
 }
 
-// One scored conversation, every number computed by hand:
-//
-//	factory turns 4 (ask, show, mirror, confirm); person turns 5, words 20+5+12+6+2 = 45
-//	could not answer 1/5, asked again 1, asked what was given 0, suggestions 1 accepted / 1 answered
-//	don't know (turn 3) -> show (4) -> turn 5 reveals 2 ids: recovered 1/1
-//	frustration 1, 3, 0: mean 1.3, max 3
-//	recall (4 + 0.5*2)/10; weighted (4 + 2*1 + 0.5*(2 + 2*1))/(10 + 2*2) = 8/14; G4 (1 + 0.5)/2; items/turn 5/4
-//	latent 1/2 drawn by show; traps 1/2 raised, 1/2 followed; traceability (8-2)/8; builders 6/8; hidden 3/4
 func TestContextFormulas(t *testing.T) {
 	turns := []mTurn{
 		pturn(1, 20, func(t *mTurn) { t.revealed = []string{"i1"} }),
@@ -60,8 +52,8 @@ func TestContextFormulas(t *testing.T) {
 	var s ctxStats
 	s.add(turns, sc)
 	want := map[string]string{
-		"context turns / issue":         "4.0 (4/1)",
-		"person words / issue":          "45.0 (45/1)",
+		"context turns / conversation":  "4.0 (4/1)",
+		"person words / conversation":   "45.0 (45/1)",
 		"moves":                         "ask 1, confirm 1, mirror 1",
 		"could not answer":              "20% (1/5)",
 		"asked again":                   "1.0 (1/1) / conversation",
@@ -96,17 +88,15 @@ func TestContextFormulas(t *testing.T) {
 	if len(got) != len(want) {
 		t.Errorf("%d metrics, want %d", len(got), len(want))
 	}
-	// the labels in docs/context-bench.md "Metrics", in order
 	var labels []string
 	for _, m := range contextMetrics {
 		labels = append(labels, m.label)
 	}
-	if len(labels) != 26 || labels[0] != "context turns / issue" || labels[len(labels)-1] != "bench cost (not factory cost)" {
+	if len(labels) != 26 || labels[0] != "context turns / conversation" || labels[len(labels)-1] != "bench cost (not factory cost)" {
 		t.Errorf("metric rows: %v", labels)
 	}
 }
 
-// Nothing to divide by shows n/a, never 0% or NaN; a run with no score has turn metrics only.
 func TestContextNA(t *testing.T) {
 	var empty ctxStats
 	for k, v := range metricMap(&empty) {
@@ -124,13 +114,12 @@ func TestContextNA(t *testing.T) {
 			t.Errorf("unscored %s = %q, want n/a", k, got[k])
 		}
 	}
-	if got["could not answer"] != "0% (0/1)" || got["context turns / issue"] != "1.0 (1/1)" {
+	if got["could not answer"] != "0% (0/1)" || got["context turns / conversation"] != "1.0 (1/1)" {
 		t.Errorf("turn metrics: %v", got)
 	}
-	// scored but not built, with hidden_total 0 and no truth items
 	var z ctxStats
 	z.add(nil, &mScore{})
-	if g := metricMap(&z); g["recall"] != "n/a" || g["hidden tests"] != "n/a" || g["context turns / issue"] != "0.0 (0/1)" {
+	if g := metricMap(&z); g["recall"] != "n/a" || g["hidden tests"] != "n/a" || g["context turns / conversation"] != "n/a" {
 		t.Errorf("zero score: %v", g)
 	}
 }
@@ -162,22 +151,20 @@ func TestContextDontKnowRecovered(t *testing.T) {
 	}
 }
 
-// Weighted recall counts a G4 entry three times, G4 recall only G4 entries; summed over runs, not averaged.
 func TestContextWeightedAndG4Recall(t *testing.T) {
 	var s ctxStats
-	s.add(nil, &mScore{items: 10, g4: 2, full: 5, g4Full: 2})  // (5 + 2*2) / (10 + 4) = 9/14
-	s.add(nil, &mScore{items: 10, g4: 0, full: 0, partial: 4}) // 0.5*4 / 10 = 2/10
+	s.add(nil, &mScore{items: 10, g4: 2, full: 5, g4Full: 2})
+	s.add(nil, &mScore{items: 10, g4: 0, full: 0, partial: 4})
 	got := metricMap(&s)
-	if got["weighted recall"] != "46% (11/24)" { // 9 + 2 over 14 + 10
+	if got["weighted recall"] != "46% (11/24)" {
 		t.Errorf("weighted recall %q", got["weighted recall"])
 	}
 	if got["G4 recall"] != "100% (2/2)" {
 		t.Errorf("G4 recall %q", got["G4 recall"])
 	}
-	if got["recall"] != "35% (7/20)" { // (5 + 0) + (0 + 0.5*4) = 7 of 20
+	if got["recall"] != "35% (7/20)" {
 		t.Errorf("recall %q", got["recall"])
 	}
-	// half credit on G4 entries: G4 (1 + 0.5)/2; weighted (1 + 2*1 + 0.5*(1 + 2*1))/(4 + 2*2) = 4.5/8
 	var h ctxStats
 	h.add(nil, &mScore{items: 4, g4: 2, full: 1, partial: 1, g4Full: 1, g4Partial: 1})
 	if g := metricMap(&h); g["G4 recall"] != "75% (1.5/2)" || g["weighted recall"] != "56% (4.5/8)" {
@@ -189,7 +176,7 @@ func TestContextSimViolationsMarked(t *testing.T) {
 	var s ctxStats
 	s.add(nil, &mScore{simViolations: 2})
 	s.add(nil, &mScore{})
-	if got := metricMap(&s)["simulator violations"]; got != "1.0 (2/2) / run ⚠ 1 run marked" {
+	if got := metricMap(&s)["simulator violations"]; got != "1.0 ⚠ (2/2) / run · 1 run marked" {
 		t.Errorf("simulator violations %q", got)
 	}
 }
@@ -208,7 +195,6 @@ func render(t *testing.T, f func(*bytes.Buffer) error) string {
 	return b.String()
 }
 
-// The context_bench golden case: c1 (max-turns 10, simulator tags) and c2 (max-turns 20, tagger tags); fb has none.
 func TestContextSectionOnlyWithData(t *testing.T) {
 	db := contextDB(t)
 	out := render(t, func(b *bytes.Buffer) error { return Factories(db, b, false, nil, ctxNow) })
@@ -217,7 +203,6 @@ func TestContextSectionOnlyWithData(t *testing.T) {
 			t.Errorf("factories lacks %q:\n%s", want, out)
 		}
 	}
-	// a database without context data prints no Context section
 	plain := loadGolden(t, "../../testdata/golden/gates_phase/events.json")
 	for name, out := range map[string]string{
 		"factories": render(t, func(b *bytes.Buffer) error { return Factories(plain, b, false, nil, ctxNow) }),
@@ -227,7 +212,6 @@ func TestContextSectionOnlyWithData(t *testing.T) {
 			t.Errorf("%s of a database without context data shows a Context section:\n%s", name, out)
 		}
 	}
-	// scorecard data: Context rows carry their section and direction
 	_, rows, err := Scorecard(db, false, nil, ctxNow)
 	if err != nil {
 		t.Fatal(err)
@@ -254,7 +238,6 @@ func TestLabelFilter(t *testing.T) {
 	if out := ctx("max-turns:10"); !strings.Contains(out, "1 run with context data") || strings.Contains(out, "\n20 ") {
 		t.Errorf("max-turns:10:\n%s", out)
 	}
-	// every label must match
 	if out := ctx("scenario:s1", "persona:talkative"); !strings.Contains(out, "1 run with context data") || !strings.Contains(out, "\n20 ") {
 		t.Errorf("scenario + persona:\n%s", out)
 	}
@@ -264,7 +247,6 @@ func TestLabelFilter(t *testing.T) {
 	if out := ctx(); !strings.Contains(out, "2 runs with context data") {
 		t.Errorf("no filter:\n%s", out)
 	}
-	// items: only the unit's matching attempts count; the unfiltered unit has 3 attempts
 	items := render(t, func(b *bytes.Buffer) error { return Items(db, b, "", "", []string{"max-turns:20"}, ctxNow) })
 	if strings.Contains(items, "acme/chat#3") || !strings.Contains(items, "1 (1 scored)") {
 		t.Errorf("items --label:\n%s", items)
@@ -283,8 +265,8 @@ func TestContextReport(t *testing.T) {
 	out := render(t, func(b *bytes.Buffer) error { return Context(db, b, "", nil) })
 	for _, want := range []string{
 		"2 runs with context data · 2 scored · 5 factory turns",
-		"10         1 (1 scored)  45.0 (45/1)         50% (5/10)", // effort curve: c1 at max-turns 10
-		"20         1 (1 scored)  81.0 (81/1)         20% (2/10)", // c2: the resent turn 3 (31 words) replaced the first
+		"10         1 (1 scored)  45.0 (45/1)         50% (5/10)",
+		"20         1 (1 scored)  81.0 (81/1)         20% (2/10)",
 		"show     1     2                       1             100% (1/1)",
 		"suggest  1     0                       0             0% (0/1)",
 		"s1        simulated  1 (1 scored)",
@@ -315,14 +297,14 @@ func TestContextOfAttempt(t *testing.T) {
 	if none, err := ContextOfAttempt(db, "fa", "b1"); err != nil || none != nil {
 		t.Errorf("build attempt has no context data: %v %v", none, err)
 	}
-	item, err := ContextOfWorkItem(db, "acme/chat", 2)
-	if err != nil || len(item.Units) != 1 || item.Units[0].Factory != "fa" || item.Units[0].Runs != "2 (2 scored)" || len(item.Runs) != 2 {
-		t.Fatalf("ContextOfWorkItem: %+v %v", item, err)
+	rows, item, err := WorkItem(db, "acme/chat", 2, time.Now())
+	if err != nil || len(rows) != 1 || len(item.Units) != 1 || item.Units[0].Factory != "fa" || item.Units[0].Runs != "2 (2 scored)" || len(item.Runs) != 2 {
+		t.Fatalf("WorkItem: %+v %+v %v", rows, item, err)
 	}
 	if r := item.Runs[1]; r.Attempt != "c2" || r.Role != "context" || len(r.Labels) != 3 || len(r.Turns) != 3 || r.Turns[2].Words != 31 {
 		t.Errorf("c2: %+v", r)
 	}
-	if item, err := ContextOfWorkItem(db, "acme/chat", 3); err != nil || len(item.Units) != 0 || len(item.Runs) != 0 {
+	if _, item, err := WorkItem(db, "acme/chat", 3, time.Now()); err != nil || len(item.Units) != 0 || len(item.Runs) != 0 {
 		t.Errorf("item without context data: %+v %v", item, err)
 	}
 }

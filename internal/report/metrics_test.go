@@ -131,7 +131,7 @@ func loadGolden(t *testing.T, path string) *sql.DB {
 				t.Fatal(err)
 			}
 			var rejected *string
-			if _, _, err := contract.Validate(raw); err != nil { // as intake does: an invalid event is stored, rejected
+			if _, _, err := contract.Validate(raw); err != nil {
 				rejected = new(string)
 				*rejected = err.Error()
 			}

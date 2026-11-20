@@ -12,13 +12,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	fakeclaude.MaybeRun() // started through the fake-claude symlink: act as claude
+	fakeclaude.MaybeRun()
 	os.Exit(m.Run())
 }
 
 const fixtures = "fixtures"
 
-// cmd runs one `factorybench context` command with no FactoryBench to send to.
 func cmd(t *testing.T, stdin string, args ...string) (code int, stdout, stderr string) {
 	t.Helper()
 	t.Setenv("FACTORYBENCH_URL", "")
@@ -80,7 +79,7 @@ func TestRunNeedsItsFlags(t *testing.T) {
 }
 
 func TestRunWithoutYesPrintsThePlanAndCallsNothing(t *testing.T) {
-	t.Setenv("FACTORYBENCH_CLAUDE", "/nonexistent/claude") // a call would fail the run
+	t.Setenv("FACTORYBENCH_CLAUDE", "/nonexistent/claude")
 	out := t.TempDir()
 	code, stdout, _ := cmd(t, "", "run", "--scenarios", fixtures+"/scenarios", "--scenario", "tiny", "--subject", "plain", "--person", "unsure", "--out", filepath.Join(out, "runs"))
 	if code != 0 || !strings.Contains(stdout, "plan") || !strings.Contains(stdout, "add --yes") {
@@ -90,7 +89,7 @@ func TestRunWithoutYesPrintsThePlanAndCallsNothing(t *testing.T) {
 		t.Error("a plan wrote the output directory")
 	}
 	code, stdout, _ = cmd(t, "", "matrix", "--scenarios", fixtures+"/scenarios", "--scenarios-list", "all", "--subjects", "none,plain", "--personas", "all", "--turns", "4,8")
-	if code != 0 || !strings.Contains(stdout, "plan (nothing is called without --yes): 9 runs") { // none, and plain x 4 personas x 2 turn caps
+	if code != 0 || !strings.Contains(stdout, "plan (nothing is called without --yes): 9 runs") {
 		t.Errorf("%d %s", code, stdout)
 	}
 	code, stdout, _ = cmd(t, "", "retag", "--run", t.TempDir())

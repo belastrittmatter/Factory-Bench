@@ -8,8 +8,6 @@ import (
 	"factorybench/internal/store"
 )
 
-// A v4 database (no context tables, no attempt_labels) is upgraded by Open, holds its old events, and replay fills the
-// new derived tables from them.
 func TestUpgradeV4ThenReplay(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fb.db")
 	db, err := store.Open(path)

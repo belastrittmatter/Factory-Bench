@@ -10,7 +10,6 @@ import (
 	"factorybench/internal/contract"
 )
 
-// Reveal is an id a person turn stated for the first time, with the move that preceded it.
 type Reveal struct {
 	ID   string
 	Turn int
@@ -35,7 +34,6 @@ func Reveals(turns []protocol.Turn) []Reveal {
 	return out
 }
 
-// ScoreInput is what the counts of one run are made of.
 type ScoreInput struct {
 	Truth         *scenario.Truth
 	Judge         protocol.Judge
@@ -134,7 +132,6 @@ func distinct(ids []string) int64 {
 	return int64(len(seen))
 }
 
-// TagAgreement compares the tags of two taggings of the same person turns (turn -> tags).
 type TagAgreement struct {
 	Turns              int                `json:"turns"`
 	PerField           map[string]float64 `json:"per_field"`

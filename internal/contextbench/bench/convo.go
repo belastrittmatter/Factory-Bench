@@ -19,7 +19,6 @@ import (
 
 const maxFileShown = 64 << 10
 
-// fileBlock shows files to a model: text under a header (cut when long), binary by size.
 func fileBlock(files []scenario.File, dir string) string {
 	if len(files) == 0 {
 		return "(none)"
@@ -47,8 +46,6 @@ func projectText(s *scenario.Scenario) string {
 	return strings.TrimRight(s.Project, "\n")
 }
 
-// subjectFiles is what the subject already holds apart from the brief and attachments, as the person and the
-// tagger see it.
 func subjectFiles(s *scenario.Scenario) string {
 	return "project.md:\n" + projectText(s) + "\n\nliving specs:\n" + fileBlock(s.LivingSpecs, "living-specs/")
 }
@@ -98,11 +95,8 @@ func CheckPerson(truth *scenario.Truth, seen map[string]bool, move string, tags 
 	return violations, nil
 }
 
-// personSource answers the subject's messages.
 type personSource interface {
-	// reply answers the last message of turns; turns holds everything up to it.
 	reply(ctx context.Context, turns []protocol.Turn, move, message string) (protocol.PersonReply, error)
-	// left reports that the person has gone (a human closed their input).
 	left() bool
 }
 
@@ -142,7 +136,6 @@ func (p *simPerson) reply(ctx context.Context, turns []protocol.Turn, move, mess
 	return out, err
 }
 
-// humanPerson is a real person at the terminal.
 type humanPerson struct {
 	in   *bufio.Reader
 	out  io.Writer
@@ -176,7 +169,6 @@ func (h *humanPerson) reply(_ context.Context, turns []protocol.Turn, move, mess
 	return protocol.PersonReply{Reply: text, PersonTags: protocol.PersonTags{Revealed: []string{}, Suggestion: "none"}}, nil
 }
 
-// showTruth prints the truth for a real person to role-play.
 func showTruth(w io.Writer, s *scenario.Scenario) {
 	fmt.Fprintf(w, "You play the person who made this request: %s\n\n", s.Title)
 	fmt.Fprintln(w, "Role-play it. Answer only from what is written below, as a real person would: in your own words, not by reading it out.")
@@ -207,26 +199,32 @@ func showTruth(w io.Writer, s *scenario.Scenario) {
 	fmt.Fprintf(w, "\nYour first message (the assistant has it):\n%s\n", BriefMessage(s))
 }
 
-// SubjectSpec is the thing being measured.
+type SubjectKind string
+
+const (
+	SubjectNone    SubjectKind = "none"
+	SubjectPlain   SubjectKind = "plain"
+	SubjectCeiling SubjectKind = "ceiling"
+	SubjectFile    SubjectKind = "file"
+)
+
 type SubjectSpec struct {
-	Kind   string // none, plain, ceiling, file
-	Name   string // as given on the command line
-	Prompt string // the system prompt of plain and file subjects
+	Kind   SubjectKind
+	Name   string
+	Prompt string
 }
 
 // Slug is the subject's name as used in run ids and scores: file subjects by their file name.
 func (s SubjectSpec) Slug() string {
-	if s.Kind == "file" {
+	if s.Kind == SubjectFile {
 		base := strings.TrimSuffix(filepath.Base(strings.TrimPrefix(s.Name, "file:")), filepath.Ext(s.Name))
 		return "file-" + slugRe.ReplaceAllString(base, "-")
 	}
 	return s.Name
 }
 
-// Converses reports whether the subject talks to a person.
-func (s SubjectSpec) Converses() bool { return s.Kind == "plain" || s.Kind == "file" }
+func (s SubjectSpec) Converses() bool { return s.Kind == SubjectPlain || s.Kind == SubjectFile }
 
-// conversation is the loop between the subject and the person.
 type conversation struct {
 	caller   *Caller
 	s        *scenario.Scenario
@@ -240,15 +238,12 @@ type conversation struct {
 type convoOut struct {
 	Turns  []protocol.Turn
 	Change *change.Folder
-	WallS  float64
 }
 
-// run talks until the subject finishes. On error the turns so far are still returned.
 func (c *conversation) run(ctx context.Context) (out convoOut, _ error) {
 	start := time.Now()
 	out = convoOut{Turns: []protocol.Turn{{Turn: 0, Person: &protocol.PersonReply{Reply: BriefMessage(c.s), PersonTags: protocol.PersonTags{Revealed: []string{}, Suggestion: "none"}, At: start.UTC()}}}}
-	defer func() { out.WallS = time.Since(start).Seconds() }()
-	plain := c.subject.Kind == "plain"
+	plain := c.subject.Kind == SubjectPlain
 	seen := map[string]bool{}
 	for n := 1; ; n++ {
 		left := c.maxTurns - n

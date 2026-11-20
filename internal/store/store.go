@@ -47,8 +47,6 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// migrate upgrades a v1, v2, v3 or v4 database to SchemaVersion in one transaction. Only events holds source data;
-// every other change is to derived tables, which `replay` refills.
 func migrate(db *sql.DB, from int) error {
 	q := ""
 	if from < 2 {

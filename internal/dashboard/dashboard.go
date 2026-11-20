@@ -373,21 +373,11 @@ func (s *server) item(r *http.Request) (any, error) {
 	delete(res, "step_usage")
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
-	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
-	all, err := report.ItemRows(s.db, time.Now())
+	units, ctx, err := report.WorkItem(s.db, repo, n, time.Now())
 	if err != nil {
 		return nil, err
 	}
-	units := []report.ItemRow{}
-	for _, u := range all {
-		if u.Item == fmt.Sprintf("%s#%d", repo, n) {
-			units = append(units, u)
-		}
-	}
-	res["units"] = units
-	if res["context"], err = report.ContextOfWorkItem(s.db, repo, n); err != nil {
-		return nil, err
-	}
+	res["units"], res["context"] = units, ctx
 	return res, nil
 }
 

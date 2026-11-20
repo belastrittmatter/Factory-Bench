@@ -81,12 +81,10 @@ func TestParseResultReadsTheSessionUsage(t *testing.T) {
 	if err != nil || u.Input != 120 || u.Output != 30 || u.CacheRead != 4000 || u.CacheWrite != 500 || u.DurationMS != 1500 || u.Cost == nil || *u.Cost != 0.25 || r.Cost != 0.25 {
 		t.Errorf("%+v %v", r, err)
 	}
-	// a session that reported no cost has none: it is not a reported zero
 	r, err = ParseResult([]byte(`{"subtype":"success","is_error":false,"structured_output":{"a":1},"usage":{"input_tokens":1,"output_tokens":2}}`))
 	if err != nil || r.Usage.Cost != nil || r.Cost != 0 || r.Usage.Input != 1 {
 		t.Errorf("%+v %v", r, err)
 	}
-	// the usage of a failed session survives the error
 	r, err = ParseResult([]byte(`{"subtype":"error_max_budget_usd","is_error":true,"result":"over","total_cost_usd":2.1,"usage":{"input_tokens":9,"output_tokens":8}}`))
 	if err == nil || r.Usage.Input != 9 || r.Usage.Cost == nil || *r.Usage.Cost != 2.1 {
 		t.Errorf("%+v %v", r, err)

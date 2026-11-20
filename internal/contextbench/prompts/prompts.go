@@ -16,10 +16,8 @@ import (
 //go:embed *.md personas/*.md subjects/*.md
 var files embed.FS
 
-// Personas lists the persona ids: the four simulated persons of docs/context-bench.md.
 var Personas = []string{"decided-technical", "decided-nontechnical", "unsure", "talkative"}
 
-// Persona returns the manner file of a persona id.
 func Persona(id string) (string, error) {
 	b, err := files.ReadFile("personas/" + id + ".md")
 	if err != nil {
@@ -28,7 +26,6 @@ func Persona(id string) (string, error) {
 	return string(b), nil
 }
 
-// Plain returns the system prompt of the plain subject.
 func Plain() string {
 	b, err := files.ReadFile("subjects/plain.md")
 	if err != nil {
@@ -48,7 +45,6 @@ const (
 	RoleReplayJudge = "replay-judge"
 )
 
-// System returns the system prompt text of a role that has a fixed one.
 func System(name string) string {
 	b, err := files.ReadFile(name + "-system.md")
 	if err != nil {
@@ -83,15 +79,12 @@ func Section(text, tag string) (string, bool) {
 	return strings.Trim(rest[:j], "\n"), true
 }
 
-// RepairNote is the text appended to a message when the previous reply was rejected.
 func RepairNote(err error) string {
 	if err == nil {
 		return ""
 	}
 	return "\nYour previous reply was rejected: " + err.Error() + "\nFix exactly that and answer again."
 }
-
-// Data of each template.
 
 type PersonSystem struct{ PersonaID, PersonaText string }
 

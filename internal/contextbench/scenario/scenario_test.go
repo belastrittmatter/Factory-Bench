@@ -32,7 +32,7 @@ func TestLoadAndHelpers(t *testing.T) {
 	if len(s.Attachments) != 1 || s.Attachments[0].Path != "notes.txt" || len(s.LivingSpecs) != 1 || s.LivingSpecs[0].Path != "chat-picker/spec.md" {
 		t.Errorf("%+v %+v", s.Attachments, s.LivingSpecs)
 	}
-	if s.InterfaceMD == "" || len(s.TruthRaw) == 0 || s.Project != "" {
+	if len(s.TruthRaw) == 0 || s.Project != "" {
 		t.Error("optional files")
 	}
 	if _, ok := s.Attachments[0].Text(); !ok {

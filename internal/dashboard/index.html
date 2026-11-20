@@ -401,10 +401,8 @@ function hbars(rows,fmt,color){
 function segbar(parts){const t=parts.reduce((a,p)=>a+p.v,0)||1;return `<div class="segbar">${parts.filter(p=>p.v>0).map(p=>`<i style="width:${p.v/t*100}%;background:${p.color}" data-tip="${esc(p.tip)}"></i>`).join('')}</div>`}
 const legend=items=>`<div class="legend">${items.map(i=>`<span><i style="background:${i.color}"></i>${esc(i.name)}</span>`).join('')}</div>`;
 
-// ---------- Context bench: the conversation of a Context creator and the report's Context metrics
 const MOVE_COLOR={capture:'var(--s1)',mirror:'var(--s2)',show:'var(--s3)',suggest:'var(--s4)',expand:'var(--s5)',sharpen:'var(--s6)',challenge:'var(--s7)',narrow:'var(--s8)',ask:'var(--hot)',confirm:'var(--accent)'};
 const PERSON_TAG={dont_know:["don't know",'var(--warn)'],could_not_answer:['could not answer','var(--crit)'],already_said:['asked again','var(--s7)'],in_attachments:['asked what was given','var(--s5)'],confirmed:['confirmed','var(--good)']};
-// turns in order: factory turns on top coloured by move, person turns below with one stripe per tag and a red underline for frustration
 function convoStrip(c){
   const cell=t=>{const fac=t.Speaker==='factory',tags=t.Tags.map(x=>PERSON_TAG[x][0]);
     const tip=`Turn ${t.N} · ${fac?t.Move:'person'}\n${plural(t.Words,'word')}`+(tags.length?'\n'+tags.join(', '):'')+(t.Suggestion&&t.Suggestion!=='none'?`\nsuggestion ${t.Suggestion}`:'')+(t.Frustration!=null?`\nfrustration ${t.Frustration}`:'')+(t.Revealed.length?`\nrevealed ${t.Revealed.join(', ')}`:'')+(t.TaggedBy?`\ntags set by ${t.TaggedBy}`:'');
@@ -415,13 +413,10 @@ function convoStrip(c){
     legend([...moves.map(m=>({name:m,color:MOVE_COLOR[m]})),...tags.map(x=>({name:PERSON_TAG[x][0],color:PERSON_TAG[x][1]}))]);
 }
 const ctxVal=v=>v==='n/a'?'<span class="muted">n/a</span>':esc(v);
-// one row per metric, one column per factory
 function ctxTable(units){return table([{h:'Metric',c:'t',f:r=>esc(r.l)},...units.map((u,i)=>({h:`${esc(u.Factory)} <span class="muted">${esc(u.Runs)}</span>`,f:r=>ctxVal(r.v[i])}))],units[0].Metrics.map((m,i)=>({l:m.Label,v:units.map(u=>u.Metrics[i].Value)})))}
 const CTX_HINT="Same numbers as report items. Rates show their counts and n/a means nothing to divide by. The benchmark's own cost is not part of the factory's cost.";
 const ctxRunTitle=r=>`<b class="mono">${esc(r.Attempt)}</b> <span class="muted">${esc(r.Factory)}${r.Labels.length?' · '+esc(r.Labels.join(' · ')):''}</span>`;
-// the issue page: metrics per factory, then each conversation
 const contextCard=c=>!c||!c.Units.length?'':`<div class="card c12"><h3>Context</h3><div class="hint">${CTX_HINT}</div>${ctxTable(c.Units)}${c.Runs.filter(r=>r.Turns.length).map(r=>`<div style="margin-top:14px">${ctxRunTitle(r)}${convoStrip(r)}</div>`).join('')}</div>`;
-// the attempt page: this attempt's conversation and metrics
 const contextAttemptCard=(c,f)=>!c?'':`<div class="card c12"><h3>Context</h3><div class="hint">This attempt's conversation and its ${c.Scored?'score against the hidden truth':'conversation metrics (not scored)'}. ${CTX_HINT}</div>${c.Turns.length?convoStrip(c):''}${ctxTable([{Factory:f,Runs:c.Scored?'scored':'not scored',Metrics:c.Metrics}])}</div>`;
 
 // ---------- global filters (persisted per viewer)

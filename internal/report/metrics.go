@@ -74,17 +74,15 @@ type metricsData struct {
 	checks   map[string][]mCheck
 	human    map[string][]mEvent // factory \x00 repo#issue, ordered by ts
 	rejected map[string]int
-	tools    map[string][]mTool  // factory \x00 attempt
-	agents   map[string]int      // factory \x00 attempt -> subagent runs
-	apiErrs  map[string]int      // factory \x00 attempt
-	linked   map[string]string   // factory \x00 attempt -> first pr.linked ts
-	labels   map[string][]string // factory \x00 attempt -> labels
-	turns    map[string][]mTurn  // factory \x00 attempt -> context turns, ordered by n
-	scores   map[string]*mScore  // factory \x00 attempt -> context score
+	tools    map[string][]mTool
+	agents   map[string]int
+	apiErrs  map[string]int
+	linked   map[string]string
+	labels   map[string][]string
+	turns    map[string][]mTurn
+	scores   map[string]*mScore
 }
 
-// loadMetrics reads everything the metrics need. With labels, only attempts that carry every one of them are kept
-// (a handed-off build attempt needs the same labels to stay): their units, cards and context data are all that is built.
 func loadMetrics(db *sql.DB, labels []string) (*metricsData, error) {
 	d := &metricsData{usage: map[string][]mUse{}, gates: map[string][]mGate{}, items: map[string]*mItem{},
 		login: map[string]string{}, bot: map[string]bool{}, prs: map[string]*mPR{}, reviews: map[string][]mReview{},
@@ -232,7 +230,6 @@ func loadMetrics(db *sql.DB, labels []string) (*metricsData, error) {
 	return d, nil
 }
 
-// hasLabels reports whether have contains every label of want.
 func hasLabels(have, want []string) bool {
 	for _, l := range want {
 		if !slices.Contains(have, l) {
@@ -270,7 +267,7 @@ type unit struct {
 	planN, planPass, prN, prPass                  int // first-pass approvals: denominators and passes
 	reviewedPRs, changesReq                       int
 	run                                           runStats
-	ctx                                           ctxStats // Context turns and scores of the unit's attempts
+	ctx                                           ctxStats
 }
 
 // runStats are the tool call, subagent and PR metrics of a unit, summed into its card by merge.
@@ -366,17 +363,19 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 		in[i] = StageAttempt{a.factory, a.id, a.parent.String, a.role, a.state, run(a)}
 	}
 	kinds, staged := Stages(in)
-	firstConfig := map[string]string{}
-	for i, a := range d.atts { // ordered by start, so a run's first attempt comes first
+	rootConfig := map[string]string{}
+	for i, a := range d.atts {
 		a.stage = kinds[i]
-		if _, ok := firstConfig[run(a)]; !ok {
-			firstConfig[run(a)] = a.config
+		c, ok := rootConfig[a.factory+"\x00"+a.parent.String]
+		if !a.parent.Valid || !ok {
+			c = a.config
 		}
+		rootConfig[a.factory+"\x00"+a.id] = c
 	}
 	for _, a := range d.atts {
 		g := a.factory
-		if byConfig && staged[run(a)] { // a staged run stays one unit, under the config it started with
-			g += " " + firstConfig[run(a)]
+		if byConfig && staged[run(a)] {
+			g += " " + rootConfig[a.factory+"\x00"+a.id]
 		} else if byConfig {
 			g += " " + a.config
 		}
@@ -772,44 +771,48 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 	}
 	var out []ItemRow
 	for _, u := range buildUnits(d, false, now) {
-		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
-			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
-			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
-		if u.staged {
-			r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
-		}
-		var prs []string
-		for _, p := range u.prs {
-			prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
-		}
-		r.PRs = strings.Join(prs, ", ")
-		if u.run.nToPR > 0 {
-			r.ToPR = dur(u.run.toPR)
-			if u.staged {
-				r.ToPR += stagedToPR
-			}
-			v := u.run.toPR.Seconds()
-			r.ToPRSeconds = &v
-		}
-		r.HasPR, r.Merged = len(u.prs) > 0, u.outcome == "merged"
-		if u.cost.sessions > u.cost.nUnk {
-			v := u.cost.rep + u.cost.est
-			r.CostUSD = &v
-		}
-		r.CostLowerBound = u.cost.nUnk > 0 || u.attempts > u.withUsage
-		if u.run.nToMerge > 0 {
-			r.ToMerge = dur(u.run.toMerge)
-		}
-		if u.reviewedPRs > 0 {
-			r.ReviewRounds = fmt.Sprintf("%d on %d reviewed PRs", u.changesReq, u.reviewedPRs)
-		}
-		if u.run.ciN > 0 {
-			r.CIFirstPush = rate(u.run.ciPass, u.run.ciN)
-		}
-		if u.run.sizedPRs > 0 {
-			r.Size = fmt.Sprintf("+%d -%d, %d files", u.run.added, u.run.deleted, u.run.files)
-		}
-		out = append(out, r)
+		out = append(out, u.row())
 	}
 	return out, nil
+}
+
+func (u *unit) row() ItemRow {
+	r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
+		Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
+		Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
+	if u.staged {
+		r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
+	}
+	var prs []string
+	for _, p := range u.prs {
+		prs = append(prs, fmt.Sprintf("#%d %s", p.number, p.state))
+	}
+	r.PRs = strings.Join(prs, ", ")
+	if u.run.nToPR > 0 {
+		r.ToPR = dur(u.run.toPR)
+		if u.staged {
+			r.ToPR += stagedToPR
+		}
+		v := u.run.toPR.Seconds()
+		r.ToPRSeconds = &v
+	}
+	r.HasPR, r.Merged = len(u.prs) > 0, u.outcome == "merged"
+	if u.cost.sessions > u.cost.nUnk {
+		v := u.cost.rep + u.cost.est
+		r.CostUSD = &v
+	}
+	r.CostLowerBound = u.cost.nUnk > 0 || u.attempts > u.withUsage
+	if u.run.nToMerge > 0 {
+		r.ToMerge = dur(u.run.toMerge)
+	}
+	if u.reviewedPRs > 0 {
+		r.ReviewRounds = fmt.Sprintf("%d on %d reviewed PRs", u.changesReq, u.reviewedPRs)
+	}
+	if u.run.ciN > 0 {
+		r.CIFirstPush = rate(u.run.ciPass, u.run.ciN)
+	}
+	if u.run.sizedPRs > 0 {
+		r.Size = fmt.Sprintf("+%d -%d, %d files", u.run.added, u.run.deleted, u.run.files)
+	}
+	return r
 }

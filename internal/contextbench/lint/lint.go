@@ -17,13 +17,11 @@ import (
 	"factorybench/internal/contextbench/scenario"
 )
 
-// Dirs says where the things to check live.
 type Dirs struct {
 	Scenarios   string
 	Calibration string // calibration/<id>.json; a missing directory is fine
 }
 
-// Report is the outcome of a lint.
 type Report struct {
 	Errors   []string
 	Warnings []string
@@ -37,7 +35,6 @@ func (r *Report) warnf(where, format string, a ...any) {
 	r.Warnings = append(r.Warnings, where+": "+fmt.Sprintf(format, a...))
 }
 
-// Run checks every scenario and calibration file.
 func Run(d Dirs) Report {
 	var r Report
 	ids, err := scenario.AllIDs(d.Scenarios)
@@ -65,10 +62,8 @@ func Run(d Dirs) Report {
 
 var required = []string{"id", "kind", "title", "work_item", "first_run", "max_turns"}
 
-// checkScenario lints one scenario directory and returns its work item when it has a valid one.
 func checkScenario(r *Report, dir, id string) *scenario.WorkItem {
 	where := "scenario " + id
-	// scenario.json: strict, with the required keys present
 	raw, err := os.ReadFile(filepath.Join(dir, "scenario.json"))
 	if err != nil {
 		r.errf(where, "scenario.json: %v", err)
@@ -121,7 +116,6 @@ func checkScenario(r *Report, dir, id string) *scenario.WorkItem {
 		r.errf(where, "brief.md is empty")
 	}
 
-	// truth.json
 	var truth scenario.Truth
 	traw, err := os.ReadFile(filepath.Join(dir, "truth.json"))
 	if err != nil {
@@ -136,7 +130,6 @@ func checkScenario(r *Report, dir, id string) *scenario.WorkItem {
 		}
 	}
 
-	// optional parts
 	if st, err := os.Stat(filepath.Join(dir, "living-specs")); err == nil && st.IsDir() {
 		ents, _ := os.ReadDir(filepath.Join(dir, "living-specs"))
 		for _, e := range ents {
@@ -264,7 +257,7 @@ func checkInterface(r *Report, where, dir string, meta scenario.Meta) {
 func checkCalibration(r *Report, d Dirs, scenarios map[string]bool) {
 	ents, err := os.ReadDir(d.Calibration)
 	if err != nil {
-		return // no calibration files is fine
+		return
 	}
 	for _, e := range ents {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {

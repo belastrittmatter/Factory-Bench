@@ -61,8 +61,6 @@ type finishedP struct {
 	Reason string `json:"reason"`
 }
 
-// finished is one run of the dry run with everything it left: its exit, its local evidence, the events it sent,
-// the fake claude's calls.
 type finished struct {
 	spec       runSpec
 	code       int
@@ -158,7 +156,6 @@ func (d *dry) runOne(sc *scenario.Scenario, rs runSpec) *finished {
 	return f
 }
 
-// load reads the run's local evidence and decodes its events.
 func (d *dry) load(f *finished) bool {
 	name := f.spec.name
 	b, err := os.ReadFile(filepath.Join(f.dir, "run.json"))
@@ -238,8 +235,6 @@ func near(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
 
 func squash(s string) string { return strings.Join(strings.Fields(s), " ") }
 
-// ---- views of the turn events, the way a reader of the events would count them ----
-
 func (f *finished) factoryTurns() []contract.ContextTurn { return f.bySpeaker("factory") }
 
 func (f *finished) personTurns() []contract.ContextTurn { return f.bySpeaker("person") }
@@ -268,8 +263,6 @@ func (f *finished) moveCount(move string) int {
 	return countTurns(f.factoryTurns(), func(t contract.ContextTurn) bool { return t.Move == move })
 }
 
-// recovered counts person turns with dont_know whose next factory turn is show or suggest and whose next person
-// turn reveals something: the definition of "don't-know recovered".
 func (f *finished) recovered() int {
 	n := 0
 	for i, t := range f.turns {
@@ -296,8 +289,6 @@ func (f *finished) maxFrustration() int64 {
 
 func (f *finished) gateOK(name string) bool { g, ok := f.gates[name]; return ok && g.Passed }
 
-// ---- the invariants of every run ----
-
 var configRe = regexp.MustCompile(`^(plain|file-fake-creator)@[0-9a-f]{12}/claude-sonnet-5-5$`)
 
 var scoreKeys = []string{"scenario", "subject", "persona", "truth", "captured", "traps", "invented", "invented_unmarked", "map_tag_errors",
@@ -321,7 +312,6 @@ func (d *dry) commonChecks(f *finished) {
 		d.check(f.code == 1 && f.fin.Status == bench.StatusFailed && f.fin.Reason != "", "run %s: a failed run exited %d with %+v", name, f.code, f.fin)
 	}
 
-	// the envelope: one started first, one finished last, ids unique and keyed by the attempt, only the types of the spec
 	ids := map[string]bool{}
 	for i, ev := range f.evs {
 		d.check(ev.AttemptID == f.info.Attempt && strings.HasPrefix(ev.ID, f.info.Attempt+":") && !ids[ev.ID], "run %s: event %d has a bad id or attempt: %s %s", name, i, ev.ID, ev.AttemptID)
@@ -329,7 +319,7 @@ func (d *dry) commonChecks(f *finished) {
 		d.check(slices.Contains([]string{"attempt.started", "usage", "context.turn", "gate", "context.score", "attempt.finished"}, ev.Type), "run %s: unexpected event type %s", name, ev.Type)
 	}
 	d.check(len(f.evs) > 2 && f.evs[0].Type == "attempt.started" && f.evs[len(f.evs)-1].Type == "attempt.finished", "run %s: the events do not run from attempt.started to attempt.finished", name)
-	d.check(f.started.Role == "context" && f.started.WorkItem == contract.WorkItem{Repo: "bench/tiny-context", Issue: 1}, "run %s: attempt.started is %+v", name, f.started)
+	d.check(f.started.Role == contract.RoleContext && f.started.WorkItem == contract.WorkItem{Repo: "bench/tiny-context", Issue: 1}, "run %s: attempt.started is %+v", name, f.started)
 	converses := f.spec.subject != "none" && f.spec.subject != "ceiling"
 	if converses {
 		d.check(configRe.MatchString(f.started.FactoryConfigVersion), "run %s: factory_config_version %q", name, f.started.FactoryConfigVersion)
@@ -343,7 +333,6 @@ func (d *dry) commonChecks(f *finished) {
 		d.check(f.started.FactoryConfigVersion == f.spec.subject && slices.Equal(f.started.Labels, []string{"scenario:tiny"}), "run %s: attempt.started is %+v", name, f.started)
 	}
 
-	// the Context creator's own sessions are the only usage events
 	subj := f.calls("subject")
 	d.check(len(f.usages) == len(subj), "run %s: %d usage events for %d subject sessions", name, len(f.usages), len(subj))
 	for _, u := range f.usages {
@@ -351,7 +340,6 @@ func (d *dry) commonChecks(f *finished) {
 			"run %s: usage %+v", name, u)
 	}
 
-	// the turns: numbered from 1 in conversation order, the text of the transcript unless --no-text
 	for i, t := range f.turns {
 		d.check(t.N == int64(i+1), "run %s: turn event %d is numbered %d", name, i+1, t.N)
 	}
@@ -399,17 +387,16 @@ func (d *dry) commonChecks(f *finished) {
 		}
 	}
 
-	// every call: the flags the spec names, and a role
 	for _, e := range f.log {
 		d.check(e.Flags["tools"] == "" && e.Flags["max-budget-usd"] == "2" && e.Flags["setting-sources"] == "project" && e.Flags["no-session-persistence"] == "true" && e.Flags["output-format"] == "json",
 			"run %s: a %s call had flags %v", name, e.Role, e.Flags)
+		d.check(e.EmptyDir, "run %s: a %s call did not run in an empty working directory", name, e.Role)
 		d.check(strings.HasPrefix(e.System, "ROLE: "+e.Role+"\n"), "run %s: %s system prompt does not start with its ROLE line", name, e.Role)
 	}
 	d.noTruthToSubject(f)
 	d.buildersBlind(f)
 	d.modelsDiffer(f)
 
-	// the gates and the score exist exactly when they could be decided
 	d.check(f.spec.name == "unknown-id" || len(f.gates) >= 3, "run %s: %d gate events", name, len(f.gates))
 	if okRun {
 		d.check(f.scores == 1 && f.score != nil, "run %s: %d context.score events", name, f.scores)
@@ -419,7 +406,6 @@ func (d *dry) commonChecks(f *finished) {
 	}
 }
 
-// Subject2 is the subject-and-persona part of a run id, for the dry run's id check.
 func (i runFile) Subject2() string { return subjectSlug(i.Subject) + "-" + i.Persona }
 
 func subjectText(t protocol.Turn) string {
@@ -449,7 +435,6 @@ func (d *dry) checkScore(f *finished) {
 	d.check(s.Truth.Items == 8 && s.Truth.G4 == 3 && s.Truth.Latent == 2 && s.Truth.Traps == 3 && s.Truth.Noise == 2, "run %s: truth %+v", name, s.Truth)
 	d.check(s.Captured.Full+s.Captured.Partial <= s.Truth.Items && s.Captured.G4Full+s.Captured.G4Partial <= s.Truth.G4 && s.Captured.Latent <= s.Truth.Latent, "run %s: captured %+v", name, s.Captured)
 	d.check(s.Builders.Agree <= s.Builders.Total, "run %s: builders %+v", name, s.Builders)
-	// what the bench spent, by who: the fake charged $0.01 a call; the subject's calls are not in it
 	c := s.BenchCostUSD
 	d.check(near(c.Person, 0.01*float64(len(f.calls("person"))+len(f.calls("tagger")))) && near(c.Judge, 0.01*float64(len(f.calls("judge")))) &&
 		near(c.Builders, 0.01*float64(len(f.calls("builder"))+len(f.calls("comparison")))), "run %s: bench cost %+v for %d person, %d tagger, %d judge, %d builder, %d comparison calls",
@@ -480,7 +465,6 @@ func personaOf(f *finished) string {
 	return f.spec.person
 }
 
-// said returns what the person had said by a subject call: the brief, the attachments, the replies before turn k.
 func said(sc *scenario.Scenario, turns []protocol.Turn, upToTurn int) string {
 	var b strings.Builder
 	b.WriteString(bench.BriefMessage(sc))
@@ -495,7 +479,6 @@ func said(sc *scenario.Scenario, turns []protocol.Turn, upToTurn int) string {
 	return squash(b.String())
 }
 
-// secrets lists every string of truth.json that only the person and the judges may know.
 func secrets(sc *scenario.Scenario) []string {
 	var out []string
 	for _, it := range sc.Truth.Items {
@@ -515,7 +498,6 @@ func secrets(sc *scenario.Scenario) []string {
 
 var truthKeys = []string{`"latent_hint"`, `"g4"`, `"resolution"`, `"technical"`, `truth.json`, `<truth>`}
 
-// noTruthToSubject: no subject prompt carries truth.json, or any truth string the person has not yet said.
 func (d *dry) noTruthToSubject(f *finished) {
 	name := f.spec.name
 	for i, e := range f.calls("subject") {
@@ -525,7 +507,7 @@ func (d *dry) noTruthToSubject(f *finished) {
 		}
 		d.check(!strings.Contains(all, string(f.sc.TruthRaw)), "run %s: subject call %d contains truth.json", name, i+1)
 		have := squash(all)
-		heard := said(f.sc, f.transcript, i) // the subject's call k sees person turns up to k-1
+		heard := said(f.sc, f.transcript, i)
 		for _, s := range secrets(f.sc) {
 			if strings.Contains(have, squash(s)) {
 				d.check(strings.Contains(heard, squash(s)), "run %s: subject call %d contains %q before the person said it", name, i+1, s)
@@ -536,7 +518,6 @@ func (d *dry) noTruthToSubject(f *finished) {
 	}
 }
 
-// buildersBlind: builders and the comparison get only the change folder and the living specs.
 func (d *dry) buildersBlind(f *finished) {
 	name := f.spec.name
 	var all []fakeclaude.LogEntry

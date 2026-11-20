@@ -14,7 +14,6 @@ import (
 	"unicode/utf8"
 )
 
-// Areas, trap kinds and persona ids are fixed by docs/context-bench.md.
 var (
 	Areas       = []string{"actors", "journeys", "data", "rules", "screens", "failures", "limits"}
 	TrapKinds   = []string{"contradiction", "person-only", "vague"}
@@ -55,10 +54,8 @@ type Meta struct {
 	Build    json.RawMessage `json:"build,omitempty"`
 }
 
-// Buildable reports whether scenario.json has a build section.
 func (m Meta) Buildable() bool { return len(m.Build) > 0 && string(m.Build) != "null" }
 
-// Item is one thing the person really wants.
 type Item struct {
 	ID         string `json:"id"`
 	Area       string `json:"area"`
@@ -70,7 +67,6 @@ type Item struct {
 	Source     string `json:"source"`
 }
 
-// Trap is a seeded trap.
 type Trap struct {
 	ID         string   `json:"id"`
 	Kind       string   `json:"kind"`
@@ -80,7 +76,6 @@ type Trap struct {
 	Source     string   `json:"source,omitempty"`
 }
 
-// Noise is unrelated material the talkative persona volunteers.
 type Noise struct {
 	ID   string `json:"id"`
 	Text string `json:"text"`
@@ -106,7 +101,6 @@ func ids[T any](xs []T, id func(T) string) []string {
 	return out
 }
 
-// Item returns the item with the id.
 func (t *Truth) Item(id string) (Item, bool) {
 	for _, i := range t.Items {
 		if i.ID == id {
@@ -116,7 +110,6 @@ func (t *Truth) Item(id string) (Item, bool) {
 	return Item{}, false
 }
 
-// Known reports whether id is an item, a trap or a noise id.
 func (t *Truth) Known(id string) bool {
 	return slices.Contains(t.ItemIDs(), id) || slices.Contains(t.TrapIDs(), id) || slices.Contains(t.NoiseIDs(), id)
 }
@@ -126,7 +119,6 @@ func (t *Truth) RevealableKnown(id string) bool {
 	return slices.Contains(t.ItemIDs(), id) || slices.Contains(t.TrapIDs(), id)
 }
 
-// LatentIDs lists the latent items.
 func (t *Truth) LatentIDs() []string {
 	var out []string
 	for _, i := range t.Items {
@@ -137,7 +129,6 @@ func (t *Truth) LatentIDs() []string {
 	return out
 }
 
-// File is a text or binary file of a scenario.
 type File struct {
 	Path string // relative to its folder, forward slashes
 	Data []byte
@@ -151,7 +142,6 @@ func (f File) Text() (string, bool) {
 	return "", false
 }
 
-// Scenario is a loaded scenario directory.
 type Scenario struct {
 	Meta
 	Dir         string
@@ -162,7 +152,6 @@ type Scenario struct {
 	Project     string // project.md, "" when absent
 	LivingSpecs []File // living-specs/<capability>/spec.md, path relative to living-specs/
 	HasCeiling  bool
-	InterfaceMD string
 }
 
 // Load reads a scenario directory. It does not lint: Lint reports what is wrong with the files.
@@ -200,9 +189,6 @@ func Load(dir string) (*Scenario, error) {
 	}
 	if st, err := os.Stat(filepath.Join(dir, "ceiling")); err == nil && st.IsDir() {
 		s.HasCeiling = true
-	}
-	if b, err := os.ReadFile(filepath.Join(dir, "interface.md")); err == nil {
-		s.InterfaceMD = string(b)
 	}
 	return s, nil
 }
@@ -252,7 +238,6 @@ func readJSONStrict(path string, v any) error {
 	return nil
 }
 
-// readTree lists the regular files under dir (missing dir: none), sorted by path.
 func readTree(dir string) ([]File, error) {
 	var out []File
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
@@ -274,7 +259,6 @@ func readTree(dir string) ([]File, error) {
 	return out, err
 }
 
-// CalTurn is one real question and the real answer to it.
 type CalTurn struct {
 	Question string `json:"question"`
 	Answer   string `json:"answer"`
@@ -289,7 +273,6 @@ type Calibration struct {
 	Turns    []CalTurn `json:"turns"`
 }
 
-// LoadCalibration reads a calibration file, strictly.
 func LoadCalibration(path string) (*Calibration, error) {
 	var c Calibration
 	if err := readJSONStrict(path, &c); err != nil {

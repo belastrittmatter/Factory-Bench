@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Stand-in for a scenario's build command in the dry run (--build-cmd points at it): no product, no model.
-# It checks it was called the way docs/context-bench.md "Scoring" says, then writes a build.json.
 #   FACTORYBENCH_FAKE_BUILD_FAIL  set: print an error and exit 1 without writing build.json
 #   FACTORYBENCH_FAKE_BUILD_LOG   file the argument line is appended to
 scenario= change= out= yes= model= maxcost=

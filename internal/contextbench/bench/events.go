@@ -16,24 +16,18 @@ import (
 	"factorybench/internal/contract"
 )
 
-// Roles and gate names of a Context creator attempt.
 const (
-	// AttemptRole is the role of a Context creator attempt.
-	AttemptRole = "context"
-
-	GateFrame     = "context-frame"     // gate 1
-	GateChange    = "context-change"    // gate 2
-	GateTestable  = "context-testable"  // gate 3
-	GateAgreement = "context-agreement" // gate 4
+	Gate1Frame     = "context-frame"
+	Gate2Change    = "context-change"
+	Gate3Testable  = "context-testable"
+	Gate4Agreement = "context-agreement"
 )
 
-// Tagged-by values of a person turn.
 const (
 	TaggedBySimulator = "simulator"
 	TaggedByTagger    = "tagger"
 )
 
-// NewAttemptID returns a fresh attempt id for a Context creator run.
 func NewAttemptID() string {
 	var b [5]byte
 	if _, err := rand.Read(b[:]); err != nil {
@@ -90,18 +84,15 @@ type finishedPayload struct {
 	Reason string `json:"reason,omitempty"`
 }
 
-// Attempt statuses.
 const (
 	StatusCompleted = "completed"
 	StatusFailed    = "failed"
 )
 
-// eventLog collects the events of one attempt, keeps a copy of everything in <dir>/events.jsonl and sends it
-// the way `factorybench emit` does. Safe for concurrent use.
 type eventLog struct {
 	attempt string
 	dir     string
-	send    func(evs ...[]byte) bool
+	send    func(evs ...[]byte)
 	stderr  func(format string, a ...any)
 
 	mu      sync.Mutex
@@ -113,8 +104,6 @@ func newEventLog(attempt, dir string, env *Env) *eventLog {
 	return &eventLog{attempt: attempt, dir: dir, send: env.Send, stderr: func(f string, a ...any) { fmt.Fprintf(env.Stderr, "contextbench: "+f+"\n", a...) }}
 }
 
-// add queues one event. An event that does not validate against the contract is a bug of the harness: it is
-// reported and left out, never sent.
 func (l *eventLog) add(typ, key string, ts time.Time, payload any) {
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -136,7 +125,6 @@ func (l *eventLog) add(typ, key string, ts time.Time, payload any) {
 	l.mu.Unlock()
 }
 
-// flush appends the queued events to events.jsonl and sends them.
 func (l *eventLog) flush() {
 	l.mu.Lock()
 	evs := l.pending
@@ -162,14 +150,13 @@ func (l *eventLog) flush() {
 }
 
 func (l *eventLog) started(ts time.Time, wi *contract.WorkItem, version string, labels []string) {
-	l.add("attempt.started", "started", ts, startedPayload{WorkItem: *wi, FactoryConfigVersion: version, Labels: labels, Role: AttemptRole})
+	l.add("attempt.started", "started", ts, startedPayload{WorkItem: *wi, FactoryConfigVersion: version, Labels: labels, Role: contract.RoleContext})
 }
 
-// usage records one subject model session.
 func (l *eventLog) usage(s Session) {
 	u := s.Resp.Usage
 	if u.Cost == nil && u.Input+u.Output+u.CacheRead+u.CacheWrite == 0 {
-		return // claude reported nothing about this session
+		return
 	}
 	l.mu.Lock()
 	l.usages++
@@ -187,7 +174,6 @@ func (l *eventLog) finished(ts time.Time, status, reason string) {
 	l.add("attempt.finished", "finished", ts, finishedPayload{Status: status, Reason: reason})
 }
 
-// TurnEvent is one context.turn of a conversation with its time.
 type TurnEvent struct {
 	At   time.Time
 	Turn contract.ContextTurn
@@ -220,7 +206,7 @@ func TurnEvents(turns []protocol.Turn, taggedBy string, noText bool, start time.
 			}
 			ev := contract.ContextTurn{N: int64(len(out) + 1), Speaker: "person", Words: int64(protocol.Words(p.Reply)),
 				TaggedBy: taggedBy, Text: text(p.Reply)}
-			if t.Turn > 0 { // the brief carries no tags
+			if t.Turn > 0 {
 				fr := int64(p.Frustration)
 				ev.DontKnow, ev.CouldNotAnswer, ev.AlreadySaid, ev.InAttachments, ev.Confirmed =
 					p.DontKnow, p.CouldNotAnswer, p.AlreadySaid, p.InAttachments, p.Confirmed

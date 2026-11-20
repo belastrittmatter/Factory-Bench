@@ -629,8 +629,6 @@ func TestSteps(t *testing.T) {
 	}
 }
 
-// The Context data of a Context creator attempt reaches the issue page, the attempt page and the scorecard, from the same
-// report code as `report items` and `report factories`.
 func TestContextAPI(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "fb.db")
 	rw, err := store.Open(path)
@@ -690,7 +688,7 @@ func TestContextAPI(t *testing.T) {
 	}
 	u := item.Context.Units[0]
 	for label, want := range map[string]string{"recall": "62% (2.5/4)", "G4 recall": "100% (1/1)", "builder agreement": "75% (3/4)",
-		"don't-know recovered": "0% (0/1)", "suggestions accepted": "100% (1/1)", "context turns / issue": "1.0 (1/1)"} {
+		"don't-know recovered": "0% (0/1)", "suggestions accepted": "100% (1/1)", "context turns / conversation": "1.0 (1/1)"} {
 		if got := metric(u.Metrics, label); got != want {
 			t.Errorf("item %s = %q, want %q", label, got, want)
 		}
@@ -736,7 +734,6 @@ func TestContextAPI(t *testing.T) {
 		t.Errorf("%d Context rows in the scorecard", found)
 	}
 
-	// without context data an attempt has none and the scorecard no Context rows
 	_, h2, _ := fixture(t)
 	var plain map[string]any
 	get(t, h2, "/api/attempt?factory=f&id=a1", &plain)

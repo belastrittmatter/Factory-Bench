@@ -13,7 +13,6 @@ import (
 //
 // Turn 0 is the person's first message. A message may span lines; a block runs to the next block header.
 
-// View says how much of the transcript a reader gets.
 type View int
 
 const (
@@ -24,7 +23,6 @@ const (
 	ViewFull
 )
 
-// RenderTranscript renders turns as transcript text.
 func RenderTranscript(turns []Turn, v View) string {
 	var b strings.Builder
 	for _, t := range turns {
@@ -44,17 +42,15 @@ func RenderTranscript(turns []Turn, v View) string {
 	return b.String()
 }
 
-// Line is one parsed transcript block.
 type Line struct {
 	Turn int
-	Who  string // "SUBJECT" or "PERSON"
-	Move string // the subject's move
+	Who  string
+	Move string
 	Text string
 }
 
 var lineRe = regexp.MustCompile(`^\[turn (\d+)\] (SUBJECT \((\w+)\)|PERSON): ?(.*)$`)
 
-// ParseTranscript parses RenderTranscript output back into blocks.
 func ParseTranscript(text string) []Line {
 	var out []Line
 	for _, raw := range strings.Split(text, "\n") {
@@ -77,5 +73,4 @@ func ParseTranscript(text string) []Line {
 	return out
 }
 
-// Words counts the whitespace-separated words of s.
 func Words(s string) int { return len(strings.Fields(s)) }

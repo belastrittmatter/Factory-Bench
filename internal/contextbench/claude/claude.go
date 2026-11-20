@@ -18,13 +18,12 @@ import (
 // limited to 128 KiB on Linux).
 const MaxArgBytes = 100_000
 
-// Request is one model session.
 type Request struct {
-	Role    string  // the role marker: the system prompt starts with `ROLE: <role>`
-	Model   string  //
-	System  string  // the system prompt without the role line
-	Prompt  string  // the one user message
-	Schema  string  // JSON schema of the structured reply
+	Role    string
+	Model   string
+	System  string
+	Prompt  string
+	Schema  string
 	MaxCost float64 // USD cap for the session (claude --max-budget-usd)
 }
 
@@ -35,14 +34,12 @@ type Usage struct {
 	Cost                                 *float64
 }
 
-// Response is what a session returned.
 type Response struct {
-	Output json.RawMessage // the structured reply
-	Cost   float64         // total_cost_usd, set even when the call failed
-	Usage  Usage           // set even when the call failed
+	Output json.RawMessage
+	Cost   float64 // total_cost_usd, set even when the call failed
+	Usage  Usage   // set even when the call failed
 }
 
-// Runner runs one session.
 type Runner interface {
 	Run(ctx context.Context, req Request) (Response, error)
 }
@@ -77,13 +74,11 @@ func Program() string {
 	return "claude"
 }
 
-// Exec runs sessions with the claude CLI.
 type Exec struct {
 	Program string
 	Timeout time.Duration // per session; 0 means 20 minutes
 }
 
-// Run implements Runner.
 func (e Exec) Run(ctx context.Context, req Request) (Response, error) {
 	args, stdin, err := Args(req)
 	if err != nil {
@@ -96,6 +91,12 @@ func (e Exec) Run(ctx context.Context, req Request) (Response, error) {
 	ctx, cancel := context.WithTimeout(ctx, to)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, e.Program, args...)
+	// an empty working directory: --setting-sources project then finds no project settings, hooks or CLAUDE.md, so
+	// what a session knows does not depend on where the bench was started
+	if cmd.Dir, err = os.MkdirTemp("", "factorybench-claude-"); err != nil {
+		return Response{}, err
+	}
+	defer os.RemoveAll(cmd.Dir)
 	if stdin != "" {
 		cmd.Stdin = strings.NewReader(stdin)
 	}
@@ -168,7 +169,6 @@ func ParseResult(raw []byte) (Response, error) {
 	return resp, fmt.Errorf("the reply has no structured output")
 }
 
-// extractJSON finds the JSON object in a text reply, with or without a code fence.
 func extractJSON(s string) (json.RawMessage, bool) {
 	s = strings.TrimSpace(s)
 	if i := strings.Index(s, "```"); i >= 0 {

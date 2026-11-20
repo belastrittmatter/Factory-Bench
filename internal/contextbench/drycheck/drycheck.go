@@ -23,29 +23,25 @@ import (
 	"factorybench/internal/store"
 )
 
-// factoryID is the factory the dry run registers and sends as.
 const factoryID = "dry-run"
 
-// Config says how to run the dry run.
 type Config struct {
 	// Exe is the factorybench binary: the fake claude is a script that runs `<Exe> context fake-claude`.
 	Exe string
 	// Fake is a ready fake claude program, used instead of that script (the tests start their own test binary).
 	Fake   string
 	Stdout io.Writer
-	Keep   bool // keep the temporary directory and print its path
-	// Run is the `factorybench context` command line (contextbench.Run); it is passed in because that package
-	// imports this one.
-	Run func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
+	Keep   bool
+	Run    func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 }
 
 type dry struct {
 	cfg      Config
 	tmp      string
-	fx       string // the extracted fixtures
-	scen     string // fx/scenarios
-	runs     string // where the runs' local evidence goes
-	logs     string // the fake claude's call logs
+	fx       string
+	scen     string
+	runs     string
+	logs     string
 	spool    string
 	db       *sql.DB
 	srv      *httptest.Server
@@ -55,7 +51,7 @@ type dry struct {
 	seq      int
 
 	mu        sync.Mutex
-	posted    int // events POSTed to the server
+	posted    int
 	rejected  []string
 	badStatus []string
 }
@@ -135,7 +131,6 @@ func Run(cfg Config) error {
 	return nil
 }
 
-// startFactoryBench opens a temporary database with one factory behind the real intake handler.
 func (d *dry) startFactoryBench() error {
 	db, err := store.Open(filepath.Join(d.tmp, "fb.db"))
 	if err != nil {
@@ -166,7 +161,6 @@ func (r *recorder) Write(b []byte) (int, error) {
 	return r.ResponseWriter.Write(b)
 }
 
-// note keeps what FactoryBench answered, so a rejected event fails the dry run.
 func (d *dry) note(r *http.Request, rec *recorder) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -213,7 +207,6 @@ func setenv(kv map[string]string) (restore func()) {
 	}
 }
 
-// cli runs one `factorybench context` command in process with the given environment overrides and stdin.
 func (d *dry) cli(env map[string]string, stdin string, args ...string) (code int, stdout, stderr string) {
 	restore := setenv(env)
 	defer restore()
@@ -221,8 +214,6 @@ func (d *dry) cli(env map[string]string, stdin string, args ...string) (code int
 	code = d.cfg.Run(args, strings.NewReader(stdin), &out, &errb)
 	return code, out.String(), errb.String()
 }
-
-// ---- gates on known-good and known-bad change folders ----
 
 func (d *dry) gates() {
 	vs, err := change.LoadVariants(filepath.Join(d.fx, "changes"))
@@ -238,8 +229,6 @@ func (d *dry) gates() {
 	d.say("ok  gates 1-3 on %d known-good and known-bad change folders", len(vs))
 }
 
-// ---- lint ----
-
 func (d *dry) lint() {
 	code, out, errs := d.cli(nil, "", "lint", "--scenarios", d.scen)
 	d.check(code == 0, "lint of the test scenario failed: %s%s", out, errs)
@@ -253,7 +242,6 @@ func (d *dry) lint() {
 	 {"id":"A1","area":"rules","text":"x","g4":false,"latent":true,"technical":false,"source":"s"},
 	 {"id":"A1","area":"nowhere","text":"y","g4":false,"latent":false,"technical":false,"source":"s"}],
 	 "traps":[{"id":"X1","kind":"vague","items":["ZZ"],"text":"t","resolution":"r"}],"noise":[]}`), 0o644)
-	// a second scenario with a bad work item, and a third that shares the tiny scenario's
 	for id, wi := range map[string]string{"bad-two": `{"repo":"not a repo","issue":0}`, "bad-three": `{"repo":"bench/tiny-context","issue":1}`} {
 		dir := filepath.Join(bad, id)
 		_ = os.MkdirAll(dir, 0o755)
@@ -261,7 +249,6 @@ func (d *dry) lint() {
 		_ = os.WriteFile(filepath.Join(dir, "brief.md"), []byte("brief\n"), 0o644)
 		_ = os.WriteFile(filepath.Join(dir, "truth.json"), []byte(`{"items":[{"id":"A1","area":"rules","text":"x","g4":false,"latent":false,"technical":false,"source":"s"}],"traps":[],"noise":[]}`), 0o644)
 	}
-	// bad-three shares bad-one's and tiny's work item only when both are in the same directory: copy tiny in
 	b, _ := os.ReadFile(filepath.Join(d.scen, "tiny", "scenario.json"))
 	tiny := filepath.Join(bad, "tiny")
 	_ = os.MkdirAll(tiny, 0o755)
@@ -278,8 +265,6 @@ func (d *dry) lint() {
 	}
 	d.say("ok  lint passes the test scenario and fails broken ones with precise messages")
 }
-
-// ---- cost guard ----
 
 func (d *dry) cost() {
 	log := filepath.Join(d.logs, "noyes.jsonl")

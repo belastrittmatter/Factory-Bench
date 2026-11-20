@@ -38,7 +38,6 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	// v4 is the current schema without the v5 tables (attempt_labels, context_turns, context_scores); v3 is v4 without usage.step
 	v4 := schema
 	for _, tbl := range []string{"attempt_labels", "context_turns", "context_scores"} {
 		v4 = strings.Replace(v4, create(tbl), "", 1)

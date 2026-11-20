@@ -39,7 +39,6 @@ import (
 	"factorybench/internal/contextbench/scenario"
 )
 
-// Name is the program name the fake answers to when run through a symlink.
 const Name = "fake-claude"
 
 // MaybeRun runs the fake and exits when the process was started as `fake-claude` (a symlink to this binary).
@@ -53,7 +52,6 @@ func MaybeRun() {
 // Runner is the fake as an in-process claude.Runner. It goes through the same command line the real claude gets.
 type Runner struct{}
 
-// Run implements claude.Runner.
 func (Runner) Run(_ context.Context, req claude.Request) (claude.Response, error) {
 	args, stdin, err := claude.Args(req)
 	if err != nil {
@@ -192,7 +190,6 @@ func writeResult(w io.Writer, isErr bool, msg string, reply any, cost float64) {
 	fmt.Fprintln(w, string(b))
 }
 
-// LogEntry is one line of the fake's call log.
 type LogEntry struct {
 	Role         string            `json:"role"`
 	Model        string            `json:"model"`
@@ -201,6 +198,7 @@ type LogEntry struct {
 	SystemSHA256 string            `json:"system_sha256"`
 	Prompt       string            `json:"prompt"`
 	System       string            `json:"system"`
+	EmptyDir     bool              `json:"empty_dir"`
 }
 
 func record(fl flags, role string) {
@@ -209,9 +207,11 @@ func record(fl flags, role string) {
 		return
 	}
 	sum := func(s string) string { h := sha256.Sum256([]byte(s)); return hex.EncodeToString(h[:]) }
+	entries, derr := os.ReadDir(".")
 	e := LogEntry{Role: role, Model: fl.model, PromptSHA256: sum(fl.prompt), SystemSHA256: sum(fl.system), Prompt: fl.prompt, System: fl.system,
 		Flags: map[string]string{"output-format": fl.outputFormat, "tools": fl.tools, "max-budget-usd": fl.budget,
-			"setting-sources": fl.sources, "no-session-persistence": "true", "json-schema-bytes": strconv.Itoa(len(fl.schema))}}
+			"setting-sources": fl.sources, "no-session-persistence": "true", "json-schema-bytes": strconv.Itoa(len(fl.schema))},
+		EmptyDir: derr == nil && len(entries) == 0}
 	b, _ := json.Marshal(e)
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -221,7 +221,6 @@ func record(fl flags, role string) {
 	_, _ = f.Write(append(b, '\n'))
 }
 
-// ReadLog reads a call log.
 func ReadLog(path string) ([]LogEntry, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -241,7 +240,6 @@ func ReadLog(path string) ([]LogEntry, error) {
 	return out, nil
 }
 
-// Phrases the fake person uses when it states nothing, which the fake subject leaves out of its change folder.
 var emptyReplies = []string{"I don't know", "I can't say that", "That is all I have", "Yes, please start", "Hmm, not sure", "It is in the attachments"}
 
 func isEmptyReply(s string) bool {
@@ -292,8 +290,6 @@ func count(ls []protocol.Line, who string) int {
 	}
 	return n
 }
-
-// ---- subject ----
 
 var subjectMoves = []string{"ask", "ask", "show", "suggest", "challenge", "sharpen", "confirm", "mirror"}
 
@@ -352,8 +348,6 @@ func changeFiles(fl flags, said []protocol.Line) []protocol.File {
 	}
 	return files
 }
-
-// ---- person ----
 
 func personaOf(system string) string {
 	for _, l := range strings.Split(system, "\n") {
@@ -466,8 +460,6 @@ func lastMove(prompt string) string {
 	return ""
 }
 
-// ---- tagger ----
-
 func tagger(fl flags) any {
 	truth := truthOf(fl)
 	lines := protocol.ParseTranscript(section(fl, "transcript"))
@@ -478,7 +470,7 @@ func tagger(fl flags) any {
 		}
 	}
 	seen := map[string]bool{}
-	for _, it := range truth.Items { // the brief's content counts as already said
+	for _, it := range truth.Items {
 		_ = it
 	}
 	var out protocol.TaggerReply
@@ -510,8 +502,6 @@ func tagger(fl flags) any {
 	}
 	return out
 }
-
-// ---- judge ----
 
 var reqIDRe = regexp.MustCompile(`(?m)^(R\d+):`)
 
@@ -565,8 +555,6 @@ func judge(fl flags) any {
 	return out
 }
 
-// ---- builders ----
-
 func builder(fl flags) any {
 	out := protocol.BuilderReply{Requirements: []protocol.BuilderRequirement{}}
 	for _, id := range requirementIDs(fl) {
@@ -588,8 +576,6 @@ func comparison(fl flags) any {
 	}
 	return out
 }
-
-// ---- replay judge ----
 
 func replayJudge(fl flags) any {
 	var pairs []struct {

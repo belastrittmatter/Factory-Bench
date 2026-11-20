@@ -1,4 +1,3 @@
-// Package bench runs the Context creator bench: the conversation loop, scoring, the replay and the retag.
 package bench
 
 import (
@@ -11,7 +10,6 @@ import (
 	"factorybench/internal/contextbench/claude"
 )
 
-// Cost buckets: the roles whose sessions are metered apart.
 const (
 	BucketSubject  = "subject"
 	BucketPerson   = "person"
@@ -25,7 +23,6 @@ type Meter struct {
 	m  map[string]float64
 }
 
-// Add records cost in a bucket.
 func (m *Meter) Add(bucket string, usd float64) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -35,20 +32,17 @@ func (m *Meter) Add(bucket string, usd float64) {
 	m.m[bucket] += usd
 }
 
-// Get returns a bucket's total.
 func (m *Meter) Get(bucket string) float64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return m.m[bucket]
 }
 
-// Kinds of failure that make a run invalid.
 const (
-	KindCall     = "call"     // a model call failed
-	KindProtocol = "protocol" // a model broke its protocol beyond repair
+	KindCall     = "call"
+	KindProtocol = "protocol"
 )
 
-// InvalidError is a failure that makes a run `invalid`.
 type InvalidError struct {
 	Kind string
 	Msg  string
@@ -60,17 +54,15 @@ func invalid(kind, format string, a ...any) error {
 	return &InvalidError{Kind: kind, Msg: fmt.Sprintf(format, a...)}
 }
 
-// IsInvalid reports whether err is an InvalidError.
 func IsInvalid(err error) bool {
 	var ie *InvalidError
 	return errors.As(err, &ie)
 }
 
-// Session is one finished model session, as OnSession sees it.
 type Session struct {
 	Bucket string
 	Model  string
-	At     time.Time // when it finished
+	At     time.Time
 	Resp   claude.Response
 }
 
@@ -86,12 +78,15 @@ type Caller struct {
 	mu sync.Mutex
 }
 
+// TriesPerAsk is how many sessions one Ask may run: the first, and one repair when the reply breaks its protocol.
+const TriesPerAsk = 2
+
 // Ask runs one session. render builds the user message (repair is nil on the first try, else the rejection of
 // the previous reply); check validates the structured reply and may keep what it parsed.
 func (c *Caller) Ask(ctx context.Context, bucket string, req claude.Request, render func(repair error) (string, error), check func(raw []byte) error) error {
 	req.MaxCost = c.MaxCost
 	var last error
-	for range 2 {
+	for range TriesPerAsk {
 		prompt, err := render(last)
 		if err != nil {
 			return err

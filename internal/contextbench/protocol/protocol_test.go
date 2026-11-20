@@ -45,6 +45,8 @@ func TestParseSubject(t *testing.T) {
 		{"path escapes", `{"move":"ask","message":"x","done":true,"change":{"files":[{"path":"../x","content":""}]}}`, false, false, "clean"},
 		{"absolute path", `{"move":"ask","message":"x","done":true,"change":{"files":[{"path":"/x","content":""}]}}`, false, false, "relative"},
 		{"duplicate path", `{"move":"ask","message":"x","done":true,"change":{"files":[{"path":"a","content":""},{"path":"a","content":""}]}}`, false, false, "twice"},
+		{"file is also a folder", `{"move":"ask","message":"x","done":true,"change":{"files":[{"path":"specs","content":""},{"path":"specs/a/spec.md","content":""}]}}`, false, false, "also the folder"},
+		{"sibling folders", `{"move":"ask","message":"x","done":true,"change":{"files":[{"path":"specs/a.md","content":""},{"path":"specs/b/c.md","content":""}]}}`, false, false, ""},
 		{"change ignored when not done", `{"move":"ask","message":"x","done":false,"change":{"files":[{"path":"../x","content":""}]}}`, false, false, ""},
 		{"not an object", `[1]`, false, false, "not a JSON object"},
 	}

@@ -42,10 +42,9 @@ type goldenCase struct {
 		Capture string            `json:"capture"`
 		Bodies  []json.RawMessage `json:"bodies"`
 	} `json:"otlp"`
-	Report []string `json:"report"`
-	// also snapshot the Context reports, with and without a label filter
-	ReportContext bool   `json:"report_context"`
-	Now           string `json:"now"` // report time, RFC 3339; default fixedNow
+	Report        []string `json:"report"`
+	ReportContext bool     `json:"report_context"`
+	Now           string   `json:"now"`
 }
 
 func TestGolden(t *testing.T) {

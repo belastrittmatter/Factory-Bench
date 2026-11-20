@@ -16,11 +16,6 @@ import (
 	"factorybench/internal/store"
 )
 
-// The Context section: conversation metrics of a Context creator (context.turn) and its score against the hidden
-// truth (context.score). Definitions are in docs/context-bench.md "Metrics". Every rate shows its counts and an empty
-// denominator shows n/a; the bench's own cost is kept apart from the factory's.
-
-// contextMoves are the factory moves in the order the moves table lists them.
 var contextMoves = []string{"capture", "mirror", "show", "suggest", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"}
 
 type mTurn struct {
@@ -47,7 +42,6 @@ type mScore struct {
 	repairs                                                         sql.NullInt64
 }
 
-// loadContext reads the turns (ordered by n) and scores of every attempt, or of one factory's one attempt.
 func loadContext(db *sql.DB, d *metricsData, factory, attempt string) error {
 	where, args := "", []any{}
 	if factory != "" {
@@ -85,17 +79,15 @@ func loadContext(db *sql.DB, d *metricsData, factory, attempt string) error {
 	)
 }
 
-// ctxStats are the sums of the Context data of some attempts: those of one unit, or of a card's units.
 type ctxStats struct {
-	units   int // work items with a context attempt
-	runs    int // attempts with any context data
-	convs   int // attempts with turns
-	scored  int // attempts with a context.score
-	built   int // scored attempts that were built
-	simRuns int // scored attempts with simulator violations
+	runs    int
+	convs   int
+	scored  int
+	built   int
+	simRuns int
 
 	factoryTurns, personTurns, personWords int64
-	scoredFactoryTurns                     int64 // factory turns of the scored attempts, for items per turn
+	scoredFactoryTurns                     int64
 	moves                                  map[string]int
 	couldNot, already, inAtt               int
 	accepted, rejected                     int
@@ -115,12 +107,11 @@ type ctxStats struct {
 
 func (s *ctxStats) has() bool { return s.runs > 0 }
 
-// add counts one attempt's turns and score; either may be missing.
 func (s *ctxStats) add(turns []mTurn, sc *mScore) {
 	if len(turns) == 0 && sc == nil {
 		return
 	}
-	s.runs, s.units = s.runs+1, 1
+	s.runs++
 	if s.moves == nil {
 		s.moves, s.latentByMove = map[string]int{}, map[string]int64{}
 	}
@@ -206,12 +197,10 @@ func (s *ctxStats) add(turns []mTurn, sc *mScore) {
 	s.costBuild += sc.costBuild
 }
 
-// merge adds the sums of o to s.
 func (s *ctxStats) merge(o *ctxStats) {
 	if s.moves == nil {
 		s.moves, s.latentByMove = map[string]int{}, map[string]int64{}
 	}
-	s.units += o.units
 	s.runs += o.runs
 	s.convs += o.convs
 	s.scored += o.scored
@@ -269,7 +258,6 @@ func (s *ctxStats) merge(o *ctxStats) {
 	s.costBuild += o.costBuild
 }
 
-// nextAfter returns the index of the first turn after i by speaker, or -1.
 func nextAfter(turns []mTurn, i int, speaker string) int {
 	for j := i + 1; j < len(turns); j++ {
 		if turns[j].speaker == speaker {
@@ -279,8 +267,6 @@ func nextAfter(turns []mTurn, i int, speaker string) int {
 	return -1
 }
 
-// recovered reports whether the don't-know of person turn i got an answer: the next factory turn is a show or
-// suggest, and the next person turn after that states at least one hidden-truth id.
 func recovered(turns []mTurn, i int) bool {
 	f := nextAfter(turns, i, "factory")
 	if f < 0 || (turns[f].move != "show" && turns[f].move != "suggest") {
@@ -290,7 +276,6 @@ func recovered(turns []mTurn, i int) bool {
 	return p >= 0 && len(turns[p].revealed) > 0
 }
 
-// num shows halves (half credit counts) with one decimal and whole numbers without.
 func num(v float64) string {
 	if v == float64(int64(v)) {
 		return strconv.FormatInt(int64(v), 10)
@@ -298,7 +283,6 @@ func num(v float64) string {
 	return fmt.Sprintf("%.1f", v)
 }
 
-// ratef is a rate whose numerator can hold half credits; n/a for an empty denominator.
 func ratef(k float64, n int64) string {
 	if n == 0 {
 		return "n/a"
@@ -306,7 +290,6 @@ func ratef(k float64, n int64) string {
 	return fmt.Sprintf("%.0f%% (%s/%d)", 100*k/float64(n), num(k), n)
 }
 
-// ratio is a plain quotient with its counts; n/a for an empty denominator.
 func ratio(k float64, n int64) string {
 	if n == 0 {
 		return "n/a"
@@ -316,7 +299,6 @@ func ratio(k float64, n int64) string {
 
 func credit(full, partial int64) float64 { return float64(full) + 0.5*float64(partial) }
 
-// topCounts shows the n largest counts as "name k", ties by name.
 func topCounts(m map[string]int, n int) string {
 	names := slices.Collect(maps.Keys(m))
 	sort.Slice(names, func(i, j int) bool {
@@ -337,17 +319,15 @@ func topCounts(m map[string]int, n int) string {
 	return strings.Join(top, ", ")
 }
 
-// ctxMetric is one Context metric: a label, the better direction (+1 higher, -1 lower, 0 neither) and its value.
 type ctxMetric struct {
 	label string
 	dir   int
 	val   func(s *ctxStats) string
 }
 
-// contextMetrics are the rows of the Context section, in the order of docs/context-bench.md "Metrics".
 var contextMetrics = []ctxMetric{
-	{"context turns / issue", 0, func(s *ctxStats) string { return avg(int(s.factoryTurns), s.units) }},
-	{"person words / issue", 0, func(s *ctxStats) string { return avg(int(s.personWords), s.units) }},
+	{"context turns / conversation", 0, func(s *ctxStats) string { return avg(int(s.factoryTurns), s.convs) }},
+	{"person words / conversation", 0, func(s *ctxStats) string { return avg(int(s.personWords), s.convs) }},
 	{"moves", 0, func(s *ctxStats) string { return topCounts(s.moves, 3) }},
 	{"could not answer", -1, func(s *ctxStats) string { return rate(s.couldNot, int(s.personTurns)) }},
 	{"asked again", -1, func(s *ctxStats) string { return per(avg(s.already, s.convs), "conversation") }},
@@ -398,7 +378,7 @@ var contextMetrics = []ctxMetric{
 	{"simulator violations", -1, func(s *ctxStats) string {
 		v := per(avg(int(s.simViolation), s.scored), "run")
 		if s.simRuns > 0 {
-			v += fmt.Sprintf(" ⚠ %s marked", plural(s.simRuns, "run"))
+			v = strings.Replace(v, " (", " ⚠ (", 1) + fmt.Sprintf(" · %s marked", plural(s.simRuns, "run"))
 		}
 		return v
 	}},
@@ -411,7 +391,6 @@ var contextMetrics = []ctxMetric{
 	}},
 }
 
-// per adds " / unit" to a value unless it is n/a.
 func per(v, unit string) string {
 	if v == "n/a" {
 		return v
@@ -419,7 +398,6 @@ func per(v, unit string) string {
 	return v + " / " + unit
 }
 
-// intCounts shows a count map as "name k", largest first, or "" when empty.
 func intCounts(m map[string]int64) string {
 	im := map[string]int{}
 	for k, v := range m {
@@ -445,7 +423,6 @@ func (s *ctxStats) metrics() []ContextMetric {
 	return out
 }
 
-// contextSection returns the Context rows of the scorecard, one value per card, or nil when no card has context data.
 func contextSection(cards []*card) []ScoreRow {
 	any := false
 	for _, c := range cards {
@@ -467,7 +444,6 @@ func contextSection(cards []*card) []ScoreRow {
 	return rows
 }
 
-// printContextCards prints the Context rows of `report factories` below the scorecard.
 func printContextCards(w io.Writer, cards []*card) error {
 	rows := contextSection(cards)
 	if rows == nil {
@@ -490,7 +466,6 @@ func printContextCards(w io.Writer, cards []*card) error {
 	return tw.Flush()
 }
 
-// printContextUnits prints the Context section of `report items`: one row per unit with context data.
 func printContextUnits(w io.Writer, units []*unit) error {
 	var rows []*unit
 	for _, u := range units {
@@ -518,10 +493,8 @@ func printContextUnits(w io.Writer, units []*unit) error {
 	return tw.Flush()
 }
 
-// runsText is "3 (2 scored)": the attempts with context data and how many of them were scored.
 func (s *ctxStats) runsText() string { return fmt.Sprintf("%d (%d scored)", s.runs, s.scored) }
 
-// ContextUnit is the Context metrics of one factory on one work item.
 type ContextUnit struct {
 	Factory string
 	Runs    string
@@ -541,27 +514,23 @@ type ContextTurnRow struct {
 	TaggedBy    string `json:",omitempty"`
 }
 
-// ContextAttempt is the conversation and the Context metrics of one attempt.
 type ContextAttempt struct {
 	Turns   []ContextTurnRow
 	Scored  bool
 	Metrics []ContextMetric
 }
 
-// ContextRun is a ContextAttempt with the attempt it belongs to.
 type ContextRun struct {
 	Factory, Attempt, Role string
 	Labels                 []string
 	ContextAttempt
 }
 
-// ContextOfItem is what the issue page shows: the metrics per factory, and every conversation.
 type ContextOfItem struct {
 	Units []ContextUnit
 	Runs  []ContextRun
 }
 
-// conversation returns the context data of the attempt with key factory \x00 attempt, or nil when it has none.
 func (d *metricsData) conversation(k string) *ContextAttempt {
 	var st ctxStats
 	st.add(d.turns[k], d.scores[k])
@@ -597,17 +566,21 @@ func ContextOfAttempt(db *sql.DB, factory, attempt string) (*ContextAttempt, err
 	return d.conversation(factory + "\x00" + attempt), nil
 }
 
-// ContextOfWorkItem returns the Context metrics of every factory with context data on the work item (the numbers of
-// `report items`) and each of its context attempts' conversations.
-func ContextOfWorkItem(db *sql.DB, repo string, issue int64) (*ContextOfItem, error) {
+// WorkItem returns the item rows of every factory on the work item (as ItemRows) and their Context metrics (the
+// numbers of `report items`) with each of its context attempts' conversations, from one load of the database.
+func WorkItem(db *sql.DB, repo string, issue int64, now time.Time) ([]ItemRow, *ContextOfItem, error) {
 	d, err := loadMetrics(db, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	key := fmt.Sprintf("%s#%d", repo, issue)
-	out := &ContextOfItem{Units: []ContextUnit{}, Runs: []ContextRun{}}
-	for _, u := range buildUnits(d, false, time.Now()) {
-		if u.ctx.has() && u.item.key == key {
+	rows, out := []ItemRow{}, &ContextOfItem{Units: []ContextUnit{}, Runs: []ContextRun{}}
+	for _, u := range buildUnits(d, false, now) {
+		if u.item.key != key {
+			continue
+		}
+		rows = append(rows, u.row())
+		if u.ctx.has() {
 			out.Units = append(out.Units, ContextUnit{u.factory, u.ctx.runsText(), u.ctx.metrics()})
 		}
 	}
@@ -619,11 +592,9 @@ func ContextOfWorkItem(db *sql.DB, repo string, issue int64) (*ContextOfItem, er
 			out.Runs = append(out.Runs, ContextRun{a.factory, a.id, a.role, append([]string{}, d.labels[a.factory+"\x00"+a.id]...), *c})
 		}
 	}
-	return out, nil
+	return rows, out, nil
 }
 
-// runSource says who set the person tags of a run: "simulated", "real" (a person or the tagger), "mixed", or ""
-// when no person turn has a tagged_by.
 func runSource(turns []mTurn) string {
 	sim, real := false, false
 	for _, t := range turns {
@@ -645,7 +616,6 @@ func runSource(turns []mTurn) string {
 	return ""
 }
 
-// maxTurns is the value of the attempt's max-turns: label, "" without one.
 func maxTurns(labels []string) string {
 	for _, l := range labels {
 		if v, ok := strings.CutPrefix(l, "max-turns:"); ok {
@@ -691,7 +661,6 @@ func Context(db *sql.DB, w io.Writer, factory string, labels []string) error {
 	}
 	fmt.Fprintf(w, "%s with context data · %d scored · %s\n", plural(len(runs), "run"), all.scored, plural(int(all.factoryTurns), "factory turn"))
 
-	// effort curve
 	byTurns := map[string]*ctxStats{}
 	for _, r := range runs {
 		k := maxTurns(d.labels[r.a.factory+"\x00"+r.a.id])
@@ -726,7 +695,6 @@ func Context(db *sql.DB, w io.Writer, factory string, labels []string) error {
 		return err
 	}
 
-	// moves
 	type moveStat struct{ used, revealed, accepted, rejected int }
 	moves := map[string]*moveStat{}
 	for _, r := range runs {
@@ -768,7 +736,6 @@ func Context(db *sql.DB, w io.Writer, factory string, labels []string) error {
 		return err
 	}
 
-	// simulated against real
 	scenarios := map[string]map[string]*ctxStats{}
 	untagged := 0
 	for _, r := range runs {
@@ -825,7 +792,6 @@ func Context(db *sql.DB, w io.Writer, factory string, labels []string) error {
 	return nil
 }
 
-// metricVal is the value of the named Context metric.
 func metricVal(label string, s *ctxStats) string {
 	for _, m := range contextMetrics {
 		if m.label == label {

@@ -72,7 +72,6 @@ func TestScoreCountsTheTruthAndTheJudgesVerdict(t *testing.T) {
 	if c := sc.Captured; c.Full != 1 || c.Partial != 2 || c.G4Full != 1 || c.G4Partial != 1 || c.Latent != 2 {
 		t.Errorf("captured %+v", c)
 	}
-	// A was revealed after ask (a violation, still counted by move), D after show; A again at turn 6 is no new reveal
 	if want := map[string]int64{"show": 1, "ask": 1}; len(sc.LatentByMove) != 2 || sc.LatentByMove["show"] != want["show"] || sc.LatentByMove["ask"] != want["ask"] {
 		t.Errorf("latent_by_move %v", sc.LatentByMove)
 	}
@@ -95,7 +94,7 @@ func TestScoreCountsTheTruthAndTheJudgesVerdict(t *testing.T) {
 
 func TestLatentCapturedNeedsTheChangeToHoldIt(t *testing.T) {
 	j := judged()
-	j.Items[0].Captured = "none" // A was revealed but the change does not hold it
+	j.Items[0].Captured = "none"
 	if sc := Score(ScoreInput{Truth: truth(), Judge: j, Turns: transcript()}); sc.Captured.Latent != 1 {
 		t.Errorf("captured.latent = %d, want 1 (a revealed latent item the change dropped is not drawn)", sc.Captured.Latent)
 	}

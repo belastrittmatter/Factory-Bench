@@ -6,14 +6,12 @@ import (
 	"strings"
 )
 
-// Captured values of a truth item in a change folder.
 const (
 	Full    = "full"
 	Partial = "partial"
 	None    = "none"
 )
 
-// JudgeItem is the judge's verdict on one truth item.
 type JudgeItem struct {
 	ID       string `json:"id"`
 	Captured string `json:"captured"`
@@ -30,14 +28,12 @@ type JudgeTrap struct {
 	Evidence           string `json:"evidence"`
 }
 
-// Invented is a requirement that nothing in the truth or the transcript supports.
 type Invented struct {
 	Requirement   string `json:"requirement"`
 	MarkedAssumed bool   `json:"marked_assumed"`
 	Why           string `json:"why"`
 }
 
-// MapTagError is a map bullet whose source tag is wrong.
 type MapTagError struct {
 	Bullet   string `json:"bullet"`
 	Tag      string `json:"tag"`
@@ -45,21 +41,18 @@ type MapTagError struct {
 	Why      string `json:"why"`
 }
 
-// MissingSlot is a requirement that lacked a slot 4 (Failure) or slot 5 (Visual) it needed.
 type MissingSlot struct {
 	Requirement string `json:"requirement"`
 	Slot        int    `json:"slot"`
 	Why         string `json:"why"`
 }
 
-// Contradiction is a requirement that contradicts a living spec or a hard limit.
 type Contradiction struct {
 	Requirement string `json:"requirement"`
 	With        string `json:"with"`
 	Why         string `json:"why"`
 }
 
-// Judge is the judge's whole verdict.
 type Judge struct {
 	Items          []JudgeItem     `json:"items"`
 	Traps          []JudgeTrap     `json:"traps"`
@@ -137,7 +130,6 @@ func idsOf[T any](xs []T, id func(T) string) []string {
 	return out
 }
 
-// exactlyOnce checks that got lists every id of want once and nothing else.
 func exactlyOnce(what string, got, want []string) error {
 	seen := map[string]int{}
 	for _, g := range got {
@@ -164,7 +156,6 @@ func exactlyOnce(what string, got, want []string) error {
 	return nil
 }
 
-// BuilderTest is one scenario a builder would test.
 type BuilderTest struct {
 	Name  string `json:"name"`
 	Given string `json:"given"`
@@ -172,13 +163,11 @@ type BuilderTest struct {
 	Then  string `json:"then"`
 }
 
-// BuilderRequirement is a builder's tests for one requirement.
 type BuilderRequirement struct {
 	Requirement string        `json:"requirement"`
 	Tests       []BuilderTest `json:"tests"`
 }
 
-// BuilderReply is one builder's answer.
 type BuilderReply struct {
 	Requirements []BuilderRequirement `json:"requirements"`
 }
@@ -200,25 +189,21 @@ func ParseBuilder(raw []byte, reqIDs []string) (BuilderReply, error) {
 	return r, nil
 }
 
-// Verdicts of the comparison.
 const (
 	Agree    = "agree"
 	Disagree = "disagree"
 )
 
-// CompareVerdict is the comparison's verdict on one requirement.
 type CompareVerdict struct {
 	Requirement string `json:"requirement"`
 	Verdict     string `json:"verdict"`
 	Reason      string `json:"reason"`
 }
 
-// CompareReply is the comparison session's answer.
 type CompareReply struct {
 	Requirements []CompareVerdict `json:"requirements"`
 }
 
-// ParseCompare decodes a comparison reply.
 func ParseCompare(raw []byte, reqIDs []string) (CompareReply, error) {
 	var r CompareReply
 	if err := decodeStrict(raw, &r, "requirements"); err != nil {
@@ -235,14 +220,12 @@ func ParseCompare(raw []byte, reqIDs []string) (CompareReply, error) {
 	return r, nil
 }
 
-// Replay verdicts.
 const (
 	Same      = "same"
 	PartialV  = "partial"
 	Different = "different"
 )
 
-// ReplayVerdict compares one simulated answer with the real one.
 type ReplayVerdict struct {
 	Turn         int    `json:"turn"`
 	Verdict      string `json:"verdict"`
@@ -251,7 +234,6 @@ type ReplayVerdict struct {
 	Reason       string `json:"reason"`
 }
 
-// ReplayJudgeReply is the replay judge's answer.
 type ReplayJudgeReply struct {
 	Turns []ReplayVerdict `json:"turns"`
 }

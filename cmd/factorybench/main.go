@@ -231,7 +231,6 @@ func pollGitHub(db *sql.DB, extra []string, every time.Duration, token string, r
 	}
 }
 
-// stringList is a repeatable string flag (--repo, --label).
 type stringList []string
 
 func (r *stringList) String() string     { return strings.Join(*r, ",") }

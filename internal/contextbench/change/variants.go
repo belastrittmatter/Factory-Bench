@@ -8,7 +8,6 @@ import (
 	"strings"
 )
 
-// Expect is what the gates must say about a fixture folder.
 type Expect struct {
 	Gate1         bool `json:"gate1"`
 	Gate2         bool `json:"gate2"`
@@ -16,7 +15,6 @@ type Expect struct {
 	VagueWarnings int  `json:"vague_warnings"`
 }
 
-// Variant is a change folder of the gate fixtures with the verdict the gates must give it.
 type Variant struct {
 	Name   string
 	Folder *Folder

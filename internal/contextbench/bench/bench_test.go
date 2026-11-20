@@ -24,7 +24,6 @@ const (
 	creator  = "file:" + fixtures + "/subjects/fake-creator.md"
 )
 
-// recorder wraps the in-process fake and keeps every request.
 type recorder struct {
 	mu   sync.Mutex
 	reqs []claude.Request
@@ -47,18 +46,15 @@ func (r *recorder) role(role string) []claude.Request {
 	return out
 }
 
-// sink keeps every event the bench sends.
 type sink struct {
-	mu   sync.Mutex
-	raw  [][]byte
-	fail bool // Send reports a failed delivery (the events would be spooled)
+	mu  sync.Mutex
+	raw [][]byte
 }
 
-func (s *sink) send(evs ...[]byte) bool {
+func (s *sink) send(evs ...[]byte) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.raw = append(s.raw, evs...)
-	return !s.fail
 }
 
 type event struct {
@@ -140,7 +136,6 @@ func TestCheckPerson(t *testing.T) {
 		return &protocol.PersonTags{Revealed: ids, Suggestion: "accepted"}
 	}
 
-	// a latent id (T6) revealed after ask is a violation, and still counts as revealed
 	seen := map[string]bool{}
 	tg := tags("T6", "T1")
 	v, err := CheckPerson(&s.Truth, seen, "ask", tg)
@@ -151,7 +146,6 @@ func TestCheckPerson(t *testing.T) {
 		t.Error("a suggestion tag after ask must become none")
 	}
 
-	// after show and suggest the same reveal is fine
 	for _, move := range []string{"show", "suggest"} {
 		tg := tags("T7")
 		v, err := CheckPerson(&s.Truth, map[string]bool{}, move, tg)
@@ -159,25 +153,21 @@ func TestCheckPerson(t *testing.T) {
 			t.Errorf("%s: %v %v %s", move, v, err, tg.Suggestion)
 		}
 	}
-	// every other move is a violation for a latent item
 	for _, move := range []string{"capture", "mirror", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"} {
 		v, _ := CheckPerson(&s.Truth, map[string]bool{}, move, tags("T7"))
 		if len(v) != 1 {
 			t.Errorf("%s: latent reveal not counted: %v", move, v)
 		}
 	}
-	// a non-latent item after ask is fine
 	if v, _ := CheckPerson(&s.Truth, map[string]bool{}, "ask", tags("T2")); len(v) != 0 {
 		t.Errorf("non-latent: %v", v)
 	}
 
-	// unknown ids fail the run as invalid
 	_, err = CheckPerson(&s.Truth, map[string]bool{}, "ask", tags("T2", "ZZ9"))
 	if err == nil || !IsInvalid(err) || !strings.Contains(err.Error(), "ZZ9") {
 		t.Fatalf("unknown id: %v", err)
 	}
 
-	// first-time reveals only; noise ids are dropped; duplicates collapse
 	seen = map[string]bool{"T2": true}
 	tg = tags("T2", "N1", "T3", "T3", "X1")
 	if _, err := CheckPerson(&s.Truth, seen, "ask", tg); err != nil || strings.Join(tg.Revealed, ",") != "T3,X1" {
@@ -315,7 +305,6 @@ func TestPrepareErrors(t *testing.T) {
 	if p, err := e.Prepare(o); err != nil || p.PersonaID != "-" {
 		t.Errorf("none needs no person: %v", err)
 	}
-	// the same models are fine for a subject that does not talk
 	o.Models.Person = o.Models.Subject
 	if _, err := e.Prepare(o); err != nil {
 		t.Error(err)
@@ -363,7 +352,6 @@ func TestSubjectThatNeverFinishesFails(t *testing.T) {
 	if oc.Status != StatusFailed || !strings.Contains(oc.Note, "no turns are left") {
 		t.Fatalf("%+v", oc)
 	}
-	// the forced turn got one repair attempt: 2 calls on turn 3, plus 1 and 1 on turns 1 and 2
 	if n := len(ofType(sk.events(t), "usage")); n != 4 {
 		t.Errorf("%d usage events, want one per subject session (4)", n)
 	}
@@ -427,7 +415,6 @@ func TestHumanWhoLeavesForcesTheFinish(t *testing.T) {
 	if oc.Status != StatusCompleted {
 		t.Fatalf("%+v", oc)
 	}
-	// reply 1, then EOF on turn 2's reply: the next subject turn is told no turns are left
 	if oc.Turns != 3 || len(ofType(sk.events(t), "usage")) != 3 {
 		t.Errorf("factory turns %d, want 3", oc.Turns)
 	}
@@ -546,7 +533,6 @@ func TestReplayFeedsEveryRealQuestionAsAnAskTurnAndSendsNothing(t *testing.T) {
 			t.Errorf("question %d was not an ask turn", i+1)
 		}
 	}
-	// with history real, the third question's prompt carries the real answers of the first two
 	if !strings.Contains(rec.role("person")[2].Prompt, "Sales reps who use WhatsApp on their own laptops are the only users.") {
 		t.Error("real history missing")
 	}
@@ -571,13 +557,10 @@ func TestPlanCountsSessions(t *testing.T) {
 	for _, s := range p.Sessions() {
 		total += s.Max
 	}
-	// 6 subject + 5 person + judge + 3 builders + comparison
-	if total != 6+5+1+3+1 {
+	if total != (6+5+1+3+1)*2 {
 		t.Errorf("%d sessions", total)
 	}
 }
-
-// ---- the events ----
 
 func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 	e, rec, sk, _ := testEnv(t)
@@ -586,7 +569,6 @@ func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 	oc := run(t, e, o)
 	evs := sk.events(t)
 
-	// the attempt
 	if evs[0].Type != "attempt.started" || evs[len(evs)-1].Type != "attempt.finished" {
 		t.Fatalf("events run from %s to %s", evs[0].Type, evs[len(evs)-1].Type)
 	}
@@ -608,7 +590,6 @@ func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 		}
 	}
 
-	// one usage per subject session, and only those
 	if n := len(ofType(evs, "usage")); n != len(rec.role("subject")) || n != 8 {
 		t.Errorf("%d usage events for %d subject sessions", n, len(rec.role("subject")))
 	}
@@ -622,7 +603,6 @@ func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 		t.Errorf("usage %+v", u)
 	}
 
-	// turns: 1 is the person's brief; every later factory turn is followed by the person's answer, but the last
 	turns := ofType(evs, "context.turn")
 	if len(turns) != 1+8+7 {
 		t.Fatalf("%d turn events", len(turns))
@@ -644,7 +624,6 @@ func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 		}
 	}
 
-	// the gates, the score, the finish
 	gates := map[string]bool{}
 	for _, g := range ofType(evs, "gate") {
 		var gp struct {
@@ -670,7 +649,6 @@ func TestARunSendsTheAttemptItsTurnsUsageGatesAndScore(t *testing.T) {
 		t.Errorf("finished %+v", fin)
 	}
 
-	// events.jsonl is a copy of what was sent, in the order it was sent
 	b, err := os.ReadFile(filepath.Join(oc.Dir, "events.jsonl"))
 	var sent []byte
 	for _, raw := range sk.raw {
@@ -739,20 +717,8 @@ func TestGateOneIsOnlyReportedOnAFirstRun(t *testing.T) {
 	}
 }
 
-func TestAnUndeliverableSinkNeverFailsTheRun(t *testing.T) {
-	e, _, sk, _ := testEnv(t)
-	sk.fail = true
-	oc := run(t, e, opts(t, "ceiling", ""))
-	if oc.Status != StatusCompleted || oc.Score == nil {
-		t.Errorf("%+v", oc)
-	}
-	if b, err := os.ReadFile(filepath.Join(oc.Dir, "events.jsonl")); err != nil || bytes.Count(b, []byte("\n")) != len(sk.raw) {
-		t.Errorf("events.jsonl keeps everything even when delivery fails: %v", err)
-	}
-}
-
 func TestConfigVersionChangesWithPromptAndModel(t *testing.T) {
-	a := SubjectSpec{Kind: "file", Name: "file:/x/creator.md", Prompt: "one"}
+	a := SubjectSpec{Kind: SubjectFile, Name: "file:/x/creator.md", Prompt: "one"}
 	b := a
 	b.Prompt = "two"
 	va, vb := ConfigVersion(a, "m1"), ConfigVersion(b, "m1")
@@ -762,7 +728,7 @@ func TestConfigVersionChangesWithPromptAndModel(t *testing.T) {
 	if !strings.HasPrefix(va, "file-creator@") || !strings.HasSuffix(va, "/m1") || len(strings.Split(strings.Split(va, "@")[1], "/")[0]) != 12 {
 		t.Errorf("%s", va)
 	}
-	if ConfigVersion(SubjectSpec{Kind: "none", Name: "none"}, "m1") != "none" {
+	if ConfigVersion(SubjectSpec{Kind: SubjectNone, Name: "none"}, "m1") != "none" {
 		t.Error("none")
 	}
 }
@@ -803,12 +769,29 @@ func TestTurnEventsNumberTheConversationInOrder(t *testing.T) {
 	if evs := TurnEvents(turns, "tagger", true, t0); evs[2].Turn.Text != "" || evs[2].Turn.TaggedBy != "tagger" {
 		t.Errorf("--no-text: %+v", evs[2].Turn)
 	}
-	// every payload validates as a context.turn
 	for _, e := range evs {
 		body, _ := json.Marshal(e.Turn)
 		raw, _ := json.Marshal(contract.Event{Spec: contract.Spec, ID: "a:turn", Type: "context.turn", TS: e.At.Format(time.RFC3339), AttemptID: "a", Payload: body})
 		if _, _, err := contract.Validate(raw); err != nil {
 			t.Errorf("%v: %s", err, raw)
+		}
+	}
+}
+
+func TestSameModel(t *testing.T) {
+	for _, c := range []struct {
+		a, b string
+		want bool
+	}{
+		{"claude-opus-5-5", "claude-opus-5-5", true},
+		{"opus", "claude-opus-5-5", true},
+		{"claude-sonnet-5-5", "sonnet", true},
+		{"claude-opus-5-5", "claude-opus-4-7", false},
+		{"opus", "claude-sonnet-5-5", false},
+		{"opus", "sonnet", false},
+	} {
+		if got := sameModel(c.a, c.b); got != c.want {
+			t.Errorf("sameModel(%q, %q) = %v, want %v", c.a, c.b, got, c.want)
 		}
 	}
 }

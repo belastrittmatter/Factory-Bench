@@ -17,10 +17,8 @@ type Folder struct {
 	Files map[string]string
 }
 
-// New returns an empty folder.
 func New() *Folder { return &Folder{Files: map[string]string{}} }
 
-// Set adds or replaces a file.
 func (f *Folder) Set(path, content string) { f.Files[path] = content }
 
 // Paths lists the paths sorted.
@@ -33,7 +31,6 @@ func (f *Folder) Paths() []string {
 	return out
 }
 
-// ReadDir reads every regular file under dir.
 func ReadDir(dir string) (*Folder, error) {
 	f := New()
 	err := filepath.WalkDir(dir, func(p string, d os.DirEntry, err error) error {
@@ -51,7 +48,6 @@ func ReadDir(dir string) (*Folder, error) {
 	return f, err
 }
 
-// WriteDir writes the folder under dir.
 func (f *Folder) WriteDir(dir string) error {
 	for _, p := range f.Paths() {
 		full := filepath.Join(dir, filepath.FromSlash(p))
@@ -83,21 +79,19 @@ func (f *Folder) Render() string {
 	return b.String()
 }
 
-// Scenario is one #### Scenario block of a requirement.
 type Scenario struct {
 	Name string
-	When []string // text of every WHEN line
+	When []string
 	Then []string
-	Raw  []string // the WHEN, THEN and AND lines, for the vague-word check
+	Raw  []string
 }
 
-// Requirement is one ### Requirement block of a spec delta.
 type Requirement struct {
 	ID        string // R1, R2, ... in spec path order then file order
-	Spec      string // path of the delta file
+	Spec      string
 	Section   string // ADDED, MODIFIED, REMOVED, or "" when outside a delta section
 	Name      string
-	Body      string // text before the first scenario
+	Body      string
 	Scenarios []Scenario
 	Fields    map[string]string // **Scope fence:**, **Failure:**, **Visual:**, **Reason:**, ... by lower-case name
 }
@@ -193,7 +187,6 @@ func parseDelta(path, content string) []Requirement {
 	return out
 }
 
-// Index renders the requirement ids for a prompt: one line per requirement.
 func Index(reqs []Requirement) string {
 	if len(reqs) == 0 {
 		return "(no requirements)\n"
@@ -209,7 +202,6 @@ func Index(reqs []Requirement) string {
 	return b.String()
 }
 
-// IDs lists the requirement ids.
 func IDs(reqs []Requirement) []string {
 	out := make([]string, len(reqs))
 	for i, r := range reqs {
@@ -218,7 +210,6 @@ func IDs(reqs []Requirement) []string {
 	return out
 }
 
-// Gates is the outcome of gates 1 to 3.
 type Gates struct {
 	Gate1, Gate2, Gate3 bool
 	Failures            []string // why a gate failed, each prefixed "gate N:"
@@ -249,7 +240,6 @@ func Check(f *Folder, firstRun bool) Gates {
 		}
 	}
 
-	// gate 1
 	if firstRun {
 		pm, ok := f.Files["project.md"]
 		if !ok {
@@ -268,7 +258,6 @@ func Check(f *Folder, firstRun bool) Gates {
 		}
 	}
 
-	// gate 2
 	for _, p := range requiredFiles {
 		if c, ok := f.Files[p]; !ok {
 			fail(2, "required file %s is missing", p)
@@ -329,7 +318,6 @@ func Check(f *Folder, firstRun bool) Gates {
 		}
 	}
 
-	// gate 3
 	for _, r := range reqs {
 		if r.Section == "REMOVED" {
 			continue
@@ -374,7 +362,6 @@ func nonEmpty(xs []string) bool {
 	return false
 }
 
-// sections splits markdown at headings of exactly the given level; it returns heading -> body.
 func sections(md string, level int) []section {
 	var out []section
 	prefix := strings.Repeat("#", level) + " "
@@ -393,7 +380,6 @@ func sections(md string, level int) []section {
 
 type section struct{ title, body string }
 
-// lookup finds a section whose title is want or starts with want (case-insensitive: "Hard limits (P1 to P7)").
 func lookup(secs []section, want string) (string, bool) {
 	w := strings.ToLower(want)
 	for _, s := range secs {

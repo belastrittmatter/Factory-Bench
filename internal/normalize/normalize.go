@@ -162,7 +162,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		p := contract.ParsePayload(e.Payload)
 		wi := p.WorkItem.Repo + "#" + itoa(p.WorkItem.Issue)
 		parent := str(p.ParentAttemptID)
-		if parent == nil {
+		if parent == nil && p.Role != contract.RoleContext {
 			parent = str(latest[e.Factory+"\x00"+wi])
 		}
 		latest[e.Factory+"\x00"+wi] = e.AttemptID
@@ -185,8 +185,8 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	// Pass 2: everything else, in ts order.
 	waits := map[string]string{}    // attempt key -> open human.waiting ts
 	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
-	turnAt := map[string]int{}      // attempt key \x00 turn number -> index in d.ContextTurns
-	scoreAt := map[string]int{}     // attempt key -> index in d.ContextScores
+	turnAt := map[string]int{}
+	scoreAt := map[string]int{}
 	prs := map[string]*pr{}
 	var prOrder []string
 	runs := agents{runs: map[string]*agentRun{}}
@@ -247,7 +247,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "context.turn":
 			t := contract.ParseContextTurn(e.Payload)
 			tk := k + "\x00" + itoa(t.N)
-			if i, ok := turnAt[tk]; ok { // a later event for the same turn replaces it
+			if i, ok := turnAt[tk]; ok {
 				d.ContextTurns[i] = contextTurn{e.Factory, a.ID, e.TS, t}
 			} else {
 				turnAt[tk] = len(d.ContextTurns)

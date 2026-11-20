@@ -11,6 +11,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"factorybench/internal/contextbench/bench"
 	"factorybench/internal/contextbench/fakeclaude"
@@ -20,7 +21,6 @@ import (
 	"factorybench/internal/report"
 )
 
-// specificChecks are the invariants of each kind of run: what the fake claude's script makes each of them do.
 func (d *dry) specificChecks(got map[string]*finished) {
 	need := func(n string) *finished {
 		f := got[n]
@@ -28,14 +28,14 @@ func (d *dry) specificChecks(got map[string]*finished) {
 		return f
 	}
 	allGates := func(f *finished, want bool) bool {
-		return len(f.gates) == 4 && f.gates[bench.GateFrame].Passed == want && f.gates[bench.GateChange].Passed == want &&
-			f.gates[bench.GateTestable].Passed == want && f.gates[bench.GateAgreement].Passed == want
+		return len(f.gates) == 4 && f.gates[bench.Gate1Frame].Passed == want && f.gates[bench.Gate2Change].Passed == want &&
+			f.gates[bench.Gate3Testable].Passed == want && f.gates[bench.Gate4Agreement].Passed == want
 	}
 	if f := need("none"); f != nil && f.score != nil {
 		s := f.score
 		d.check(len(f.calls("subject")) == 0 && len(f.calls("person")) == 0 && len(f.calls("builder")) == 0 && len(f.calls("judge")) == 1, "none: wrong calls %d", len(f.log))
 		d.check(allGates(f, false), "none: gates %v", f.gates)
-		d.check(f.gates[bench.GateAgreement].Reason != "" && f.gates[bench.GateChange].Reason != "", "none: a failed gate has no reason: %v", f.gates)
+		d.check(f.gates[bench.Gate4Agreement].Reason != "" && f.gates[bench.Gate2Change].Reason != "", "none: a failed gate has no reason: %v", f.gates)
 		d.check(s.Captured.Full == 0 && s.Captured.Partial == 0 && s.InventedUnmarked == 0 && s.Requirements == 0 && s.Builders.Total == 0 && s.Persona == "", "none: score %+v", s)
 		_, err := os.Stat(filepath.Join(f.dir, "change", "brief.md"))
 		d.check(err == nil, "none: the change folder has no brief.md")
@@ -128,29 +128,27 @@ func (d *dry) specificChecks(got map[string]*finished) {
 	}
 	if f := need("disagree"); f != nil && f.score != nil {
 		s := f.score
-		g := f.gates[bench.GateAgreement]
-		d.check(!g.Passed && strings.Contains(g.Reason, "R1") && s.Builders.Agree < s.Builders.Total && s.Builders.Agree > 0 && f.gateOK(bench.GateChange), "disagree: gate %+v builders %+v", g, s.Builders)
+		g := f.gates[bench.Gate4Agreement]
+		d.check(!g.Passed && strings.Contains(g.Reason, "R1") && s.Builders.Agree < s.Builders.Total && s.Builders.Agree > 0 && f.gateOK(bench.Gate2Change), "disagree: gate %+v builders %+v", g, s.Builders)
 	}
 	if f := need("invent"); f != nil && f.score != nil {
 		s := f.score
 		d.check(s.Invented == 1 && s.InventedUnmarked == 1 && s.AssumedMarked == 0, "invent: %+v", s)
 	}
 	if f := need("contradict"); f != nil && f.score != nil {
-		g := f.gates[bench.GateChange]
-		d.check(!g.Passed && strings.Contains(g.Reason, "contradict") && f.gateOK(bench.GateFrame) && f.gateOK(bench.GateTestable) && f.score.Contradictions == 1, "contradict: gates %v", f.gates)
+		g := f.gates[bench.Gate2Change]
+		d.check(!g.Passed && strings.Contains(g.Reason, "contradict") && f.gateOK(bench.Gate1Frame) && f.gateOK(bench.Gate3Testable) && f.score.Contradictions == 1, "contradict: gates %v", f.gates)
 		b, _ := os.ReadFile(filepath.Join(f.dir, "gates.json"))
 		d.check(strings.Contains(string(b), "contradict"), "contradict: gates.json does not say why gate 2 failed")
 	}
 	if f := need("judge-fails"); f != nil {
 		d.check(f.fin.Status == bench.StatusFailed && strings.Contains(f.fin.Reason, "judge") && f.score == nil, "judge-fails: %+v", f.fin)
-		d.check(f.gateOK(bench.GateFrame) && f.gateOK(bench.GateChange) && f.gateOK(bench.GateTestable), "judge-fails: the gates decided by code were not reported: %v", f.gates)
-		_, hasAgreement := f.gates[bench.GateAgreement]
+		d.check(f.gateOK(bench.Gate1Frame) && f.gateOK(bench.Gate2Change) && f.gateOK(bench.Gate3Testable), "judge-fails: the gates decided by code were not reported: %v", f.gates)
+		_, hasAgreement := f.gates[bench.Gate4Agreement]
 		d.check(!hasAgreement, "judge-fails: gate 4 was reported without builders")
 	}
 	d.say("ok  baselines, personas, forced final turn, protocol checks, latent-after-ask violation, human run, build command and failures behave as docs/context-bench.md says")
 }
-
-// ---- matrix ----
 
 func (d *dry) matrix() {
 	out := filepath.Join(d.tmp, "matrix-runs")
@@ -160,12 +158,10 @@ func (d *dry) matrix() {
 	d.say("ok  matrix runs every subject on every scenario")
 }
 
-// ---- offline: events are spooled, never block, and flush later ----
-
 func (d *dry) offline(got map[string]*finished) {
 	_ = os.Remove(d.spool)
 	logger := log.Writer()
-	log.SetOutput(io.Discard) // emit reports the failed delivery on stderr: expected here
+	log.SetOutput(io.Discard)
 	rs := runSpec{name: "offline", subject: "none", env: map[string]string{"FACTORYBENCH_URL": "http://127.0.0.1:1"}}
 	f := d.runOne(nil, rs)
 	log.SetOutput(logger)
@@ -184,8 +180,6 @@ func (d *dry) offline(got map[string]*finished) {
 	got["offline"] = f
 	d.say("ok  an unreachable FactoryBench never blocks a run: its %d events are spooled and flush later", len(f.raw))
 }
-
-// ---- replay and retag ----
 
 func (d *dry) replayAndRetag(got map[string]*finished) {
 	env := map[string]string{"FACTORYBENCH_FAKE_LOG": filepath.Join(d.logs, "replay.jsonl")}
@@ -220,7 +214,6 @@ func (d *dry) replayAndRetag(got map[string]*finished) {
 	}
 	d.check(persons == 3, "replay: %d person calls for 3 questions", persons)
 
-	// retag a simulated run: the fake tagger and the fake person apply the same rules, so they agree
 	target := got["file-unsure-10"]
 	if target == nil {
 		d.check(false, "retag: the unsure run is missing")
@@ -241,12 +234,9 @@ func (d *dry) replayAndRetag(got map[string]*finished) {
 	d.say("ok  replay (agreement %.2f over 3 real questions) and retag (agreement %.2f) stay local", c.Agreement, rt.Agreement.Overall)
 }
 
-// ---- the FactoryBench side: replay the database and read it with report ----
-
 var runsHeadRe = regexp.MustCompile(`(\d+) runs? with context data · (\d+) scored`)
 
 func (d *dry) database(got map[string]*finished) {
-	// what every run sent, run by run: local evidence of the runs under d.runs and the matrix's
 	var sent, turns, scored, runs int
 	for _, root := range []string{d.runs, filepath.Join(d.tmp, "matrix-runs")} {
 		for _, n := range dirNames(root) {
@@ -280,7 +270,6 @@ func (d *dry) database(got map[string]*finished) {
 	d.check(count(`SELECT count(*) FROM work_items WHERE repo = 'bench/tiny-context' AND issue = 1`) == 1, "the scenario's work item is not one work item")
 	d.check(count(`SELECT count(*) FROM attempts WHERE role = 'context'`) == runs, "%d context attempts for %d runs", count(`SELECT count(*) FROM attempts WHERE role = 'context'`), runs)
 
-	// per attempt, through the report package the dashboard shares
 	for name, f := range got {
 		ca, err := report.ContextOfAttempt(d.db, factoryID, f.info.Attempt)
 		d.check(err == nil && ca != nil, "%s: no context data in the report: %v", name, err)
@@ -295,7 +284,7 @@ func (d *dry) database(got map[string]*finished) {
 			d.check(metric(ca.Metrics, "recall") != "" && strings.Contains(metric(ca.Metrics, "recall"), "/"), "recall of the technical run shows no counts: %q", metric(ca.Metrics, "recall"))
 		}
 	}
-	ci, err := report.ContextOfWorkItem(d.db, "bench/tiny-context", 1)
+	_, ci, err := report.WorkItem(d.db, "bench/tiny-context", 1, time.Now())
 	d.check(err == nil && ci != nil && len(ci.Units) == 1 && ci.Units[0].Factory == factoryID && ci.Units[0].Runs == strconv.Itoa(runs)+" ("+strconv.Itoa(scored)+" scored)" && len(ci.Runs) == runs,
 		"context of the work item: %+v %v", ci, err)
 

@@ -68,14 +68,27 @@ func Run(args []string, usage string) {
 	}
 }
 
-// Send delivers events like Run does for one: one request to FACTORYBENCH_URL, spooled when it fails, nothing
-// when FACTORYBENCH_URL is unset. It never fails the caller and reports whether the events were delivered (or
-// there was nowhere to send them). It is for programs that emit many events themselves, such as the context bench.
-func Send(evs ...[]byte) bool {
+// Send delivers events like Run does for one: posted to FACTORYBENCH_URL in chunks, what isn't delivered spooled,
+// nothing when FACTORYBENCH_URL is unset. It never fails the caller. It is for programs that emit many events
+// themselves, such as the context bench.
+func Send(evs ...[]byte) {
 	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
-	if url == "" || len(evs) == 0 {
-		return true
+	if url == "" {
+		return
 	}
+	rest, err := postAll(url, token, evs)
+	if err == nil {
+		return
+	}
+	p := spoolPath()
+	if serr := spool(p, rest...); serr != nil {
+		log.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(rest), serr)
+		return
+	}
+	log.Printf("emit: %v; %d events spooled to %s", err, len(rest), p)
+}
+
+func postAll(url, token string, evs [][]byte) ([][]byte, error) {
 	for len(evs) > 0 {
 		n := min(chunk, len(evs))
 		batch := make([]json.RawMessage, n)
@@ -83,17 +96,11 @@ func Send(evs ...[]byte) bool {
 			batch[i] = evs[i]
 		}
 		if err := post(url, token, batch); err != nil {
-			p := spoolPath()
-			if serr := spool(p, evs...); serr != nil {
-				log.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(evs), serr)
-			} else {
-				log.Printf("emit: %v; %d events spooled to %s", err, len(evs), p)
-			}
-			return false
+			return evs, err
 		}
 		evs = evs[n:]
 	}
-	return true
+	return nil, nil
 }
 
 func spoolPath() string {
@@ -194,29 +201,19 @@ func send(url, token, p, sending string) bool {
 			evs = append(evs, l)
 		}
 	}
-	sent := 0
-	for len(evs) > 0 {
-		n := min(chunk, len(evs))
-		batch := make([]json.RawMessage, n)
-		for i := range batch {
-			batch[i] = evs[i]
+	rest, perr := postAll(url, token, evs)
+	if perr != nil {
+		if serr := spool(p, rest...); serr != nil {
+			log.Printf("flush: %v; cannot re-spool (%v), events kept in %s", perr, serr, sending)
+			return false
 		}
-		if err := post(url, token, batch); err != nil {
-			if serr := spool(p, evs...); serr != nil {
-				log.Printf("flush: %v; cannot re-spool (%v), events kept in %s", err, serr, sending)
-				return false
-			}
-			log.Printf("flush: %v; %d events kept in spool", err, len(evs))
-			break
-		}
-		sent += n
-		evs = evs[n:]
+		log.Printf("flush: %v; %d events kept in spool", perr, len(rest))
 	}
-	if sent > 0 || len(evs) == 0 { // after a failed post, the "kept in spool" log already says what happened
+	if sent := len(evs) - len(rest); sent > 0 || len(rest) == 0 {
 		fmt.Printf("flushed %d events\n", sent)
 	}
 	if err := os.Remove(sending); err != nil {
 		log.Printf("flush: %v", err)
 	}
-	return len(evs) == 0
+	return len(rest) == 0
 }

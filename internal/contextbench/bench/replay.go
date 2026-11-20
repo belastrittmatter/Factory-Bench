@@ -18,18 +18,16 @@ import (
 	"factorybench/internal/contextbench/scenario"
 )
 
-// ReplayOptions of one calibration replay.
 type ReplayOptions struct {
 	Calibration string // an id under calibration/, or a path to a calibration file
 	History     string // "sim": the person sees its own earlier answers; "real": the real ones
-	Person      string // the model playing the person
-	Judge       string // the model judging the answers
+	Person      string
+	Judge       string
 	MaxCost     float64
 	Out         string
 	Yes         bool
 }
 
-// ReplayTurn is the comparison of one question's answers.
 type ReplayTurn struct {
 	Turn           int     `json:"turn"`
 	Question       string  `json:"question"`
@@ -67,13 +65,11 @@ type CalibrationResult struct {
 	Turns             []ReplayTurn `json:"turns"`
 }
 
-// ReplayModels names the models of a replay.
 type ReplayModels struct {
 	Person string `json:"person"`
 	Judge  string `json:"judge"`
 }
 
-// ReplayCost is the money spent by a replay.
 type ReplayCost struct {
 	Person float64 `json:"person"`
 	Judge  float64 `json:"judge"`
@@ -118,8 +114,8 @@ func (e *Env) Replay(ctx context.Context, o ReplayOptions) (*CalibrationResult, 
 		fmt.Fprintf(e.Stdout, "calibration %s: scenario %s, persona %s, %d real questions\n", cal.ID, cal.Scenario, cal.Persona, len(cal.Turns))
 		fmt.Fprintf(e.Stdout, "  starts  person     %d x %s (one per question, history: %s)\n", len(cal.Turns), o.Person, o.History)
 		fmt.Fprintf(e.Stdout, "  starts  judge      1 x %s\n", o.Judge)
-		total := len(cal.Turns) + 1
-		fmt.Fprintf(e.Stdout, "cap       $%g per session; at most %d sessions: $%.2f [INFERENCE: a ceiling from the cap, not an estimate of the cost]\n", o.MaxCost, total, float64(total)*o.MaxCost)
+		total := (len(cal.Turns) + 1) * TriesPerAsk
+		fmt.Fprintf(e.Stdout, "cap       $%g per session; at most %d sessions, repairs included: $%.2f [INFERENCE: a ceiling from the cap, not an estimate of the cost]\n", o.MaxCost, total, float64(total)*o.MaxCost)
 		fmt.Fprintln(e.Stdout, "add --yes to start it")
 		return nil, "", nil
 	}
@@ -228,7 +224,6 @@ func LengthRatio(sim, real string) float64 {
 	return float64(protocol.Words(sim)) / float64(r)
 }
 
-// summarize fills the aggregate fields of a calibration result from the judged turns.
 func summarize(out *CalibrationResult, sim []ReplayTurn) {
 	var dk int
 	var ratios []float64
@@ -272,7 +267,6 @@ type RetagFile struct {
 	Turns       []RetagTurn          `json:"turns"`
 }
 
-// RetagTurn holds both taggings of one person turn.
 type RetagTurn struct {
 	Turn      int                 `json:"turn"`
 	Simulator protocol.PersonTags `json:"simulator"`
@@ -310,7 +304,8 @@ func (e *Env) Retag(ctx context.Context, runDir, taggerModel string, maxCost flo
 	want := PersonTurns(turns)
 	if !yes {
 		fmt.Fprintln(e.Stdout, "plan (nothing is called without --yes):")
-		fmt.Fprintf(e.Stdout, "re-tag run %s (%d person turns)\n  starts  tagger     1 x %s\ncap       $%g per session [INFERENCE: a ceiling from the cap, not an estimate of the cost]\nadd --yes to start it\n", info.Run, len(want), taggerModel, maxCost)
+		fmt.Fprintf(e.Stdout, "re-tag run %s (%d person turns)\n  starts  tagger     1 x %s\ncap       $%g per session; at most %d sessions, repairs included: $%.2f [INFERENCE: a ceiling from the cap, not an estimate of the cost]\nadd --yes to start it\n",
+			info.Run, len(want), taggerModel, maxCost, TriesPerAsk, float64(TriesPerAsk)*maxCost)
 		return nil, nil
 	}
 	meter := &Meter{}
@@ -319,7 +314,6 @@ func (e *Env) Retag(ctx context.Context, runDir, taggerModel string, maxCost flo
 	if err != nil {
 		return nil, err
 	}
-	// normalise the tagger's tags the way the harness normalises any person's
 	tagged := make([]protocol.Turn, len(turns))
 	copy(tagged, turns)
 	for i := range tagged {
