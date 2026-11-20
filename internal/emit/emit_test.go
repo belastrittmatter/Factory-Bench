@@ -83,3 +83,42 @@ func TestFlushNon2xxKeepsSpool(t *testing.T) {
 		t.Fatal(".sending not removed after re-spool")
 	}
 }
+
+func TestSendDeliversInOneRequestAndSpoolsOnFailure(t *testing.T) {
+	var batches [][]json.RawMessage
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var batch []json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&batch); err != nil {
+			http.Error(w, "bad", 400)
+			return
+		}
+		batches = append(batches, batch)
+		io.WriteString(w, `{"accepted":2,"duplicates":0,"rejected":[]}`)
+	}))
+	defer srv.Close()
+	p := setup(t, srv.URL)
+	if !Send([]byte(`{"id":"a:1"}`), []byte(`{"id":"a:2"}`)) || len(batches) != 1 || len(batches[0]) != 2 {
+		t.Fatalf("delivered %v", batches)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Error("a delivered batch was spooled")
+	}
+
+	// a failing server: nothing is lost and the caller is not failed
+	srv.Close()
+	if Send([]byte(`{"id":"a:3"}`)) {
+		t.Error("an undeliverable batch was reported as delivered")
+	}
+	if l := lines(t, p); len(l) != 1 || l[0] != `{"id":"a:3"}` {
+		t.Errorf("spool = %q", l)
+	}
+
+	// not configured: nothing to do, and nothing spooled
+	t.Setenv("FACTORYBENCH_URL", "")
+	if !Send([]byte(`{"id":"a:4"}`)) {
+		t.Error("Send without FACTORYBENCH_URL must be a no-op that succeeds")
+	}
+	if l := lines(t, p); len(l) != 1 {
+		t.Errorf("spool = %q", l)
+	}
+}

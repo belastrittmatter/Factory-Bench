@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"factorybench/internal/contract"
 	"factorybench/internal/normalize"
 	"factorybench/internal/store"
 )
@@ -32,7 +33,7 @@ import (
 //	rejected events      1 (usage without model)                    0
 func TestScorecard(t *testing.T) {
 	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
-	d, err := loadMetrics(db)
+	d, err := loadMetrics(db, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -125,19 +126,14 @@ func loadGolden(t *testing.T, path string) *sql.DB {
 	}
 	for _, batch := range gc.Batches {
 		for _, raw := range batch.Events {
-			var e struct {
-				ID, Type, TS string
-				Payload      struct {
-					Model *string `json:"model"`
-				} `json:"payload"`
-			}
+			var e struct{ ID, Type, TS string }
 			if err := json.Unmarshal(raw, &e); err != nil {
 				t.Fatal(err)
 			}
 			var rejected *string
-			if e.Type == "usage" && e.Payload.Model == nil { // the case's one invalid event
+			if _, _, err := contract.Validate(raw); err != nil { // as intake does: an invalid event is stored, rejected
 				rejected = new(string)
-				*rejected = "usage: model required"
+				*rejected = err.Error()
 			}
 			if _, err := store.InsertEvent(db, "contract", batch.Factory, e.ID, e.Type, e.TS, string(raw), rejected); err != nil {
 				t.Fatal(err)
@@ -218,7 +214,7 @@ func TestItemRows(t *testing.T) {
 
 func TestScorecardRows(t *testing.T) {
 	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
-	groups, rows, err := Scorecard(db, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	groups, rows, err := Scorecard(db, false, nil, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}

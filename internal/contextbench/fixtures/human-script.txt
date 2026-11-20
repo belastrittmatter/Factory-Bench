@@ -1,0 +1,14 @@
+Sales reps who use WhatsApp on their own laptops are the only users.
+.
+A message from an unticked chat is never sent anywhere.
+.
+The chat picker shows a tick box next to every chat.
+.
+If the laptop is offline, queued messages from an unticked chat are dropped, not sent later.
+.
+Unticking always wins; reps may change the ticks whenever they like.
+.
+It should be quick, a few minutes at most. Importing 500 messages must finish within 5 minutes.
+.
+Yes, start.
+.

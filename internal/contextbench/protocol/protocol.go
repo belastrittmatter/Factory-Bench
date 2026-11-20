@@ -1,0 +1,215 @@
+// Package protocol holds the message shapes of docs/context-bench.md: the subject reply, the person reply and its tags,
+// the judge, builder, comparison and replay shapes, their JSON schemas, and the transcript text format the
+// prompts use.
+package protocol
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"path"
+	"slices"
+	"strings"
+	"time"
+)
+
+// Moves is the subject's move vocabulary.
+var Moves = []string{"capture", "mirror", "show", "suggest", "expand", "sharpen", "challenge", "narrow", "ask", "confirm"}
+
+// IsShowOrSuggest reports whether a move is one that may draw a latent item out.
+func IsShowOrSuggest(move string) bool { return move == "show" || move == "suggest" }
+
+// File is one file of a change folder as the subject returns it.
+type File struct {
+	Path    string `json:"path"`
+	Content string `json:"content"`
+}
+
+// Change is the change folder a subject returns with done: true.
+type Change struct {
+	Files []File `json:"files"`
+}
+
+// SubjectReply is what the subject model returns each turn.
+type SubjectReply struct {
+	Move    string  `json:"move"`
+	Message string  `json:"message"`
+	Done    bool    `json:"done"`
+	Change  *Change `json:"change,omitempty"`
+}
+
+// PersonTags are the person-protocol tags of one person turn. A simulated person fills them with its reply;
+// for a real person the tagger fills them afterwards.
+type PersonTags struct {
+	Revealed       []string `json:"revealed"`
+	DontKnow       bool     `json:"dont_know"`
+	CouldNotAnswer bool     `json:"could_not_answer"`
+	AlreadySaid    bool     `json:"already_said"`
+	InAttachments  bool     `json:"in_attachments"`
+	Suggestion     string   `json:"suggestion"`
+	Frustration    int      `json:"frustration"`
+	Confirmed      bool     `json:"confirmed"`
+}
+
+// PersonReply is what the person model returns each turn.
+type PersonReply struct {
+	Reply string `json:"reply"`
+	PersonTags
+	At time.Time `json:"at,omitzero"` // when the harness got it; never part of the model's reply
+}
+
+// SubjectSaid is the subject's side of a transcript line (the change folder is stored apart).
+type SubjectSaid struct {
+	Move    string    `json:"move"`
+	Message string    `json:"message"`
+	Done    bool      `json:"done"`
+	At      time.Time `json:"at,omitzero"` // when the harness got it
+}
+
+// Turn is one line of transcript.jsonl: turn 0 is the person's first message (the brief), every other turn is
+// one subject message and the person's answer to it (nil when the subject finished with that message).
+type Turn struct {
+	Turn       int          `json:"turn"`
+	Subject    *SubjectSaid `json:"subject,omitempty"`
+	Person     *PersonReply `json:"person,omitempty"`
+	Violations []string     `json:"violations,omitempty"`
+}
+
+// ValidSuggestion lists the legal values of PersonTags.Suggestion.
+var ValidSuggestion = []string{"accepted", "rejected", "none"}
+
+// SafePath reports whether p is a clean relative path inside a folder.
+func SafePath(p string) error {
+	if p == "" {
+		return fmt.Errorf("empty path")
+	}
+	if strings.HasPrefix(p, "/") || strings.Contains(p, "\\") {
+		return fmt.Errorf("path %q must be relative with forward slashes", p)
+	}
+	if c := path.Clean(p); c != p || c == "." || c == ".." || strings.HasPrefix(c, "../") {
+		return fmt.Errorf("path %q must be clean and stay inside the folder", p)
+	}
+	return nil
+}
+
+// decodeStrict decodes raw into v and fails when a required key is missing. Unknown extra keys are tolerated.
+func decodeStrict(raw []byte, v any, required ...string) error {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		return fmt.Errorf("not a JSON object: %v", err)
+	}
+	for _, k := range required {
+		if v, ok := keys[k]; !ok || bytes.Equal(bytes.TrimSpace(v), []byte("null")) {
+			return fmt.Errorf("missing field %q", k)
+		}
+	}
+	if err := json.Unmarshal(raw, v); err != nil {
+		return fmt.Errorf("wrong field type: %v", err)
+	}
+	return nil
+}
+
+// ParseSubject decodes and validates a subject reply. final is true on the forced last turn (no turns left);
+// plain restricts the move to ask.
+func ParseSubject(raw []byte, final, plain bool) (SubjectReply, error) {
+	var r SubjectReply
+	if err := decodeStrict(raw, &r, "move", "message", "done"); err != nil {
+		return r, err
+	}
+	if !slices.Contains(Moves, r.Move) {
+		return r, fmt.Errorf("move %q is not one of %s", r.Move, strings.Join(Moves, ", "))
+	}
+	if plain && r.Move != "ask" {
+		return r, fmt.Errorf("this subject may only use the move ask, got %q", r.Move)
+	}
+	if !r.Done && strings.TrimSpace(r.Message) == "" {
+		return r, fmt.Errorf("message is empty")
+	}
+	if final && !r.Done {
+		return r, fmt.Errorf("no turns are left: the reply must have done: true and a change folder")
+	}
+	if r.Done {
+		if r.Change == nil || len(r.Change.Files) == 0 {
+			return r, fmt.Errorf("done is true but change.files is missing or empty")
+		}
+		seen := map[string]bool{}
+		for _, f := range r.Change.Files {
+			if err := SafePath(f.Path); err != nil {
+				return r, fmt.Errorf("change.files: %v", err)
+			}
+			if seen[f.Path] {
+				return r, fmt.Errorf("change.files: %q appears twice", f.Path)
+			}
+			seen[f.Path] = true
+		}
+	}
+	return r, nil
+}
+
+// ParsePerson decodes and structurally validates a person reply (ids are checked against the truth apart).
+func ParsePerson(raw []byte) (PersonReply, error) {
+	var r PersonReply
+	if err := decodeStrict(raw, &r, "reply", "revealed", "dont_know", "could_not_answer", "already_said",
+		"in_attachments", "suggestion", "frustration", "confirmed"); err != nil {
+		return r, err
+	}
+	if err := validateTags(&r.PersonTags); err != nil {
+		return r, err
+	}
+	if strings.TrimSpace(r.Reply) == "" {
+		return r, fmt.Errorf("reply is empty")
+	}
+	return r, nil
+}
+
+func validateTags(t *PersonTags) error {
+	if !slices.Contains(ValidSuggestion, t.Suggestion) {
+		return fmt.Errorf("suggestion %q is not one of accepted, rejected, none", t.Suggestion)
+	}
+	if t.Frustration < 0 || t.Frustration > 5 {
+		return fmt.Errorf("frustration %d is outside 0..5", t.Frustration)
+	}
+	if t.Revealed == nil {
+		t.Revealed = []string{}
+	}
+	return nil
+}
+
+// TaggerReply is what the tagger returns: the tags of every person turn.
+type TaggerReply struct {
+	Turns []TaggedTurn `json:"turns"`
+}
+
+// TaggedTurn is the tags of one person turn.
+type TaggedTurn struct {
+	Turn int `json:"turn"`
+	PersonTags
+}
+
+// ParseTagger decodes and validates a tagger reply against the person turn numbers it must cover.
+func ParseTagger(raw []byte, want []int) (TaggerReply, error) {
+	var r TaggerReply
+	if err := decodeStrict(raw, &r, "turns"); err != nil {
+		return r, err
+	}
+	got := map[int]bool{}
+	for i := range r.Turns {
+		t := &r.Turns[i]
+		if err := validateTags(&t.PersonTags); err != nil {
+			return r, fmt.Errorf("turn %d: %v", t.Turn, err)
+		}
+		if !slices.Contains(want, t.Turn) {
+			return r, fmt.Errorf("turn %d is not a person turn of this transcript", t.Turn)
+		}
+		if got[t.Turn] {
+			return r, fmt.Errorf("turn %d appears twice", t.Turn)
+		}
+		got[t.Turn] = true
+	}
+	for _, w := range want {
+		if !got[w] {
+			return r, fmt.Errorf("turn %d has no tags", w)
+		}
+	}
+	return r, nil
+}

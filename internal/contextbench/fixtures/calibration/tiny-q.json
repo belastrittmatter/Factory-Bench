@@ -1,0 +1,11 @@
+{
+  "id": "tiny-q",
+  "scenario": "tiny",
+  "persona": "decided-technical",
+  "source": "fixture for the dry run",
+  "turns": [
+    {"question": "Who uses it?", "answer": "Sales reps who use WhatsApp on their own laptops are the only users."},
+    {"question": "What must never happen?", "answer": "A message from an unticked chat is never sent anywhere."},
+    {"question": "How long do you keep messages?", "answer": "I think about a month, maybe longer, I am not sure."}
+  ]
+}

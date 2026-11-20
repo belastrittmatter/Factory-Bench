@@ -70,9 +70,117 @@ type Payload struct {
 	Status string `json:"status"`
 }
 
+// Speakers and moves of context.turn events (docs/context-bench.md).
+var (
+	Speakers    = map[string]bool{"factory": true, "person": true}
+	Moves       = map[string]bool{"capture": true, "mirror": true, "show": true, "suggest": true, "expand": true, "sharpen": true, "challenge": true, "narrow": true, "ask": true, "confirm": true}
+	Suggestions = map[string]bool{"accepted": true, "rejected": true, "none": true}
+	TaggedBy    = map[string]bool{"person": true, "tagger": true, "simulator": true}
+)
+
+// ContextTurn is the payload of a context.turn event: one turn of a Context creator conversation.
+// N, Speaker and Words are required; Move is required on factory turns.
+type ContextTurn struct {
+	N              int64    `json:"n"`
+	Speaker        string   `json:"speaker"`
+	Move           string   `json:"move,omitempty"`
+	Words          int64    `json:"words"`
+	DontKnow       bool     `json:"dont_know,omitempty"`
+	CouldNotAnswer bool     `json:"could_not_answer,omitempty"`
+	AlreadySaid    bool     `json:"already_said,omitempty"`
+	InAttachments  bool     `json:"in_attachments,omitempty"`
+	Suggestion     string   `json:"suggestion,omitempty"`
+	Frustration    *int64   `json:"frustration,omitempty"`
+	Confirmed      bool     `json:"confirmed,omitempty"`
+	Revealed       []string `json:"revealed,omitempty"`
+	TaggedBy       string   `json:"tagged_by,omitempty"`
+	Text           string   `json:"text,omitempty"`
+}
+
+// ContextScore is the payload of a context.score event: counts from scoring one Context creator attempt against
+// the hidden truth. Scenario, Truth and Captured are required; absent counts are 0, and Build is nil when the run
+// was not built. FactoryBench computes every rate from these counts.
+type ContextScore struct {
+	Scenario         string           `json:"scenario"`
+	Subject          string           `json:"subject,omitempty"`
+	Persona          string           `json:"persona,omitempty"`
+	Truth            ContextTruth     `json:"truth"`
+	Captured         ContextCaptured  `json:"captured"`
+	LatentByMove     map[string]int64 `json:"latent_by_move,omitempty"`
+	Traps            ContextTraps     `json:"traps"`
+	Invented         int64            `json:"invented"`
+	InventedUnmarked int64            `json:"invented_unmarked"`
+	MapTagErrors     int64            `json:"map_tag_errors"`
+	AssumedMarked    int64            `json:"assumed_marked"`
+	Requirements     int64            `json:"requirements"`
+	Untraced         int64            `json:"untraced"`
+	NoiseLeft        int64            `json:"noise_left"`
+	MissingSlots     int64            `json:"missing_slots"`
+	Contradictions   int64            `json:"contradictions"`
+	Builders         ContextBuilders  `json:"builders"`
+	VagueWarnings    int64            `json:"vague_warnings"`
+	SimViolations    int64            `json:"sim_violations"`
+	BenchCostUSD     ContextBenchCost `json:"bench_cost_usd"`
+	Build            *ContextBuild    `json:"build,omitempty"`
+}
+
+// ContextTruth is the size of the hidden truth: entries, G4 entries (a subset of items), latent entries
+// (a subset of items), traps and noise entries.
+type ContextTruth struct {
+	Items  int64 `json:"items"`
+	G4     int64 `json:"g4"`
+	Latent int64 `json:"latent"`
+	Traps  int64 `json:"traps"`
+	Noise  int64 `json:"noise"`
+}
+
+// ContextCaptured is how many truth items the change folder captured fully or partly; G4 and Latent count the
+// G4 and latent entries within those. Latent counts entries drawn out (full or partial is not distinguished).
+type ContextCaptured struct {
+	Full      int64 `json:"full"`
+	Partial   int64 `json:"partial"`
+	G4Full    int64 `json:"g4_full"`
+	G4Partial int64 `json:"g4_partial"`
+	Latent    int64 `json:"latent"`
+}
+
+// ContextTraps counts traps the Context creator raised and traps whose change followed the person's resolution.
+type ContextTraps struct {
+	Raised   int64 `json:"raised"`
+	Followed int64 `json:"followed"`
+}
+
+// ContextBuilders is the gate 4 result: requirements the builder sessions agreed on, out of the compared total.
+type ContextBuilders struct {
+	Agree int64 `json:"agree"`
+	Total int64 `json:"total"`
+}
+
+// ContextBenchCost is what the benchmark itself spent, in USD; never part of the factory's cost.
+type ContextBenchCost struct {
+	Person   float64 `json:"person"`
+	Judge    float64 `json:"judge"`
+	Builders float64 `json:"builders"`
+	Build    float64 `json:"build"`
+}
+
+// Total is the sum of every bench cost part.
+func (c ContextBenchCost) Total() float64 { return c.Person + c.Judge + c.Builders + c.Build }
+
+// ContextBuild is the hidden-test result of building from the Context creator's change.
+type ContextBuild struct {
+	HiddenPass  int64 `json:"hidden_pass"`
+	HiddenTotal int64 `json:"hidden_total"`
+	Tasks       int64 `json:"tasks"`
+	Merged      int64 `json:"merged"`
+	Escalations int64 `json:"escalations"`
+	Repairs     int64 `json:"repairs"`
+}
+
 var types = map[string]bool{
 	"attempt.started": true, "usage": true, "activity": true, "human.waiting": true,
 	"human.resumed": true, "human.steering": true, "pr.linked": true, "attempt.finished": true, "gate": true,
+	"context.turn": true, "context.score": true,
 }
 
 var repoRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
@@ -153,6 +261,14 @@ func Validate(raw []byte) (Event, Payload, error) {
 		if p.Status != "completed" && p.Status != "failed" && p.Status != "cancelled" {
 			return e, p, errors.New("payload.status must be completed, failed, or cancelled")
 		}
+	case "context.turn":
+		if err := validateContextTurn(e.Payload); err != nil {
+			return e, p, err
+		}
+	case "context.score":
+		if err := validateContextScore(e.Payload); err != nil {
+			return e, p, err
+		}
 	case "human.steering":
 		if p.Source != "" && p.Source != "comment" && p.Source != "chat" && p.Source != "label" {
 			return e, p, errors.New("payload.source must be comment, chat, or label")
@@ -166,4 +282,113 @@ func ParsePayload(raw []byte) Payload {
 	var p Payload
 	_ = json.Unmarshal(raw, &p)
 	return p
+}
+
+// ParseContextTurn decodes an already-validated context.turn payload.
+func ParseContextTurn(raw []byte) ContextTurn {
+	var t ContextTurn
+	_ = json.Unmarshal(raw, &t)
+	return t
+}
+
+// ParseContextScore decodes an already-validated context.score payload.
+func ParseContextScore(raw []byte) ContextScore {
+	var s ContextScore
+	_ = json.Unmarshal(raw, &s)
+	return s
+}
+
+// required reports the first of keys that is absent from the JSON object raw.
+func required(raw []byte, keys ...string) string {
+	var m map[string]json.RawMessage
+	_ = json.Unmarshal(raw, &m)
+	for _, k := range keys {
+		if _, ok := m[k]; !ok {
+			return k
+		}
+	}
+	return ""
+}
+
+func validateContextTurn(raw []byte) error {
+	if k := required(raw, "n", "speaker", "words"); k != "" {
+		return fmt.Errorf("payload.%s missing", k)
+	}
+	var t ContextTurn
+	if err := json.Unmarshal(raw, &t); err != nil {
+		return fmt.Errorf("payload: %v", err)
+	}
+	switch {
+	case t.N < 1:
+		return errors.New("payload.n must be >= 1")
+	case !Speakers[t.Speaker]:
+		return errors.New("payload.speaker must be factory or person")
+	case t.Words < 0:
+		return errors.New("payload.words must be >= 0")
+	case t.Speaker == "factory" && t.Move == "":
+		return errors.New("payload.move missing on a factory turn")
+	case t.Move != "" && !Moves[t.Move]:
+		return errors.New("payload.move must be capture, mirror, show, suggest, expand, sharpen, challenge, narrow, ask, or confirm")
+	case t.Suggestion != "" && !Suggestions[t.Suggestion]:
+		return errors.New("payload.suggestion must be accepted, rejected, or none")
+	case t.Frustration != nil && (*t.Frustration < 0 || *t.Frustration > 5):
+		return errors.New("payload.frustration must be 0 to 5")
+	case t.TaggedBy != "" && !TaggedBy[t.TaggedBy]:
+		return errors.New("payload.tagged_by must be person, tagger, or simulator")
+	}
+	return nil
+}
+
+func validateContextScore(raw []byte) error {
+	if k := required(raw, "scenario", "truth", "captured"); k != "" {
+		return fmt.Errorf("payload.%s missing", k)
+	}
+	var s ContextScore
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return fmt.Errorf("payload: %v", err)
+	}
+	if s.Scenario == "" {
+		return errors.New("payload.scenario missing")
+	}
+	counts := []struct {
+		name string
+		v    int64
+	}{
+		{"truth.items", s.Truth.Items}, {"truth.g4", s.Truth.G4}, {"truth.latent", s.Truth.Latent}, {"truth.traps", s.Truth.Traps}, {"truth.noise", s.Truth.Noise},
+		{"captured.full", s.Captured.Full}, {"captured.partial", s.Captured.Partial}, {"captured.g4_full", s.Captured.G4Full},
+		{"captured.g4_partial", s.Captured.G4Partial}, {"captured.latent", s.Captured.Latent},
+		{"traps.raised", s.Traps.Raised}, {"traps.followed", s.Traps.Followed},
+		{"invented", s.Invented}, {"invented_unmarked", s.InventedUnmarked}, {"map_tag_errors", s.MapTagErrors},
+		{"assumed_marked", s.AssumedMarked}, {"requirements", s.Requirements}, {"untraced", s.Untraced},
+		{"noise_left", s.NoiseLeft}, {"missing_slots", s.MissingSlots}, {"contradictions", s.Contradictions},
+		{"builders.agree", s.Builders.Agree}, {"builders.total", s.Builders.Total},
+		{"vague_warnings", s.VagueWarnings}, {"sim_violations", s.SimViolations},
+	}
+	if s.Build != nil {
+		counts = append(counts, []struct {
+			name string
+			v    int64
+		}{{"build.hidden_pass", s.Build.HiddenPass}, {"build.hidden_total", s.Build.HiddenTotal}, {"build.tasks", s.Build.Tasks},
+			{"build.merged", s.Build.Merged}, {"build.escalations", s.Build.Escalations}, {"build.repairs", s.Build.Repairs}}...)
+	}
+	for m, n := range s.LatentByMove {
+		counts = append(counts, struct {
+			name string
+			v    int64
+		}{"latent_by_move." + m, n})
+		if !Moves[m] {
+			return fmt.Errorf("payload.latent_by_move: unknown move %q", m)
+		}
+	}
+	for _, c := range counts {
+		if c.v < 0 {
+			return fmt.Errorf("payload.%s must be >= 0", c.name)
+		}
+	}
+	for name, c := range map[string]float64{"person": s.BenchCostUSD.Person, "judge": s.BenchCostUSD.Judge, "builders": s.BenchCostUSD.Builders, "build": s.BenchCostUSD.Build} {
+		if c < 0 {
+			return fmt.Errorf("payload.bench_cost_usd.%s must be >= 0", name)
+		}
+	}
+	return nil
 }

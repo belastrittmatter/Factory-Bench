@@ -38,13 +38,20 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	// v3 is the current schema without usage.step
-	v3 := strings.Replace(schema, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)", "", 1)
+	// v4 is the current schema without the v5 tables (attempt_labels, context_turns, context_scores); v3 is v4 without usage.step
+	v4 := schema
+	for _, tbl := range []string{"attempt_labels", "context_turns", "context_scores"} {
+		v4 = strings.Replace(v4, create(tbl), "", 1)
+	}
+	if strings.Contains(v4, "context_") || strings.Contains(v4, "attempt_labels") {
+		t.Fatal("schema.sql no longer has the v5 tables this test removes")
+	}
+	v3 := strings.Replace(v4, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)", "", 1)
 	v3 = strings.Replace(v3, "agent_id          TEXT,                   -- subagent", "agent_id          TEXT                    -- subagent", 1)
-	if v3 == schema || strings.Contains(v3, "  step ") {
+	if v3 == v4 || strings.Contains(v3, "  step ") {
 		t.Fatal("schema.sql no longer has the usage.step line this test removes")
 	}
-	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3} {
+	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3, 4: v4} {
 		t.Run(fmt.Sprint("v", v), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "fb.db")
 			raw, err := sql.Open("sqlite", "file:"+path)

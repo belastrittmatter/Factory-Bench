@@ -3,6 +3,7 @@ package normalize
 
 import (
 	"database/sql"
+	"encoding/json"
 	"strconv"
 	"strings"
 	"time"
@@ -15,7 +16,7 @@ import (
 
 // tables lists every table normalize rebuilds.
 var tables = []string{"work_items", "attempts", "usage", "gates", "prs", "checks", "reviews", "pr_commits",
-	"tool_calls", "agent_runs", "api_errors"}
+	"tool_calls", "agent_runs", "api_errors", "attempt_labels", "context_turns", "context_scores"}
 
 type event struct {
 	Source, Factory, ID, Type, TS, AttemptID string
@@ -57,6 +58,18 @@ type gate struct {
 	Factory, Attempt, TS, Name string
 	Passed                     bool
 	Reason                     *string
+}
+
+type attemptLabel struct{ Factory, Attempt, Label string }
+
+type contextTurn struct {
+	Factory, Attempt, TS string
+	contract.ContextTurn
+}
+
+type contextScore struct {
+	Factory, Attempt, TS string
+	contract.ContextScore
 }
 
 type pr struct {
@@ -102,6 +115,10 @@ type result struct {
 	ToolCalls []toolCall
 	AgentRuns []agentRun
 	APIErrors []apiError
+
+	Labels        []attemptLabel
+	ContextTurns  []contextTurn
+	ContextScores []contextScore
 }
 
 func ptr[T any](v T) *T { return &v }
@@ -152,6 +169,13 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		attempts[k] = &attempt{Factory: e.Factory, ID: e.AttemptID, Repo: p.WorkItem.Repo, Issue: p.WorkItem.Issue,
 			Parent: parent, Role: str(p.Role), Config: p.FactoryConfigVersion, State: "running", Started: e.TS}
 		order = append(order, k)
+		seen := map[string]bool{}
+		for _, l := range p.Labels {
+			if !seen[l] {
+				seen[l] = true
+				d.Labels = append(d.Labels, attemptLabel{e.Factory, e.AttemptID, l})
+			}
+		}
 		if items[wi] == nil {
 			items[wi] = &workItem{Repo: p.WorkItem.Repo, Issue: p.WorkItem.Issue, First: e.TS, TaskType: taskType(p.Labels)}
 			itemOrder = append(itemOrder, wi)
@@ -161,6 +185,8 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	// Pass 2: everything else, in ts order.
 	waits := map[string]string{}    // attempt key -> open human.waiting ts
 	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
+	turnAt := map[string]int{}      // attempt key \x00 turn number -> index in d.ContextTurns
+	scoreAt := map[string]int{}     // attempt key -> index in d.ContextScores
 	prs := map[string]*pr{}
 	var prOrder []string
 	runs := agents{runs: map[string]*agentRun{}}
@@ -218,6 +244,23 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			a.PRURL = ptr(p.PRURL)
 		case "gate":
 			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
+		case "context.turn":
+			t := contract.ParseContextTurn(e.Payload)
+			tk := k + "\x00" + itoa(t.N)
+			if i, ok := turnAt[tk]; ok { // a later event for the same turn replaces it
+				d.ContextTurns[i] = contextTurn{e.Factory, a.ID, e.TS, t}
+			} else {
+				turnAt[tk] = len(d.ContextTurns)
+				d.ContextTurns = append(d.ContextTurns, contextTurn{e.Factory, a.ID, e.TS, t})
+			}
+		case "context.score":
+			s := contextScore{e.Factory, a.ID, e.TS, contract.ParseContextScore(e.Payload)}
+			if i, ok := scoreAt[k]; ok {
+				d.ContextScores[i] = s
+			} else {
+				scoreAt[k] = len(d.ContextScores)
+				d.ContextScores = append(d.ContextScores, s)
+			}
 		case "usage":
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
@@ -423,6 +466,37 @@ func Run(db *sql.DB) error {
 	}
 	for _, x := range d.APIErrors {
 		ins(`INSERT INTO api_errors VALUES (?,?,?,?,?,?,?,?,?)`, x.Factory, x.Attempt, x.Agent, x.TS, x.Kind, x.Model, x.Status, x.Error, x.Duration)
+	}
+	for _, l := range d.Labels {
+		ins(`INSERT INTO attempt_labels VALUES (?,?,?)`, l.Factory, l.Attempt, l.Label)
+	}
+	for _, c := range d.ContextTurns {
+		revealed, _ := json.Marshal(append([]string{}, c.Revealed...))
+		ins(`INSERT INTO context_turns VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.N, c.TS, c.Speaker, str(c.Move),
+			c.Words, c.DontKnow, c.CouldNotAnswer, c.AlreadySaid, c.InAttachments, str(c.Suggestion), c.Frustration, c.Confirmed,
+			string(revealed), str(c.TaggedBy), str(c.Text))
+	}
+	for _, c := range d.ContextScores {
+		byMove, _ := json.Marshal(c.LatentByMove)
+		if c.LatentByMove == nil {
+			byMove = []byte("{}")
+		}
+		b := c.Build
+		if b == nil {
+			b = &contract.ContextBuild{}
+		}
+		var hp, ht, bt, bm, be, br *int64
+		if c.Build != nil {
+			hp, ht, bt, bm, be, br = &b.HiddenPass, &b.HiddenTotal, &b.Tasks, &b.Merged, &b.Escalations, &b.Repairs
+		}
+		ins(`INSERT INTO context_scores VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			c.Factory, c.Attempt, c.TS, c.Scenario, str(c.Subject), str(c.Persona),
+			c.Truth.Items, c.Truth.G4, c.Truth.Latent, c.Truth.Traps, c.Truth.Noise,
+			c.Captured.Full, c.Captured.Partial, c.Captured.G4Full, c.Captured.G4Partial, c.Captured.Latent, string(byMove),
+			c.Traps.Raised, c.Traps.Followed, c.Invented, c.InventedUnmarked, c.MapTagErrors, c.AssumedMarked,
+			c.Requirements, c.Untraced, c.NoiseLeft, c.MissingSlots, c.Contradictions, c.Builders.Agree, c.Builders.Total,
+			c.VagueWarnings, c.SimViolations, c.BenchCostUSD.Person, c.BenchCostUSD.Judge, c.BenchCostUSD.Builders, c.BenchCostUSD.Build,
+			c.Build != nil, hp, ht, bt, bm, be, br)
 	}
 	if err != nil {
 		return err

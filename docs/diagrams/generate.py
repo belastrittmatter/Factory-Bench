@@ -258,6 +258,18 @@ TABLES = {
     'api_errors': (767, 405, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('agent_id', 'text', ''), ('ts', 'text', ''),
                                         ('kind', 'text', ''), ('model', 'text', ''), ('status_code', 'int', ''),
                                         ('error', 'text', ''), ('duration_ms', 'int', '')]),
+    'attempt_labels': (8, 835, 200, 'p0', [('factory_id, attempt_id', '', 'FK'), ('label', 'text', 'PK')]),
+    'context_turns': (261, 835, 200, 'p0', [('factory_id, attempt_id', '', 'PK'), ('n', 'int', 'PK'), ('ts', 'text', ''),
+                                            ('speaker', 'factory|person', ''), ('move', 'text, null', ''), ('words', 'int', ''),
+                                            ('dont_know … confirmed', 'bool', ''), ('suggestion', 'text, null', ''),
+                                            ('frustration', 'int, null', ''), ('revealed', 'json ids', ''),
+                                            ('tagged_by', 'text, null', ''), ('text', 'text, null', '')]),
+    'context_scores': (514, 835, 200, 'p0', [('factory_id, attempt_id', '', 'PK'), ('ts', 'text', ''),
+                                             ('scenario / subject / persona', 'text', ''), ('truth_*', 'int', ''),
+                                             ('full / partial / g4_* / latent', 'int', ''), ('latent_by_move', 'json', ''),
+                                             ('traps_* / invented_*', 'int', ''), ('requirements / untraced', 'int', ''),
+                                             ('builders_*, vague, sim_*', 'int', ''), ('cost_*', 'real', ''),
+                                             ('built, hidden_*, build_*', 'int, null', '')]),
 }
 ROW, HEAD = 15, 24
 
@@ -319,8 +331,11 @@ def db_schema():
              f'<text x="{ex}" y="{ey + eh + 120}" class="lg">never from the request body.</text>'
              f'<text x="767" y="580" class="lg">tool_calls, agent_runs and api_errors</text>'
              f'<text x="767" y="595" class="lg">belong to an attempt (factory_id,</text>'
-             f'<text x="767" y="610" class="lg">attempt_id), like usage and gates.</text>')
-    return svg(975, 815, ''.join(d), 'FactoryBench database schema')
+             f'<text x="767" y="610" class="lg">attempt_id), like usage and gates.</text>'
+             f'<text x="767" y="855" class="lg">attempt_labels, context_turns and</text>'
+             f'<text x="767" y="870" class="lg">context_scores also belong to an</text>'
+             f'<text x="767" y="885" class="lg">attempt (factory_id, attempt_id).</text>')
+    return svg(975, 1060, ''.join(d), 'FactoryBench database schema')
 
 
 # ---------------------------------------------------------------- code map

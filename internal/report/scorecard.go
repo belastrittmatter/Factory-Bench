@@ -31,6 +31,7 @@ type card struct {
 	escalated                                                             map[string]int
 	hasLogin                                                              bool
 	run                                                                   runStats
+	ctx                                                                   ctxStats
 }
 
 func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
@@ -89,6 +90,9 @@ func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
 		c.reviewedPRs += u.reviewedPRs
 		c.changesReq += u.changesReq
 		c.run.merge(u.run)
+		if u.ctx.has() {
+			c.ctx.merge(&u.ctx)
+		}
 	}
 	sort.Slice(cards, func(i, j int) bool { return cards[i].group < cards[j].group })
 	return cards
@@ -287,15 +291,18 @@ var scorecard = []struct {
 	{"rejected events", func(c *card) string { return fmt.Sprint(c.rejected) }},
 }
 
-// ScoreRow is one scorecard metric, one value per group; "" values are shown as n/a.
+// ScoreRow is one scorecard metric, one value per group; "" values are shown as n/a. Context rows (Section "Context")
+// say which direction is better: Dir is +1 for higher, -1 for lower, 0 for neither or unset.
 type ScoreRow struct {
-	Label  string
-	Values []string
+	Label   string
+	Values  []string
+	Section string `json:",omitempty"`
+	Dir     int    `json:",omitempty"`
 }
 
 // Scorecard returns the `report factories` scorecard as data: group names (factory or factory + config) and the shown rows.
-func Scorecard(db *sql.DB, byConfig bool, now time.Time) ([]string, []ScoreRow, error) {
-	d, err := loadMetrics(db)
+func Scorecard(db *sql.DB, byConfig bool, labels []string, now time.Time) ([]string, []ScoreRow, error) {
+	d, err := loadMetrics(db, labels)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -318,12 +325,12 @@ func Scorecard(db *sql.DB, byConfig bool, now time.Time) ([]string, []ScoreRow, 
 			rows = append(rows, r)
 		}
 	}
-	return groups, rows, nil
+	return groups, append(rows, contextSection(cards)...), nil
 }
 
 // Factories prints the scorecard (metrics as rows, factories as columns), then gate and CI breakdowns.
-func Factories(db *sql.DB, w io.Writer, byConfig bool, now time.Time) error {
-	d, err := loadMetrics(db)
+func Factories(db *sql.DB, w io.Writer, byConfig bool, labels []string, now time.Time) error {
+	d, err := loadMetrics(db, labels)
 	if err != nil {
 		return err
 	}
@@ -360,6 +367,9 @@ func Factories(db *sql.DB, w io.Writer, byConfig bool, now time.Time) error {
 		return err
 	}
 	if _, err := fmt.Fprintln(w, legend); err != nil {
+		return err
+	}
+	if err := printContextCards(w, cards); err != nil {
 		return err
 	}
 

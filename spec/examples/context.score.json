@@ -1,0 +1,25 @@
+{
+  "spec": "factorybench/v1",
+  "id": "ctx-7a1c:score",
+  "type": "context.score",
+  "ts": "2026-11-21T10:31:40Z",
+  "attempt_id": "ctx-7a1c",
+  "payload": {
+    "scenario": "chat-picker-filters",
+    "subject": "plain",
+    "persona": "unsure",
+    "truth": { "items": 39, "g4": 14, "latent": 10, "traps": 9, "noise": 5 },
+    "captured": { "full": 17, "partial": 6, "g4_full": 7, "g4_partial": 2, "latent": 3 },
+    "latent_by_move": { "show": 2, "suggest": 1 },
+    "traps": { "raised": 4, "followed": 3 },
+    "invented": 2, "invented_unmarked": 1,
+    "map_tag_errors": 3, "assumed_marked": 5,
+    "requirements": 22, "untraced": 2,
+    "noise_left": 1, "missing_slots": 2, "contradictions": 0,
+    "builders": { "agree": 18, "total": 22 },
+    "vague_warnings": 4,
+    "sim_violations": 0,
+    "bench_cost_usd": { "person": 0.91, "judge": 0.33, "builders": 0.52, "build": 0.0 },
+    "build": { "hidden_pass": 0, "hidden_total": 0, "tasks": 0, "merged": 0, "escalations": 0, "repairs": 0 }
+  }
+}

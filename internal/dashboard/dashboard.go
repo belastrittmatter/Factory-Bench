@@ -160,7 +160,7 @@ func Handler(db *sql.DB, o Options) http.Handler {
 		return rows, err
 	}))
 	mux.HandleFunc("/api/scorecard", s.json(func(r *http.Request) (any, error) {
-		groups, rows, err := report.Scorecard(db, r.URL.Query().Get("by") == "config", time.Now())
+		groups, rows, err := report.Scorecard(db, r.URL.Query().Get("by") == "config", nil, time.Now())
 		return map[string]any{"groups": groups, "rows": rows}, err
 	}))
 	mux.HandleFunc("/api/item", s.json(s.item))
@@ -385,6 +385,9 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	res["units"] = units
+	if res["context"], err = report.ContextOfWorkItem(s.db, repo, n); err != nil {
+		return nil, err
+	}
 	return res, nil
 }
 
@@ -467,6 +470,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		}
 	}
 	res["dispatches"] = mine
+	if res["context"], err = report.ContextOfAttempt(s.db, f, id); err != nil {
+		return nil, err
+	}
 	var tcs []toolCall
 	err = store.Each(s.db, `SELECT ts, tool_name, success FROM tool_calls WHERE factory_id = ? AND attempt_id = ? ORDER BY ts`, func(r *sql.Rows) error {
 		var ts string

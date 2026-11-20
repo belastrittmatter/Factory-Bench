@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"factorybench/internal/claudecode"
+	"factorybench/internal/contextbench"
 	"factorybench/internal/dashboard"
 	"factorybench/internal/emit"
 	"factorybench/internal/github"
@@ -36,8 +37,10 @@ const usage = `usage:
   factorybench replay [--db fb.db]
   factorybench report live [--db fb.db]
   factorybench report item <owner/repo#issue> [--db fb.db]
-  factorybench report items [--factory f] [--outcome merged|rejected|open] [--db fb.db]
-  factorybench report factories [--by config] [--db fb.db]
+  factorybench report items [--factory f] [--outcome merged|rejected|open] [--label L ...] [--db fb.db]
+  factorybench report factories [--by config] [--label L ...] [--db fb.db]
+  factorybench report context [--factory f] [--label L ...] [--db fb.db]
+  factorybench context run|matrix|replay|retag|lint|dry-run ...   (benchmark a Context creator; see docs/context-bench.md)
   factorybench claude-translate <stream.jsonl>   (test harness: Claude Code stream -> contract payloads)`
 
 func main() {
@@ -60,7 +63,7 @@ func main() {
 		fs, dbp := dbFlags("serve")
 		addr := fs.String("addr", ":8080", "listen address")
 		poll := fs.Duration("poll", 0, "reconcile from GitHub at this interval (0 = never): every repo a factory reported work on, plus --repo")
-		var repos repoList
+		var repos stringList
 		fs.Var(&repos, "repo", "extra owner/name to poll (repeatable)")
 		fs.Parse(args)
 		db := open(*dbp)
@@ -95,7 +98,7 @@ func main() {
 		emit.Run(args, usage)
 	case cmd == "reconcile":
 		fs, dbp := dbFlags("reconcile")
-		var extra repoList
+		var extra stringList
 		fs.Var(&extra, "repo", "owner/name to reconcile (repeatable); default every repo a factory reported work on")
 		fs.Parse(args)
 		db := open(*dbp)
@@ -129,16 +132,29 @@ func main() {
 		fs, dbp := dbFlags("report items")
 		factory := fs.String("factory", "", "only this factory")
 		outcome := fs.String("outcome", "", "only this outcome (merged, rejected, open)")
+		var labels stringList
+		fs.Var(&labels, "label", "only attempts with this label (repeatable, all must match)")
 		fs.Parse(args[1:])
-		check(report.Items(open(*dbp), os.Stdout, *factory, *outcome, time.Now()))
+		check(report.Items(open(*dbp), os.Stdout, *factory, *outcome, labels, time.Now()))
 	case cmd == "report" && len(args) >= 1 && args[0] == "factories":
 		fs, dbp := dbFlags("report factories")
 		by := fs.String("by", "", `"config" for one column per factory + config version`)
+		var labels stringList
+		fs.Var(&labels, "label", "only attempts with this label (repeatable, all must match)")
 		fs.Parse(args[1:])
 		if *by != "" && *by != "config" {
 			log.Fatal("--by only supports config")
 		}
-		check(report.Factories(open(*dbp), os.Stdout, *by == "config", time.Now()))
+		check(report.Factories(open(*dbp), os.Stdout, *by == "config", labels, time.Now()))
+	case cmd == "report" && len(args) >= 1 && args[0] == "context":
+		fs, dbp := dbFlags("report context")
+		factory := fs.String("factory", "", "only this factory")
+		var labels stringList
+		fs.Var(&labels, "label", "only attempts with this label (repeatable, all must match)")
+		fs.Parse(args[1:])
+		check(report.Context(open(*dbp), os.Stdout, *factory, labels))
+	case cmd == "context":
+		os.Exit(contextbench.Main(args))
 	case cmd == "report" && len(args) >= 2 && args[0] == "item":
 		fs, dbp := dbFlags("report item")
 		fs.Parse(args[2:])
@@ -215,11 +231,11 @@ func pollGitHub(db *sql.DB, extra []string, every time.Duration, token string, r
 	}
 }
 
-// repoList is a repeatable --repo flag.
-type repoList []string
+// stringList is a repeatable string flag (--repo, --label).
+type stringList []string
 
-func (r *repoList) String() string     { return strings.Join(*r, ",") }
-func (r *repoList) Set(v string) error { *r = append(*r, v); return nil }
+func (r *stringList) String() string     { return strings.Join(*r, ",") }
+func (r *stringList) Set(v string) error { *r = append(*r, v); return nil }
 
 func dbFlags(name string) (*flag.FlagSet, *string) {
 	fs := flag.NewFlagSet(name, flag.ExitOnError)

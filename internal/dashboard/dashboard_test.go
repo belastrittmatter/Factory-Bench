@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"factorybench/internal/normalize"
 	"factorybench/internal/store"
 )
 
@@ -625,5 +626,128 @@ func TestSteps(t *testing.T) {
 	}
 	if s := at["sessions"].([]any); s[2].(map[string]any)["step"] != "reviewer" || s[4].(map[string]any)["step"] != nil {
 		t.Errorf("a1 sessions: %v", s)
+	}
+}
+
+// The Context data of a Context creator attempt reaches the issue page, the attempt page and the scorecard, from the same
+// report code as `report items` and `report factories`.
+func TestContextAPI(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "fb.db")
+	rw, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.AddFactory(rw, "f", "", ""); err != nil {
+		t.Fatal(err)
+	}
+	ev := func(id, typ, ts, payload string) {
+		raw := fmt.Sprintf(`{"spec":"factorybench/v1","id":%q,"type":%q,"ts":%q,"attempt_id":"c1","payload":%s}`, id, typ, ts, payload)
+		if _, err := store.InsertEvent(rw, "contract", "f", id, typ, ts, raw, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	ev("c1:started", "attempt.started", "2026-11-21T10:00:00Z", `{"work_item":{"repo":"b/ctx","issue":2},"factory_config_version":"plain@x/m","role":"context","labels":["scenario:s","max-turns:10"]}`)
+	ev("c1:turn:1", "context.turn", "2026-11-21T10:00:01Z", `{"n":1,"speaker":"person","words":20,"tagged_by":"simulator"}`)
+	ev("c1:turn:2", "context.turn", "2026-11-21T10:00:02Z", `{"n":2,"speaker":"factory","move":"show","words":9}`)
+	ev("c1:turn:3", "context.turn", "2026-11-21T10:00:03Z", `{"n":3,"speaker":"person","words":4,"dont_know":true,"suggestion":"accepted","frustration":2,"revealed":["i1"],"tagged_by":"simulator"}`)
+	ev("c1:score", "context.score", "2026-11-21T10:00:04Z", `{"scenario":"s","truth":{"items":4,"g4":1},"captured":{"full":2,"partial":1,"g4_full":1},"builders":{"agree":3,"total":4},"bench_cost_usd":{"person":0.5}}`)
+	if err := normalize.Run(rw); err != nil {
+		t.Fatal(err)
+	}
+	rw.Close()
+	db, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	h := Handler(db, Options{Addr: "127.0.0.1:8081", Idle: DefaultIdleTimeout})
+
+	metric := func(ms []any, label string) string {
+		for _, m := range ms {
+			if m := m.(map[string]any); m["Label"] == label {
+				return m["Value"].(string)
+			}
+		}
+		return "missing"
+	}
+	var item struct {
+		Context struct {
+			Units []struct {
+				Factory, Runs string
+				Metrics       []any
+			}
+			Runs []struct {
+				Factory, Attempt, Role string
+				Labels                 []string
+				Scored                 bool
+				Turns                  []map[string]any
+			}
+		}
+	}
+	get(t, h, "/api/item?repo=b/ctx&issue=2", &item)
+	if len(item.Context.Units) != 1 || item.Context.Units[0].Runs != "1 (1 scored)" || len(item.Context.Runs) != 1 {
+		t.Fatalf("item context: %+v", item.Context)
+	}
+	u := item.Context.Units[0]
+	for label, want := range map[string]string{"recall": "62% (2.5/4)", "G4 recall": "100% (1/1)", "builder agreement": "75% (3/4)",
+		"don't-know recovered": "0% (0/1)", "suggestions accepted": "100% (1/1)", "context turns / issue": "1.0 (1/1)"} {
+		if got := metric(u.Metrics, label); got != want {
+			t.Errorf("item %s = %q, want %q", label, got, want)
+		}
+	}
+	r := item.Context.Runs[0]
+	if r.Attempt != "c1" || r.Role != "context" || !r.Scored || len(r.Turns) != 3 || len(r.Labels) != 2 {
+		t.Errorf("item run: %+v", r)
+	}
+	if r.Turns[1]["Move"] != "show" || r.Turns[2]["Tags"].([]any)[0] != "dont_know" || r.Turns[2]["TaggedBy"] != "simulator" || r.Turns[2]["Frustration"] != float64(2) {
+		t.Errorf("turns: %v", r.Turns)
+	}
+	if _, has := r.Turns[0]["Text"]; has {
+		t.Error("the strip carries no turn text")
+	}
+
+	var att struct{ Context struct{ Metrics []any } }
+	get(t, h, "/api/attempt?factory=f&id=c1", &att)
+	if got := metric(att.Context.Metrics, "recall"); got != "62% (2.5/4)" {
+		t.Errorf("attempt recall = %q", got)
+	}
+
+	var sc struct {
+		Rows []struct {
+			Label, Section string
+			Values         []string
+			Dir            int
+		}
+	}
+	get(t, h, "/api/scorecard", &sc)
+	found := 0
+	for _, r := range sc.Rows {
+		if r.Section == "Context" {
+			found++
+			if r.Label == "bench cost (not factory cost)" && !strings.HasPrefix(r.Values[0], "$0.50 (person $0.50") {
+				t.Errorf("bench cost row: %v", r.Values)
+			}
+			if r.Label == "recall" && r.Dir != 1 {
+				t.Errorf("recall direction %d", r.Dir)
+			}
+		}
+	}
+	if found != 26 {
+		t.Errorf("%d Context rows in the scorecard", found)
+	}
+
+	// without context data an attempt has none and the scorecard no Context rows
+	_, h2, _ := fixture(t)
+	var plain map[string]any
+	get(t, h2, "/api/attempt?factory=f&id=a1", &plain)
+	if plain["context"] != nil {
+		t.Errorf("attempt without context data: %v", plain["context"])
+	}
+	var sc2 struct{ Rows []struct{ Section string } }
+	get(t, h2, "/api/scorecard", &sc2)
+	for _, r := range sc2.Rows {
+		if r.Section != "" {
+			t.Errorf("scorecard row of section %q without context data", r.Section)
+		}
 	}
 }

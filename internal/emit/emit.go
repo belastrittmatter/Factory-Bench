@@ -68,6 +68,34 @@ func Run(args []string, usage string) {
 	}
 }
 
+// Send delivers events like Run does for one: one request to FACTORYBENCH_URL, spooled when it fails, nothing
+// when FACTORYBENCH_URL is unset. It never fails the caller and reports whether the events were delivered (or
+// there was nowhere to send them). It is for programs that emit many events themselves, such as the context bench.
+func Send(evs ...[]byte) bool {
+	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
+	if url == "" || len(evs) == 0 {
+		return true
+	}
+	for len(evs) > 0 {
+		n := min(chunk, len(evs))
+		batch := make([]json.RawMessage, n)
+		for i := range batch {
+			batch[i] = evs[i]
+		}
+		if err := post(url, token, batch); err != nil {
+			p := spoolPath()
+			if serr := spool(p, evs...); serr != nil {
+				log.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(evs), serr)
+			} else {
+				log.Printf("emit: %v; %d events spooled to %s", err, len(evs), p)
+			}
+			return false
+		}
+		evs = evs[n:]
+	}
+	return true
+}
+
 func spoolPath() string {
 	if p := os.Getenv("FACTORYBENCH_SPOOL"); p != "" {
 		return p
