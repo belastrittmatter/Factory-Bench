@@ -1,0 +1,8 @@
+{
+  "id": "tiny",
+  "kind": "feature",
+  "title": "Tiny chat relay",
+  "work_item": {"repo": "bench/tiny-context", "issue": 1},
+  "first_run": true,
+  "max_turns": 6
+}

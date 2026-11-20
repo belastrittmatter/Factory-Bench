@@ -76,6 +76,8 @@ Event ids are `<attempt>:<key>`. Keys must be **fixed per call site** (`started`
 
 A Context creator is the step that talks with a person before any code is written. Report its conversation live, from the factory itself, with no benchmark harness: it is an ordinary attempt with `role` `context`, plus one `context.turn` event per turn. Fields are in [docs/context-bench.md](docs/context-bench.md#events).
 
+To benchmark a Context creator against a scenario instead, use `factorybench context run` (see [docs/context-bench.md](docs/context-bench.md#benchmarking)); it sends these events itself.
+
 ```bash
 A=ctx-$(uuidgen)   # the Context creator's attempt, on the work item the conversation is about
 factorybench emit attempt.started --attempt "$A" --key started \

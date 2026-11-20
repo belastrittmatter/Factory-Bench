@@ -43,10 +43,19 @@ The dashboard (Overview, Live, Issues, issue and attempt detail with lane flow, 
 
 A factory's Context creator is the step that talks with a person before any code is written. Any factory can record those conversations by sending `context.turn` events (see [INSTALL.md](INSTALL.md)); FactoryBench then reports conversation metrics next to cost, time and gates, and `./factorybench report context --db fb.db` adds the effort curve, per-move numbers and simulated against real. Events and metrics: [docs/context-bench.md](docs/context-bench.md).
 
+To benchmark a Context creator against a scenario with a hidden truth, `factorybench context run` plays the person, runs the creator, scores what it hands over and sends the run as events. Scenarios live with the product they describe. Without `--yes` it only prints its plan and calls no model:
+
+```bash
+./factorybench context run --scenarios ../my-product/scenarios --scenario chat-picker \
+  --subject file:./context-creator-prompt.md --person unsure          # prints the plan
+./factorybench context run --scenarios ../my-product/scenarios --scenario chat-picker \
+  --subject file:./context-creator-prompt.md --person unsure --yes    # calls the models
+```
+
 ## Docs
 
 - **[INSTALL.md](INSTALL.md)**: integrate a factory (written so a coding agent can follow it).
 - [docs/reference.md](docs/reference.md): concepts, contract rules, metric definitions, storage.
-- [docs/context-bench.md](docs/context-bench.md): Context creator events and metrics.
+- [docs/context-bench.md](docs/context-bench.md): Context creator events, metrics and the benchmark.
 - [spec/events.schema.json](spec/events.schema.json): the event contract, with one example per type in [spec/examples/](spec/examples/).
 - [docs/diagrams/](docs/diagrams/): issue flow, event path, attempt states, DB schema, code map; regenerate with `python3 docs/diagrams/generate.py`.

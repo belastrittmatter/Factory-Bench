@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"factorybench/internal/claudecode"
+	"factorybench/internal/contextbench"
 	"factorybench/internal/dashboard"
 	"factorybench/internal/emit"
 	"factorybench/internal/github"
@@ -39,6 +40,7 @@ const usage = `usage:
   factorybench report items [--factory f] [--outcome merged|rejected|open] [--label L ...] [--db fb.db]
   factorybench report factories [--by config] [--label L ...] [--db fb.db]
   factorybench report context [--factory f] [--label L ...] [--db fb.db]
+  factorybench context run ...   (benchmark a Context creator; see docs/context-bench.md)
   factorybench claude-translate <stream.jsonl>   (test harness: Claude Code stream -> contract payloads)`
 
 func main() {
@@ -151,6 +153,8 @@ func main() {
 		fs.Var(&labels, "label", "only attempts with this label (repeatable, all must match)")
 		fs.Parse(args[1:])
 		check(report.Context(open(*dbp), os.Stdout, *factory, labels))
+	case cmd == "context":
+		os.Exit(contextbench.Main(args))
 	case cmd == "report" && len(args) >= 2 && args[0] == "item":
 		fs, dbp := dbFlags("report item")
 		fs.Parse(args[2:])

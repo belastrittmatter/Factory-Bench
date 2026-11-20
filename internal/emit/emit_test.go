@@ -83,3 +83,37 @@ func TestFlushNon2xxKeepsSpool(t *testing.T) {
 		t.Fatal(".sending not removed after re-spool")
 	}
 }
+
+func TestSendDeliversInOneRequestAndSpoolsOnFailure(t *testing.T) {
+	var batches [][]json.RawMessage
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var batch []json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&batch); err != nil {
+			http.Error(w, "bad", 400)
+			return
+		}
+		batches = append(batches, batch)
+		io.WriteString(w, `{"accepted":2,"duplicates":0,"rejected":[]}`)
+	}))
+	defer srv.Close()
+	p := setup(t, srv.URL)
+	Send([]byte(`{"id":"a:1"}`), []byte(`{"id":"a:2"}`))
+	if len(batches) != 1 || len(batches[0]) != 2 {
+		t.Fatalf("delivered %v", batches)
+	}
+	if _, err := os.Stat(p); !os.IsNotExist(err) {
+		t.Error("a delivered batch was spooled")
+	}
+
+	srv.Close()
+	Send([]byte(`{"id":"a:3"}`))
+	if l := lines(t, p); len(l) != 1 || l[0] != `{"id":"a:3"}` {
+		t.Errorf("spool = %q", l)
+	}
+
+	t.Setenv("FACTORYBENCH_URL", "")
+	Send([]byte(`{"id":"a:4"}`))
+	if l := lines(t, p); len(l) != 1 {
+		t.Errorf("spool = %q", l)
+	}
+}

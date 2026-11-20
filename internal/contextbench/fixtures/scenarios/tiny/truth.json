@@ -1,0 +1,35 @@
+{
+  "items": [
+    {"id": "T1", "area": "actors", "text": "Sales reps who use WhatsApp on their own laptops are the only users.",
+     "g4": false, "latent": false, "technical": false, "source": "fixture"},
+    {"id": "T2", "area": "rules", "text": "A message from an unticked chat is never sent anywhere.",
+     "g4": true, "latent": false, "technical": false, "source": "fixture"},
+    {"id": "T3", "area": "data", "text": "Messages are kept on the laptop for 30 days and then deleted.",
+     "g4": false, "latent": false, "technical": false, "source": "fixture"},
+    {"id": "T4", "area": "limits", "text": "Importing 500 messages must finish within 5 minutes.",
+     "g4": false, "latent": false, "technical": false, "source": "fixture"},
+    {"id": "T5", "area": "rules", "text": "Retries use exponential backoff capped at 5 attempts with idempotency keys.",
+     "g4": true, "latent": false, "technical": true, "source": "fixture"},
+    {"id": "T6", "area": "screens", "text": "The chat picker shows a tick box next to every chat.",
+     "g4": false, "latent": true, "latent_hint": "a screen for choosing which chats are copied", "technical": false, "source": "fixture"},
+    {"id": "T7", "area": "failures", "text": "If the laptop is offline, queued messages from an unticked chat are dropped, not sent later.",
+     "g4": true, "latent": true, "latent_hint": "what happens when the laptop is offline", "technical": false, "source": "fixture"},
+    {"id": "T8", "area": "journeys", "text": "The rep opens the app, ticks chats once, and then never touches it again.",
+     "g4": false, "latent": false, "technical": false, "source": "fixture"}
+  ],
+  "traps": [
+    {"id": "X1", "kind": "contradiction", "items": ["T2", "T8"],
+     "text": "Never sending unticked chats cannot hold if reps never touch the app again after ticking.",
+     "resolution": "Unticking always wins; reps may change the ticks whenever they like."},
+    {"id": "X2", "kind": "vague", "items": ["T4"],
+     "text": "The import speed is stated vaguely.",
+     "resolution": "It should be quick, a few minutes at most."},
+    {"id": "X3", "kind": "person-only", "items": ["T3"],
+     "text": "What data may leave the laptop is only the person's decision.",
+     "resolution": "Only the message text and the sender's name may leave the laptop, never phone numbers."}
+  ],
+  "noise": [
+    {"id": "N1", "text": "Our other team is also looking at a Telegram bot next quarter."},
+    {"id": "N2", "text": "The office coffee machine broke again last week."}
+  ]
+}

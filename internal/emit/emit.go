@@ -58,14 +58,43 @@ func Run(args []string, usage string) {
 	if url == "" {
 		return // not configured: do nothing
 	}
-	if err := post(url, token, []json.RawMessage{ev}); err != nil {
-		p := spoolPath()
-		if serr := spool(p, ev); serr != nil {
-			log.Printf("emit: %v; cannot spool, event lost: %v", err, serr)
-			return
-		}
-		log.Printf("emit: %v; spooled to %s", err, p)
+	Send(ev)
+}
+
+// Send delivers events like Run does for one: posted to FACTORYBENCH_URL in chunks, what isn't delivered spooled,
+// nothing when FACTORYBENCH_URL is unset. It never fails the caller. It is for programs that emit many events
+// themselves, such as the context bench.
+func Send(evs ...[]byte) {
+	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
+	if url == "" {
+		return
 	}
+	rest, err := postAll(url, token, evs)
+	if err == nil {
+		return
+	}
+	p := spoolPath()
+	if serr := spool(p, rest...); serr != nil {
+		log.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(rest), serr)
+		return
+	}
+	log.Printf("emit: %v; %d events spooled to %s", err, len(rest), p)
+}
+
+// postAll posts evs in chunks and returns the events not delivered, with the error that stopped it.
+func postAll(url, token string, evs [][]byte) ([][]byte, error) {
+	for len(evs) > 0 {
+		n := min(chunk, len(evs))
+		batch := make([]json.RawMessage, n)
+		for i := range batch {
+			batch[i] = evs[i]
+		}
+		if err := post(url, token, batch); err != nil {
+			return evs, err
+		}
+		evs = evs[n:]
+	}
+	return nil, nil
 }
 
 func spoolPath() string {
@@ -166,29 +195,19 @@ func send(url, token, p, sending string) bool {
 			evs = append(evs, l)
 		}
 	}
-	sent := 0
-	for len(evs) > 0 {
-		n := min(chunk, len(evs))
-		batch := make([]json.RawMessage, n)
-		for i := range batch {
-			batch[i] = evs[i]
+	rest, perr := postAll(url, token, evs)
+	if perr != nil {
+		if serr := spool(p, rest...); serr != nil {
+			log.Printf("flush: %v; cannot re-spool (%v), events kept in %s", perr, serr, sending)
+			return false
 		}
-		if err := post(url, token, batch); err != nil {
-			if serr := spool(p, evs...); serr != nil {
-				log.Printf("flush: %v; cannot re-spool (%v), events kept in %s", err, serr, sending)
-				return false
-			}
-			log.Printf("flush: %v; %d events kept in spool", err, len(evs))
-			break
-		}
-		sent += n
-		evs = evs[n:]
+		log.Printf("flush: %v; %d events kept in spool", perr, len(rest))
 	}
-	if sent > 0 || len(evs) == 0 { // after a failed post, the "kept in spool" log already says what happened
+	if sent := len(evs) - len(rest); sent > 0 || len(rest) == 0 { // after a failed post, the "kept in spool" log already says what happened
 		fmt.Printf("flushed %d events\n", sent)
 	}
 	if err := os.Remove(sending); err != nil {
 		log.Printf("flush: %v", err)
 	}
-	return len(evs) == 0
+	return len(rest) == 0
 }
