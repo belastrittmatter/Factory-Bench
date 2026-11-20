@@ -18,6 +18,7 @@ import (
 
 	"factorybench/internal/claudecode"
 	"factorybench/internal/contextbench"
+	"factorybench/internal/contextbench/drycheck"
 	"factorybench/internal/dashboard"
 	"factorybench/internal/emit"
 	"factorybench/internal/github"
@@ -153,6 +154,15 @@ func main() {
 		fs.Var(&labels, "label", "only attempts with this label (repeatable, all must match)")
 		fs.Parse(args[1:])
 		check(report.Context(open(*dbp), os.Stdout, *factory, labels))
+	case cmd == "context" && len(args) >= 1 && args[0] == "dry-run":
+		fs := flag.NewFlagSet("context dry-run", flag.ExitOnError)
+		keep := fs.Bool("keep", false, "keep the temporary directory and print its path")
+		fs.Parse(args[1:])
+		exe, err := os.Executable()
+		check(err)
+		if err := drycheck.Run(drycheck.Config{Exe: exe, Stdout: os.Stdout, Keep: *keep}); err != nil {
+			log.Fatal("dry-run FAILED: ", err)
+		}
 	case cmd == "context":
 		os.Exit(contextbench.Main(args))
 	case cmd == "report" && len(args) >= 2 && args[0] == "item":

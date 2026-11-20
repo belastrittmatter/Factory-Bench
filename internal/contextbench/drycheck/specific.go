@@ -3,7 +3,7 @@ package drycheck
 import (
 	"bytes"
 	"encoding/json"
-	"io"
+	"fmt"
 	"log"
 	"os"
 	"path/filepath"
@@ -160,22 +160,19 @@ func (d *dry) matrix() {
 
 func (d *dry) offline(got map[string]*finished) {
 	_ = os.Remove(d.spool)
-	logger := log.Writer()
-	log.SetOutput(io.Discard)
 	rs := runSpec{name: "offline", subject: "none", env: map[string]string{"FACTORYBENCH_URL": "http://127.0.0.1:1"}}
 	f := d.runOne(nil, rs)
-	log.SetOutput(logger)
 	if f == nil {
 		return
 	}
 	d.check(f.code == 0 && f.fin.Status == bench.StatusCompleted, "offline: the run did not complete without FactoryBench: exit %d, %+v", f.code, f.fin)
+	d.check(strings.Contains(f.errs, "events spooled to "+d.spool), "offline: the run's stderr does not say where its events were spooled: %q", f.errs)
 	b, err := os.ReadFile(d.spool)
 	d.check(err == nil && bytes.Count(b, []byte("\n")) == len(f.raw) && len(f.raw) > 3, "offline: %d events not spooled (spool %v)", len(f.raw), err)
 	before := d.postedEvents()
-	logger = log.Writer()
-	log.SetOutput(io.Discard)
-	emit.Run([]string{"--flush"}, "")
-	log.SetOutput(logger)
+	var flushed bytes.Buffer
+	emit.Flush(log.New(&flushed, "", 0), &flushed)
+	d.check(strings.Contains(flushed.String(), fmt.Sprintf("flushed %d events", len(f.raw))), "offline: flush said %q", flushed.String())
 	d.check(d.postedEvents()-before == len(f.raw), "offline: flushing delivered %d of %d events", d.postedEvents()-before, len(f.raw))
 	got["offline"] = f
 	d.say("ok  an unreachable FactoryBench never blocks a run: its %d events are spooled and flush later", len(f.raw))

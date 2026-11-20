@@ -27,7 +27,7 @@ const chunk = 500
 func Run(args []string, usage string) {
 	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
 	if len(args) == 1 && args[0] == "--flush" {
-		flush(url, token)
+		Flush(log.Default(), os.Stdout)
 		return
 	}
 	if len(args) < 1 || strings.HasPrefix(args[0], "-") {
@@ -58,8 +58,8 @@ func Run(args []string, usage string) {
 	if url == "" {
 		return // not configured: do nothing
 	}
-	if err := post(url, token, []json.RawMessage{ev}); err != nil {
-		p := spoolPath()
+	if err := post(log.Default(), url, token, []json.RawMessage{ev}); err != nil {
+		p := spoolPath(log.Default())
 		if serr := spool(p, ev); serr != nil {
 			log.Printf("emit: %v; cannot spool, event lost: %v", err, serr)
 			return
@@ -70,32 +70,32 @@ func Run(args []string, usage string) {
 
 // Send delivers events like Run does for one: posted to FACTORYBENCH_URL in chunks, what isn't delivered spooled,
 // nothing when FACTORYBENCH_URL is unset. It never fails the caller. It is for programs that emit many events
-// themselves, such as the context bench.
-func Send(evs ...[]byte) {
+// themselves, such as the context bench. Problems go to lg.
+func Send(lg *log.Logger, evs ...[]byte) {
 	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
 	if url == "" {
 		return
 	}
-	rest, err := postAll(url, token, evs)
+	rest, err := postAll(lg, url, token, evs)
 	if err == nil {
 		return
 	}
-	p := spoolPath()
+	p := spoolPath(lg)
 	if serr := spool(p, rest...); serr != nil {
-		log.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(rest), serr)
+		lg.Printf("emit: %v; cannot spool, %d events lost: %v", err, len(rest), serr)
 		return
 	}
-	log.Printf("emit: %v; %d events spooled to %s", err, len(rest), p)
+	lg.Printf("emit: %v; %d events spooled to %s", err, len(rest), p)
 }
 
-func postAll(url, token string, evs [][]byte) ([][]byte, error) {
+func postAll(lg *log.Logger, url, token string, evs [][]byte) ([][]byte, error) {
 	for len(evs) > 0 {
 		n := min(chunk, len(evs))
 		batch := make([]json.RawMessage, n)
 		for i := range batch {
 			batch[i] = evs[i]
 		}
-		if err := post(url, token, batch); err != nil {
+		if err := post(lg, url, token, batch); err != nil {
 			return evs, err
 		}
 		evs = evs[n:]
@@ -103,19 +103,19 @@ func postAll(url, token string, evs [][]byte) ([][]byte, error) {
 	return nil, nil
 }
 
-func spoolPath() string {
+func spoolPath(lg *log.Logger) string {
 	if p := os.Getenv("FACTORYBENCH_SPOOL"); p != "" {
 		return p
 	}
 	home, err := os.UserHomeDir()
 	if err != nil {
-		log.Printf("emit: %v; spooling under %s", err, os.TempDir())
+		lg.Printf("emit: %v; spooling under %s", err, os.TempDir())
 		home = os.TempDir()
 	}
 	return filepath.Join(home, ".factorybench", "spool.jsonl")
 }
 
-func post(url, token string, evs []json.RawMessage) error {
+func post(lg *log.Logger, url, token string, evs []json.RawMessage) error {
 	body, err := json.Marshal(evs)
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func post(url, token string, evs []json.RawMessage) error {
 	}
 	var r intake.Response
 	if json.Unmarshal(b, &r) == nil && len(r.Rejected) > 0 {
-		log.Printf("emit: rejected by FactoryBench (kept there): %s", b)
+		lg.Printf("emit: rejected by FactoryBench (kept there): %s", b)
 	}
 	return nil
 }
@@ -163,31 +163,33 @@ func spool(p string, evs ...[]byte) error {
 	return f.Close()
 }
 
-func flush(url, token string) {
+// Flush sends the spool to FACTORYBENCH_URL: progress goes to out, problems to lg.
+func Flush(lg *log.Logger, out io.Writer) {
+	url, token := os.Getenv("FACTORYBENCH_URL"), os.Getenv("FACTORYBENCH_TOKEN")
 	if url == "" {
-		log.Print("flush: FACTORYBENCH_URL not set")
+		lg.Print("flush: FACTORYBENCH_URL not set")
 		return
 	}
-	p := spoolPath()
+	p := spoolPath(lg)
 	sending := p + ".sending"
 	// A .sending left by a crashed flush goes first, so the Rename below never overwrites it.
-	if _, err := os.Stat(sending); err == nil && !send(url, token, p, sending) {
+	if _, err := os.Stat(sending); err == nil && !send(lg, out, url, token, p, sending) {
 		return
 	}
 	// Take the spool atomically so emits during the flush go to a fresh spool file.
 	if err := os.Rename(p, sending); err != nil {
-		fmt.Println("spool empty")
+		fmt.Fprintln(out, "spool empty")
 		return
 	}
-	send(url, token, p, sending)
+	send(lg, out, url, token, p, sending)
 }
 
 // send posts the events in file sending in chunks; what isn't delivered goes back to the spool p.
 // sending is removed only when every event was delivered or re-spooled.
-func send(url, token, p, sending string) bool {
+func send(lg *log.Logger, out io.Writer, url, token, p, sending string) bool {
 	b, err := os.ReadFile(sending)
 	if err != nil {
-		log.Printf("flush: %v", err)
+		lg.Printf("flush: %v", err)
 		return false
 	}
 	var evs [][]byte
@@ -196,24 +198,24 @@ func send(url, token, p, sending string) bool {
 		switch {
 		case len(l) == 0:
 		case !json.Valid(l):
-			log.Printf("flush: skipping corrupt spool line: %.200s", l)
+			lg.Printf("flush: skipping corrupt spool line: %.200s", l)
 		default:
 			evs = append(evs, l)
 		}
 	}
-	rest, perr := postAll(url, token, evs)
+	rest, perr := postAll(lg, url, token, evs)
 	if perr != nil {
 		if serr := spool(p, rest...); serr != nil {
-			log.Printf("flush: %v; cannot re-spool (%v), events kept in %s", perr, serr, sending)
+			lg.Printf("flush: %v; cannot re-spool (%v), events kept in %s", perr, serr, sending)
 			return false
 		}
-		log.Printf("flush: %v; %d events kept in spool", perr, len(rest))
+		lg.Printf("flush: %v; %d events kept in spool", perr, len(rest))
 	}
 	if sent := len(evs) - len(rest); sent > 0 || len(rest) == 0 {
-		fmt.Printf("flushed %d events\n", sent)
+		fmt.Fprintf(out, "flushed %d events\n", sent)
 	}
 	if err := os.Remove(sending); err != nil {
-		log.Printf("flush: %v", err)
+		lg.Printf("flush: %v", err)
 	}
 	return len(rest) == 0
 }

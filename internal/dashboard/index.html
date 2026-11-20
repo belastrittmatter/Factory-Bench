@@ -414,6 +414,7 @@ function convoStrip(c){
 }
 const ctxVal=v=>v==='n/a'?'<span class="muted">n/a</span>':esc(v);
 function ctxTable(units){return table([{h:'Metric',c:'t',f:r=>esc(r.l)},...units.map((u,i)=>({h:`${esc(u.Factory)} <span class="muted">${esc(u.Runs)}</span>`,f:r=>ctxVal(r.v[i])}))],units[0].Metrics.map((m,i)=>({l:m.Label,v:units.map(u=>u.Metrics[i].Value)})))}
+const SIM_WARN_TIP="A scored run broke a rule of the simulated person: its numbers are less trustworthy";
 const CTX_HINT="Same numbers as report items. Rates show their counts and n/a means nothing to divide by. The benchmark's own cost is not part of the factory's cost.";
 const ctxRunTitle=r=>`<b class="mono">${esc(r.Attempt)}</b> <span class="muted">${esc(r.Factory)}${r.Labels.length?' · '+esc(r.Labels.join(' · ')):''}</span>`;
 const contextCard=c=>!c||!c.Units.length?'':`<div class="card c12"><h3>Context</h3><div class="hint">${CTX_HINT}</div>${ctxTable(c.Units)}${c.Runs.filter(r=>r.Turns.length).map(r=>`<div style="margin-top:14px">${ctxRunTitle(r)}${convoStrip(r)}</div>`).join('')}</div>`;
@@ -816,7 +817,7 @@ function scoreTable(sc,groups){
   const secs=[...SECTIONS.map(x=>x[0]),'Context','Other'].map(s=>[s,rows.filter(r=>secOf(r)===s)]).filter(([,rs])=>rs.length);
   const head=groups.map(g=>{const [f,...c]=g.split(' ');return `<th class="gh"><div class="ghc"><i style="background:${colorOf('group',g)}"></i><div><b>${esc(f)}</b>${c.length?`<span class="mono">${esc(c.join(' ')).replace(/[+@]/g,'$&<wbr>')}</span>`:''}</div>${n>1?`<button class="iconbtn" data-cmprm="${esc(g)}" aria-label="Remove ${esc(g)}">${ico('close')}</button>`:''}</div></th>`}).join('');
   const cell=(r,v,i)=>{const x=r.nums[i],top=r.best!==null&&x===r.best;
-    return `<td class="${top?'best':''}">${r.raw?`<span data-tip="${esc(FORMAT_TIP)}">${esc(v)}</span>`:na(v.split(' (')[0])}${n>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`};
+    return `<td class="${top?'best':''}">${r.raw?`<span data-tip="${esc(FORMAT_TIP)}">${esc(v)}</span>`:na(v.split(' (')[0])}${r.Warn&&r.Warn[i]?` <b style="color:var(--crit)" data-tip="${esc(SIM_WARN_TIP)}">⚠</b>`:''}${n>1&&x!==null&&r.max?`<span class="mbar"><i style="width:${Math.abs(x)/r.max*100}%;background:${colorOf('group',groups[i])}"></i></span>`:''}</td>`};
   return `<table class="cmp"><colgroup><col class="lab">${groups.map(()=>'<col>').join('')}</colgroup><thead><tr><th></th>${head}</tr></thead>${secs.map(([s,rs])=>{if(UI.diffFirst)rs=rs.slice().sort((a,b)=>b.spread-a.spread);
     return `<tbody><tr class="sec"><th colspan="${n+1}">${s}</th></tr>${rs.map(r=>`<tr><td class="sub">${esc(fixStr(r.Label))}${r.dir?`<span class="muted"> ${r.dir<0?'↓':'↑'}</span>`:''}</td>${r.vals.map((v,i)=>cell(r,v,i)).join('')}</tr>`).join('')}</tbody>`}).join('')}</table>`;
 }

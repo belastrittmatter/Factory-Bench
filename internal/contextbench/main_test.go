@@ -7,7 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"factorybench/internal/contextbench/drycheck"
 	"factorybench/internal/contextbench/fakeclaude"
 )
 
@@ -35,19 +34,6 @@ func fakeProgram(t *testing.T) string {
 		t.Fatal(err)
 	}
 	return p
-}
-
-func TestDryRunPasses(t *testing.T) {
-	if testing.Short() {
-		t.Skip("the dry run starts the fake claude a few hundred times")
-	}
-	var out bytes.Buffer
-	if err := drycheck.Run(drycheck.Config{Fake: fakeProgram(t), Stdout: &out, Run: Run}); err != nil {
-		t.Fatalf("%v\n%s", err, out.String())
-	}
-	if !strings.Contains(out.String(), "dry-run ok") {
-		t.Errorf("%s", out.String())
-	}
 }
 
 func TestUsageAndUnknownCommand(t *testing.T) {

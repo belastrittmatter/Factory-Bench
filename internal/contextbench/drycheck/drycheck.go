@@ -16,6 +16,7 @@ import (
 	"strings"
 	"sync"
 
+	"factorybench/internal/contextbench"
 	"factorybench/internal/contextbench/change"
 	"factorybench/internal/contextbench/fakeclaude"
 	"factorybench/internal/contextbench/fixtures"
@@ -32,7 +33,6 @@ type Config struct {
 	Fake   string
 	Stdout io.Writer
 	Keep   bool
-	Run    func(args []string, stdin io.Reader, stdout, stderr io.Writer) int
 }
 
 type dry struct {
@@ -211,7 +211,7 @@ func (d *dry) cli(env map[string]string, stdin string, args ...string) (code int
 	restore := setenv(env)
 	defer restore()
 	var out, errb bytes.Buffer
-	code = d.cfg.Run(args, strings.NewReader(stdin), &out, &errb)
+	code = contextbench.Run(args, strings.NewReader(stdin), &out, &errb)
 	return code, out.String(), errb.String()
 }
 

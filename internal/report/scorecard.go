@@ -298,6 +298,7 @@ type ScoreRow struct {
 	Values  []string
 	Section string `json:",omitempty"`
 	Dir     int    `json:",omitempty"`
+	Warn    []bool `json:",omitempty"` // per value: shown with a warning mark (a scored run broke a simulator rule)
 }
 
 // Scorecard returns the `report factories` scorecard as data: group names (factory or factory + config) and the shown rows.

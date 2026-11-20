@@ -176,7 +176,7 @@ func TestContextSimViolationsMarked(t *testing.T) {
 	var s ctxStats
 	s.add(nil, &mScore{simViolations: 2})
 	s.add(nil, &mScore{})
-	if got := metricMap(&s)["simulator violations"]; got != "1.0 ⚠ (2/2) / run · 1 run marked" {
+	if got := metricMap(&s)["simulator violations"]; got != "1.0 (2/2) / run ⚠ 1 run marked" {
 		t.Errorf("simulator violations %q", got)
 	}
 }
@@ -222,6 +222,12 @@ func TestContextSectionOnlyWithData(t *testing.T) {
 			n++
 			if r.Label == "recall" && (r.Dir != 1 || r.Values[1] != "n/a") {
 				t.Errorf("recall row: %+v", r)
+			}
+			if r.Label == "simulator violations" && (len(r.Warn) != 2 || !r.Warn[0] || r.Warn[1]) {
+				t.Errorf("violations row is not marked for the factory with a violating run only: %+v", r)
+			}
+			if r.Label == "recall" && r.Warn != nil {
+				t.Errorf("recall row has a warning mark: %+v", r)
 			}
 		}
 	}

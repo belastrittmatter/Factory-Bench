@@ -323,72 +323,73 @@ type ctxMetric struct {
 	label string
 	dir   int
 	val   func(s *ctxStats) string
+	warn  func(s *ctxStats) bool // nil, or whether a value needs a warning mark
 }
 
 var contextMetrics = []ctxMetric{
-	{"context turns / conversation", 0, func(s *ctxStats) string { return avg(int(s.factoryTurns), s.convs) }},
-	{"person words / conversation", 0, func(s *ctxStats) string { return avg(int(s.personWords), s.convs) }},
-	{"moves", 0, func(s *ctxStats) string { return topCounts(s.moves, 3) }},
-	{"could not answer", -1, func(s *ctxStats) string { return rate(s.couldNot, int(s.personTurns)) }},
-	{"asked again", -1, func(s *ctxStats) string { return per(avg(s.already, s.convs), "conversation") }},
-	{"asked what was given", -1, func(s *ctxStats) string { return per(avg(s.inAtt, s.convs), "conversation") }},
-	{"suggestions accepted", 1, func(s *ctxStats) string { return rate(s.accepted, s.accepted+s.rejected) }},
-	{"don't-know recovered", 1, func(s *ctxStats) string { return rate(s.recovered, s.dontKnow) }},
+	{"context turns / conversation", 0, func(s *ctxStats) string { return avg(int(s.factoryTurns), s.convs) }, nil},
+	{"person words / conversation", 0, func(s *ctxStats) string { return avg(int(s.personWords), s.convs) }, nil},
+	{"moves", 0, func(s *ctxStats) string { return topCounts(s.moves, 3) }, nil},
+	{"could not answer", -1, func(s *ctxStats) string { return rate(s.couldNot, int(s.personTurns)) }, nil},
+	{"asked again", -1, func(s *ctxStats) string { return per(avg(s.already, s.convs), "conversation") }, nil},
+	{"asked what was given", -1, func(s *ctxStats) string { return per(avg(s.inAtt, s.convs), "conversation") }, nil},
+	{"suggestions accepted", 1, func(s *ctxStats) string { return rate(s.accepted, s.accepted+s.rejected) }, nil},
+	{"don't-know recovered", 1, func(s *ctxStats) string { return rate(s.recovered, s.dontKnow) }, nil},
 	{"frustration", -1, func(s *ctxStats) string {
 		if s.frustN == 0 {
 			return "n/a"
 		}
 		return fmt.Sprintf("%.1f mean, %d max (%s)", float64(s.frustSum)/float64(s.frustN), s.frustMax, plural(int(s.frustN), "turn"))
-	}},
-	{"recall", 1, func(s *ctxStats) string { return ratef(credit(s.full, s.partial), s.items) }},
+	}, nil},
+	{"recall", 1, func(s *ctxStats) string { return ratef(credit(s.full, s.partial), s.items) }, nil},
 	{"weighted recall", 1, func(s *ctxStats) string {
 		return ratef(float64(s.full)+2*float64(s.g4Full)+0.5*(float64(s.partial)+2*float64(s.g4Partial)), s.items+2*s.g4)
-	}},
-	{"G4 recall", 1, func(s *ctxStats) string { return ratef(credit(s.g4Full, s.g4Partial), s.g4) }},
-	{"items per turn", 1, func(s *ctxStats) string { return ratio(credit(s.full, s.partial), s.scoredFactoryTurns) }},
+	}, nil},
+	{"G4 recall", 1, func(s *ctxStats) string { return ratef(credit(s.g4Full, s.g4Partial), s.g4) }, nil},
+	{"items per turn", 1, func(s *ctxStats) string { return ratio(credit(s.full, s.partial), s.scoredFactoryTurns) }, nil},
 	{"latent drawn", 1, func(s *ctxStats) string {
 		v := ratef(float64(s.capLatent), s.latent)
 		if by := intCounts(s.latentByMove); by != "" && s.latent > 0 {
 			v += " · " + by
 		}
 		return v
-	}},
-	{"traps raised", 1, func(s *ctxStats) string { return ratef(float64(s.raised), s.traps) }},
-	{"traps followed", 1, func(s *ctxStats) string { return ratef(float64(s.followed), s.traps) }},
+	}, nil},
+	{"traps raised", 1, func(s *ctxStats) string { return ratef(float64(s.raised), s.traps) }, nil},
+	{"traps followed", 1, func(s *ctxStats) string { return ratef(float64(s.followed), s.traps) }, nil},
 	{"invented", -1, func(s *ctxStats) string {
 		v := per(avg(int(s.invented), s.scored), "run")
 		if s.scored > 0 {
 			v += fmt.Sprintf(" · %d not marked assumed", s.unmarked)
 		}
 		return v
-	}},
-	{"map tag errors", -1, func(s *ctxStats) string { return per(avg(int(s.tagErrors), s.scored), "run") }},
-	{"noise left", -1, func(s *ctxStats) string { return per(avg(int(s.noiseLeft), s.scored), "run") }},
-	{"missing slots", -1, func(s *ctxStats) string { return per(avg(int(s.missingSlots), s.scored), "run") }},
-	{"contradictions", -1, func(s *ctxStats) string { return per(avg(int(s.contradictions), s.scored), "run") }},
-	{"traceability", 1, func(s *ctxStats) string { return ratef(float64(s.requirements-s.untraced), s.requirements) }},
-	{"builder agreement", 1, func(s *ctxStats) string { return ratef(float64(s.agree), s.total) }},
+	}, nil},
+	{"map tag errors", -1, func(s *ctxStats) string { return per(avg(int(s.tagErrors), s.scored), "run") }, nil},
+	{"noise left", -1, func(s *ctxStats) string { return per(avg(int(s.noiseLeft), s.scored), "run") }, nil},
+	{"missing slots", -1, func(s *ctxStats) string { return per(avg(int(s.missingSlots), s.scored), "run") }, nil},
+	{"contradictions", -1, func(s *ctxStats) string { return per(avg(int(s.contradictions), s.scored), "run") }, nil},
+	{"traceability", 1, func(s *ctxStats) string { return ratef(float64(s.requirements-s.untraced), s.requirements) }, nil},
+	{"builder agreement", 1, func(s *ctxStats) string { return ratef(float64(s.agree), s.total) }, nil},
 	{"hidden tests", 1, func(s *ctxStats) string {
 		v := ratef(float64(s.hiddenPass), s.hiddenTotal)
 		if s.built > 0 {
 			v += fmt.Sprintf(" · escalations %s · repairs %s", avg(int(s.escalations), s.built), per(avg(int(s.repairs), s.built), "built run"))
 		}
 		return v
-	}},
+	}, nil},
 	{"simulator violations", -1, func(s *ctxStats) string {
 		v := per(avg(int(s.simViolation), s.scored), "run")
 		if s.simRuns > 0 {
-			v = strings.Replace(v, " (", " ⚠ (", 1) + fmt.Sprintf(" · %s marked", plural(s.simRuns, "run"))
+			v += fmt.Sprintf(" ⚠ %s marked", plural(s.simRuns, "run"))
 		}
 		return v
-	}},
+	}, func(s *ctxStats) bool { return s.simRuns > 0 }},
 	{"bench cost (not factory cost)", 0, func(s *ctxStats) string {
 		if s.scored == 0 {
 			return "n/a"
 		}
 		return fmt.Sprintf("%s (person %s, judge %s, builders %s, build %s)", usd(s.costPerson+s.costJudge+s.costBuilders+s.costBuild),
 			usd(s.costPerson), usd(s.costJudge), usd(s.costBuilders), usd(s.costBuild))
-	}},
+	}, nil},
 }
 
 func per(v, unit string) string {
@@ -438,6 +439,12 @@ func contextSection(cards []*card) []ScoreRow {
 			rows[i].Values[j] = "n/a"
 			if c.ctx.has() {
 				rows[i].Values[j] = m.val(&c.ctx)
+				if m.warn != nil && m.warn(&c.ctx) {
+					if rows[i].Warn == nil {
+						rows[i].Warn = make([]bool, len(cards))
+					}
+					rows[i].Warn[j] = true
+				}
 			}
 		}
 	}

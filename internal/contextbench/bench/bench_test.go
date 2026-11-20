@@ -91,11 +91,10 @@ func ofType(evs []event, typ string) []event {
 
 func testEnv(t *testing.T) (*Env, *recorder, *sink, *bytes.Buffer) {
 	t.Helper()
-	e := NewEnv(fixtures + "/scenarios")
+	var out bytes.Buffer
+	e := NewEnv(fixtures+"/scenarios", strings.NewReader(""), &out, &out)
 	rec, sk := &recorder{}, &sink{}
 	e.Runner, e.Send = rec, sk.send
-	var out bytes.Buffer
-	e.Stdout, e.Stderr = &out, &out
 	return e, rec, sk, &out
 }
 

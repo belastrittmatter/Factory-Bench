@@ -18,8 +18,8 @@ acme/chat#3         fb       open     1                                  ?      
 open one: factorybench report item <owner/repo#n>
 
 Context
-item         factory  runs          context turns / conversation  person words / conversation  moves                       could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration                recall      weighted recall  G4 recall    items per turn  latent drawn        traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests                                                       simulator violations              bench cost (not factory cost)
-acme/chat#2  fa       2 (2 scored)  2.5 (5/2)                     63.0 (126/2)                 ask 1, confirm 1, mirror 1  14% (1/7)         0.5 (1/2) / conversation  0.0 (0/2) / conversation  50% (1/2)             100% (1/1)            2.0 mean, 4 max (4 turns)  35% (7/20)  36% (10/28)      38% (1.5/4)  1.4 (7/5)       25% (1/4) · show 1  25% (1/4)     25% (1/4)       1.0 (2/2) / run · 1 not marked assumed  0.5 (1/2) / run  0.0 (0/2) / run  0.5 (1/2) / run  0.0 (0/2) / run  75% (6/8)     75% (6/8)          75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  0.5 ⚠ (1/2) / run · 1 run marked  $1.25 (person $0.75, judge $0.38, builders $0.12, build $0.00)
+item         factory  runs          context turns / conversation  person words / conversation  moves                       could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration                recall      weighted recall  G4 recall    items per turn  latent drawn        traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests                                                       simulator violations            bench cost (not factory cost)
+acme/chat#2  fa       2 (2 scored)  2.5 (5/2)                     63.0 (126/2)                 ask 1, confirm 1, mirror 1  14% (1/7)         0.5 (1/2) / conversation  0.0 (0/2) / conversation  50% (1/2)             100% (1/1)            2.0 mean, 4 max (4 turns)  35% (7/20)  36% (10/28)      38% (1.5/4)  1.4 (7/5)       25% (1/4) · show 1  25% (1/4)     25% (1/4)       1.0 (2/2) / run · 1 not marked assumed  0.5 (1/2) / run  0.0 (0/2) / run  0.5 (1/2) / run  0.0 (0/2) / run  75% (6/8)     75% (6/8)          75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  0.5 (1/2) / run ⚠ 1 run marked  $1.25 (person $0.75, judge $0.38, builders $0.12, build $0.00)
 
 $ report factories
 metric                       fa                                                   fb
@@ -70,7 +70,7 @@ contradictions                 0.0 (0/2) / run                                  
 traceability                   75% (6/8)                                                          n/a
 builder agreement              75% (6/8)                                                          n/a
 hidden tests                   75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  n/a
-simulator violations           0.5 ⚠ (1/2) / run · 1 run marked                                   n/a
+simulator violations           0.5 (1/2) / run ⚠ 1 run marked                                     n/a
 bench cost (not factory cost)  $1.25 (person $0.75, judge $0.38, builders $0.12, build $0.00)     n/a
 
 Gates (defects caught)
@@ -88,8 +88,8 @@ acme/chat#2         fa       open     1         ?       ?     13h0m0s  13h0m0s  
 open one: factorybench report item <owner/repo#n>
 
 Context
-item         factory  runs          context turns / conversation  person words / conversation  moves      could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration               recall      weighted recall  G4 recall  items per turn  latent drawn  traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests  simulator violations              bench cost (not factory cost)
-acme/chat#2  fa       1 (1 scored)  1.0 (1/1)                     81.0 (81/1)                  suggest 1  0% (0/2)          0.0 (0/1) / conversation  0.0 (0/1) / conversation  0% (0/1)              n/a                   4.0 mean, 4 max (1 turn)  20% (2/10)  14% (2/14)       0% (0/2)   2.0 (2/1)       0% (0/2)      0% (0/2)      0% (0/2)        0.0 (0/1) / run · 0 not marked assumed  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  n/a           n/a                n/a           1.0 ⚠ (1/1) / run · 1 run marked  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)
+item         factory  runs          context turns / conversation  person words / conversation  moves      could not answer  asked again               asked what was given      suggestions accepted  don't-know recovered  frustration               recall      weighted recall  G4 recall  items per turn  latent drawn  traps raised  traps followed  invented                                map tag errors   noise left       missing slots    contradictions   traceability  builder agreement  hidden tests  simulator violations            bench cost (not factory cost)
+acme/chat#2  fa       1 (1 scored)  1.0 (1/1)                     81.0 (81/1)                  suggest 1  0% (0/2)          0.0 (0/1) / conversation  0.0 (0/1) / conversation  0% (0/1)              n/a                   4.0 mean, 4 max (1 turn)  20% (2/10)  14% (2/14)       0% (0/2)   2.0 (2/1)       0% (0/2)      0% (0/2)      0% (0/2)        0.0 (0/1) / run · 0 not marked assumed  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  0.0 (0/1) / run  n/a           n/a                n/a           1.0 (1/1) / run ⚠ 1 run marked  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)
 
 $ report factories --by config
 metric                       fa file:x@def/m1                                    fa plain@abc/m1                                      fb other@1
@@ -140,7 +140,7 @@ contradictions                 0.0 (0/1) / run                                  
 traceability                   n/a                                                             75% (6/8)                                                          n/a
 builder agreement              n/a                                                             75% (6/8)                                                          n/a
 hidden tests                   n/a                                                             75% (3/4) · escalations 1.0 (1/1) · repairs 2.0 (2/1) / built run  n/a
-simulator violations           1.0 ⚠ (1/1) / run · 1 run marked                                0.0 (0/1) / run                                                    n/a
+simulator violations           1.0 (1/1) / run ⚠ 1 run marked                                  0.0 (0/1) / run                                                    n/a
 bench cost (not factory cost)  $0.38 (person $0.25, judge $0.12, builders $0.00, build $0.00)  $0.88 (person $0.50, judge $0.25, builders $0.12, build $0.00)     n/a
 
 Gates (defects caught)

@@ -18,7 +18,6 @@ import (
 	"sync"
 
 	"factorybench/internal/contextbench/bench"
-	"factorybench/internal/contextbench/drycheck"
 	"factorybench/internal/contextbench/fakeclaude"
 	"factorybench/internal/contextbench/lint"
 	"factorybench/internal/contextbench/prompts"
@@ -65,8 +64,6 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return c.replay(rest)
 	case "lint":
 		return c.lint(rest)
-	case "dry-run":
-		return c.dryRun(rest)
 	}
 	fmt.Fprintf(stderr, "factorybench context: unknown command %q\n\n%s", cmd, usage)
 	return 2
@@ -124,9 +121,7 @@ func (c *cli) addShared(fs *flag.FlagSet) {
 }
 
 func (c *cli) env(scenarios string) *bench.Env {
-	e := bench.NewEnv(scenarios)
-	e.Stdin, e.Stdout, e.Stderr = c.stdin, c.stdout, c.stderr
-	return e
+	return bench.NewEnv(scenarios, c.stdin, c.stdout, c.stderr)
 }
 
 func (c *cli) run(args []string) int {
@@ -447,22 +442,5 @@ func (c *cli) lint(args []string) int {
 	}
 	ids, _ := scenario.AllIDs(d.Scenarios)
 	fmt.Fprintf(c.stdout, "lint ok: %d scenarios, %d warnings\n", len(ids), len(r.Warnings))
-	return 0
-}
-
-func (c *cli) dryRun(args []string) int {
-	fs := c.flags("dry-run")
-	keep := fs.Bool("keep", false, "keep the temporary directory and print its path")
-	if ok, code := c.parse(fs, args); !ok {
-		return code
-	}
-	exe, err := os.Executable()
-	if err != nil {
-		return c.fail(err)
-	}
-	if err := drycheck.Run(drycheck.Config{Exe: exe, Stdout: c.stdout, Keep: *keep, Run: Run}); err != nil {
-		fmt.Fprintln(c.stderr, "dry-run FAILED:", err)
-		return 1
-	}
 	return 0
 }

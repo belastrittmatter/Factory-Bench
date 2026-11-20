@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,7 +42,8 @@ type Env struct {
 	ScenariosDir   string
 	CalibrationDir string // calibration/<id>.json; by default next to the scenarios directory
 	Runner         claude.Runner
-	// Send delivers events; by default the way `factorybench emit` does (FACTORYBENCH_URL, spooled on failure).
+	// Send delivers events; by default the way `factorybench emit` does (FACTORYBENCH_URL, spooled on failure),
+	// with delivery problems written to Stderr.
 	Send        func(evs ...[]byte)
 	Stdin       io.Reader
 	Stdout      io.Writer
@@ -49,10 +51,11 @@ type Env struct {
 	stdinReader *bufio.Reader
 }
 
-func NewEnv(scenariosDir string) *Env {
+func NewEnv(scenariosDir string, stdin io.Reader, stdout, stderr io.Writer) *Env {
+	lg := log.New(stderr, "", log.LstdFlags)
 	return &Env{
 		ScenariosDir: scenariosDir, CalibrationDir: filepath.Join(filepath.Dir(filepath.Clean(scenariosDir)), "calibration"),
-		Send: emit.Send, Stdin: os.Stdin, Stdout: os.Stdout, Stderr: os.Stderr,
+		Send: func(evs ...[]byte) { emit.Send(lg, evs...) }, Stdin: stdin, Stdout: stdout, Stderr: stderr,
 	}
 }
 

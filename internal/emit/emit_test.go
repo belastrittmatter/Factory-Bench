@@ -3,6 +3,7 @@ package emit
 import (
 	"encoding/json"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -51,7 +52,7 @@ func TestFlushSkipsCorruptLine(t *testing.T) {
 	if err := os.WriteFile(p, []byte("{\"id\":\"a:1\"}\n{\"id\":\"a:2\",\"trunc\n{\"id\":\"a:3\"}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	flush(srv.URL, "tok")
+	Flush(log.Default(), io.Discard)
 	if len(got) != 2 || string(got[0]) != `{"id":"a:1"}` || string(got[1]) != `{"id":"a:3"}` {
 		t.Fatalf("delivered %s", got)
 	}
@@ -75,7 +76,7 @@ func TestFlushNon2xxKeepsSpool(t *testing.T) {
 	if err := os.WriteFile(p, []byte("{\"id\":\"a:2\"}\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	flush(srv.URL, "tok")
+	Flush(log.Default(), io.Discard)
 	if l := lines(t, p); len(l) != 2 {
 		t.Fatalf("spool = %q", l)
 	}
@@ -97,7 +98,7 @@ func TestSendDeliversInOneRequestAndSpoolsOnFailure(t *testing.T) {
 	}))
 	defer srv.Close()
 	p := setup(t, srv.URL)
-	Send([]byte(`{"id":"a:1"}`), []byte(`{"id":"a:2"}`))
+	Send(log.Default(), []byte(`{"id":"a:1"}`), []byte(`{"id":"a:2"}`))
 	if len(batches) != 1 || len(batches[0]) != 2 {
 		t.Fatalf("delivered %v", batches)
 	}
@@ -106,13 +107,13 @@ func TestSendDeliversInOneRequestAndSpoolsOnFailure(t *testing.T) {
 	}
 
 	srv.Close()
-	Send([]byte(`{"id":"a:3"}`))
+	Send(log.Default(), []byte(`{"id":"a:3"}`))
 	if l := lines(t, p); len(l) != 1 || l[0] != `{"id":"a:3"}` {
 		t.Errorf("spool = %q", l)
 	}
 
 	t.Setenv("FACTORYBENCH_URL", "")
-	Send([]byte(`{"id":"a:4"}`))
+	Send(log.Default(), []byte(`{"id":"a:4"}`))
 	if l := lines(t, p); len(l) != 1 {
 		t.Errorf("spool = %q", l)
 	}
