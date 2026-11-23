@@ -30,6 +30,7 @@ type mUse struct {
 	cost        sql.NullFloat64
 	prov, phase sql.NullString
 	ms          sql.NullInt64
+	session     sql.NullString
 }
 
 type mTool struct {
@@ -96,10 +97,10 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 					&a.parent, &a.ended, &a.pr, &a.waitMS)
 			}),
 		store.Each(db, `SELECT factory_id, attempt_id, input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0),
-			cost_usd, cost_provenance, phase, duration_ms FROM usage`, func(r *sql.Rows) error {
+			cost_usd, cost_provenance, phase, duration_ms, session FROM usage`, func(r *sql.Rows) error {
 			var f, id string
 			var u mUse
-			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase, &u.ms)
+			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase, &u.ms, &u.session)
 			d.usage[f+"\x00"+id] = append(d.usage[f+"\x00"+id], u)
 			return err
 		}),
@@ -429,9 +430,10 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		if len(uses) > 0 {
 			u.withUsage++
 		}
+		seen := map[string]bool{}
 		for _, s := range uses {
 			u.run.modelMS += s.ms.Int64
-			u.sessions++
+			u.sessions += newSession(seen, s.session)
 			u.tokens += s.tokens
 			u.cost.add(s.cost, s.prov)
 			if s.phase.Valid {

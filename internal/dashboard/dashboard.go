@@ -46,6 +46,9 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 	return state
 }
 
+// nSessionsSQL counts the sessions of usage rows: distinct session ids, and one per row without one.
+const nSessionsSQL = `count(DISTINCT session) + sum(session IS NULL)`
+
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
@@ -401,7 +404,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id) AS has_wait_events
 			FROM attempts a WHERE factory_id = ?1 AND attempt_id = ?2`},
 		{"usage", `SELECT ts, model, agent_id, phase, step, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
-		{"phases", `SELECT phase, count(*) AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
+		{"phases", `SELECT phase, ` + nSessionsSQL + ` AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
 			sum(cost_usd IS NULL) AS unpriced, sum(duration_ms) AS duration_ms FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY phase`},
 		{"tools", `SELECT tool_name, count(*) AS calls, sum(success = 0) AS failed, sum(success IS NULL) AS unknown, sum(duration_ms) AS duration_ms
 			FROM tool_calls WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY tool_name ORDER BY calls DESC`},
@@ -520,10 +523,10 @@ func (s *server) series(r *http.Request) (any, error) {
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
 			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title,
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
-			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
+			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, ` + nSessionsSQL + ` AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
-		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,
+		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, ` + nSessionsSQL + ` AS sessions,
 			sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced

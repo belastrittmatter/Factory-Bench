@@ -70,7 +70,8 @@ CREATE TABLE usage (                        -- one row per usage event
   price_version     TEXT,
   phase             TEXT,                   -- implement | verify | review, NULL if not sent
   agent_id          TEXT,                   -- subagent, NULL = main agent (v2 -> v3 ALTER)
-  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)
+  step              TEXT,                   -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)
+  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)
 );
 
 CREATE TABLE tool_calls (                   -- OTLP tool_result, or a contract activity with a tool

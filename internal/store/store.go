@@ -20,7 +20,7 @@ import (
 var schema string
 
 // SchemaVersion is the user_version that Open creates or migrates to.
-const SchemaVersion = 4
+const SchemaVersion = 5
 
 // Open opens (and on first use migrates) the SQLite database at path.
 func Open(path string) (*sql.DB, error) {
@@ -36,7 +36,7 @@ func Open(path string) (*sql.DB, error) {
 	switch v {
 	case 0:
 		_, err = db.Exec(fmt.Sprintf("%s;PRAGMA user_version = %d", schema, SchemaVersion))
-	case 1, 2, 3:
+	case 1, 2, 3, 4:
 		if err = migrate(db, v); err == nil {
 			log.Printf("database migrated to v%d: run `factorybench replay` to fill the new derived tables and columns", SchemaVersion)
 		}
@@ -47,7 +47,7 @@ func Open(path string) (*sql.DB, error) {
 	return db, nil
 }
 
-// migrate upgrades a v1, v2 or v3 database to SchemaVersion in one transaction. Only events holds source data;
+// migrate upgrades a v1 to v4 database to SchemaVersion in one transaction. Only events holds source data;
 // every other change is to derived tables, which `replay` refills.
 func migrate(db *sql.DB, from int) error {
 	q := ""
@@ -57,7 +57,10 @@ func migrate(db *sql.DB, from int) error {
 	if from < 3 {
 		q += v3
 	}
-	q += fmt.Sprintf("ALTER TABLE usage ADD COLUMN step TEXT; PRAGMA user_version = %d", SchemaVersion)
+	if from < 4 {
+		q += "ALTER TABLE usage ADD COLUMN step TEXT;"
+	}
+	q += fmt.Sprintf("ALTER TABLE usage ADD COLUMN session TEXT; PRAGMA user_version = %d", SchemaVersion)
 	tx, err := db.Begin()
 	if err != nil {
 		return err

@@ -14,7 +14,7 @@ acme/app#30   outcome merged · survival pending
   11-12 06:23          attempt cc-phase0-subagent completed                                                                24s, $0.01 reported, 7 tool calls (1 failed)
   11-12 06:26  github  check test on PR #31: success                                                                       
   11-12 06:40          PR acme/app#31 merged                                                                               1 factory / 0 human commits
-  totals  cc  1 attempts (1 completed) · 9 sessions · tokens 1.3k in / 2.6k out / 202.9k cache · 24s active / 24s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 1/1 attempts
+  totals  cc  1 attempts (1 completed) · 1 sessions · tokens 1.3k in / 2.6k out / 202.9k cache · 24s active / 24s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 1/1 attempts
 
 acme/app#32   outcome open · survival n/a
   11-12 06:24  cc  attempt cc-phase0-killed-sigterm started (build)                                                          config cc@1+claude-code@2.1.322
@@ -35,7 +35,7 @@ acme/app#32   outcome open · survival n/a
   11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 26.1k cache read / 598 cache write / 257 out    2s session, <$0.01 reported
   11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 26.7k cache read / 391 cache write / 261 out    2s session, <$0.01 reported
   11-12 06:25      session cc-phase0-killed-sigkill claude-haiku-5-5: 2 in / 27.1k cache read / 395 cache write / 248 out    2s session, <$0.01 reported
-  totals  cc  2 attempts (1 cancelled, 1 running) · 13 sessions · tokens 2.6k in / 3.8k out / 255.2k cache · 1m1s active / 1m1s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 2/2 attempts
+  totals  cc  2 attempts (1 cancelled, 1 running) · 2 sessions · tokens 2.6k in / 3.8k out / 255.2k cache · 1m1s active / 1m1s elapsed · 0 human waits (0s) · $0.01 reported · usage coverage 2/2 attempts
 
 $ report items
 item         title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR          escaped
@@ -48,7 +48,7 @@ $ report factories
 metric                       cc
 work items                   2
 attempts                     3 (0 failed)
-sessions                     22
+sessions                     3
 tokens / issue               234.2k
 time / issue                 43s active / 43s elapsed
 cost total                   $0.02 reported

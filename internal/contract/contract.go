@@ -50,6 +50,10 @@ type Payload struct {
 	ReportedCostUSD *float64 `json:"reported_cost_usd"`
 	DurationMS      *int64   `json:"duration_ms"`
 	Phase           string   `json:"phase"`
+	// usage: the worker step this session ran (free text, optional); see factorybench.step on /v1/logs.
+	Step string `json:"step"`
+	// usage: the agent session this usage belongs to (optional); usage rows with one session id are one session.
+	Session string `json:"session"`
 	// usage and activity: which subagent, if any (none = the main agent). On activity, Phase (with AgentID) is the
 	// phase of that subagent's usage rows that have none of their own.
 	Agent         string `json:"agent"`

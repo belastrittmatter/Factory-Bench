@@ -89,7 +89,21 @@ type attempt struct {
 	staged                              bool   // its factory's run on the item has a handoff
 	tools, toolsFailed, apiErrors       int
 	cost                                cost
-	in, out, cache                      sql.NullInt64 // token sums; cache is NULL when no session reported it
+	sessions                            int             // distinct sessions (newSession)
+	seen                                map[string]bool // its session ids so far
+	in, out, cache                      sql.NullInt64   // token sums; cache is NULL when no session reported it
+}
+
+// newSession is 1 when a usage row starts a session not seen yet in its attempt (seen): rows with one session id are one
+// session, a row without one is a session of its own.
+func newSession(seen map[string]bool, id sql.NullString) int {
+	if id.Valid && seen[id.String] {
+		return 0
+	}
+	if id.Valid {
+		seen[id.String] = true
+	}
+	return 1
 }
 
 func addTok(sum *sql.NullInt64, n sql.NullInt64) {
@@ -238,17 +252,21 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 	}
 
 	err = store.Each(db, `SELECT u.factory_id, u.attempt_id, u.ts, u.model, u.input, u.output, u.cache_read, u.cache_write,
-		u.duration_ms, u.cost_usd, u.cost_provenance, u.price_version
+		u.duration_ms, u.cost_usd, u.cost_provenance, u.price_version, u.session
 		FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ? AND a.issue = ?`, func(r *sql.Rows) error {
 		var f, id, ts, model string
 		var in, out, cr, cw, d sql.NullInt64
 		var amount sql.NullFloat64
-		var prov, ver sql.NullString
-		if err := r.Scan(&f, &id, &ts, &model, &in, &out, &cr, &cw, &d, &amount, &prov, &ver); err != nil {
+		var prov, ver, sess sql.NullString
+		if err := r.Scan(&f, &id, &ts, &model, &in, &out, &cr, &cw, &d, &amount, &prov, &ver, &sess); err != nil {
 			return err
 		}
 		a := byKey[f+"\x00"+id]
 		a.cost.add(amount, prov)
+		if a.seen == nil {
+			a.seen = map[string]bool{}
+		}
+		a.sessions += newSession(a.seen, sess)
 		addTok(&a.in, in)
 		addTok(&a.out, out)
 		addTok(&a.cache, cr)
@@ -504,7 +522,7 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 	var c cost
 	var in, out, cache sql.NullInt64
 	states := map[string]int{}
-	withUsage, waits := 0, 0
+	withUsage, waits, sessions := 0, 0, 0
 	var waitMS int64
 	var first, last time.Time
 	// staged runs (one per factory here): stages and retries per factory, and which failed attempts count as failed
@@ -530,6 +548,7 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 	}
 	for _, a := range atts {
 		c.merge(a.cost)
+		sessions += a.sessions
 		if a.cost.sessions > 0 {
 			withUsage++
 		}
@@ -581,7 +600,7 @@ func totals(atts []*attempt, now time.Time, oneFactory bool) string {
 		}
 	}
 	return fmt.Sprintf("%s (%s) · %d sessions · tokens %s in / %s out / %s cache · %s · %d human waits (%s) · %s · usage coverage %d/%d attempts",
-		n, strings.Join(st, ", "), c.sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
+		n, strings.Join(st, ", "), sessions, tok(in), tok(out), tok(cache), t, waits, dur(wait), cs, withUsage, len(atts))
 }
 
 // LiveRow is one attempt that is running or waiting for a human. Nil pointers are unknown values.
