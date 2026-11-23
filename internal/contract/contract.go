@@ -13,7 +13,7 @@ import (
 const Spec = "factorybench/v1"
 
 // Phases are the allowed usage phases.
-var Phases = map[string]bool{"implement": true, "verify": true, "review": true}
+var Phases = map[string]bool{"plan": true, "implement": true, "verify": true, "review": true}
 
 // Event is the envelope of one contract event.
 type Event struct {
@@ -136,11 +136,11 @@ func Validate(raw []byte) (Event, Payload, error) {
 		case p.ReportedCostUSD != nil && *p.ReportedCostUSD < 0:
 			return e, p, errors.New("payload.reported_cost_usd must be >= 0")
 		case p.Phase != "" && !Phases[p.Phase]:
-			return e, p, errors.New("payload.phase must be implement, verify, or review")
+			return e, p, errors.New("payload.phase must be plan, implement, verify, or review")
 		}
 	case "activity":
 		if p.Phase != "" && !Phases[p.Phase] {
-			return e, p, errors.New("payload.phase must be implement, verify, or review")
+			return e, p, errors.New("payload.phase must be plan, implement, verify, or review")
 		}
 	case "gate":
 		switch {

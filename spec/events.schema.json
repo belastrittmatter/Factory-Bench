@@ -43,7 +43,7 @@
         "reasoning": { "$ref": "#/$defs/count" },
         "reported_cost_usd": { "type": "number", "minimum": 0, "description": "Only if the provider reported it." },
         "duration_ms": { "$ref": "#/$defs/count" },
-        "phase": { "enum": ["implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." },
+        "phase": { "enum": ["plan", "implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." },
         "step": { "type": "string", "description": "Worker step this session ran (free text, e.g. analyzer, red, green, reviewer); trimmed, cut to 64 characters." },
         "session": { "type": "string", "description": "Agent session id this usage belongs to; usage with the same session id in one attempt is one session. Without it, each usage event counts as one session." },
         "agent": { "$ref": "#/$defs/agent" },
@@ -59,7 +59,7 @@
         "summary": { "type": "string" },
         "failed": { "type": "boolean", "description": "The tool call failed." },
         "duration_ms": { "$ref": "#/$defs/count" },
-        "phase": { "enum": ["implement", "verify", "review"], "description": "With agent_id: the phase of that subagent's usage (its Claude Code OTLP tokens included) where the usage has none of its own. The first phase sent for an agent wins." },
+        "phase": { "enum": ["plan", "implement", "verify", "review"], "description": "With agent_id: the phase of that subagent's usage (its Claude Code OTLP tokens included) where the usage has none of its own. The first phase sent for an agent wins." },
         "agent": { "$ref": "#/$defs/agent" },
         "agent_id": { "$ref": "#/$defs/agent_id" },
         "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }

@@ -193,7 +193,7 @@
       "id": "b2:gate:bad"
     },
     {
-      "error": "payload.phase must be implement, verify, or review",
+      "error": "payload.phase must be plan, implement, verify, or review",
       "factory": "fa",
       "id": "b2:usage:bad"
     }
@@ -209,7 +209,7 @@
         },
         {
           "id": "b2:usage:bad",
-          "error": "payload.phase must be implement, verify, or review"
+          "error": "payload.phase must be plan, implement, verify, or review"
         }
       ]
     }

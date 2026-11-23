@@ -68,7 +68,7 @@ CREATE TABLE usage (                        -- one row per usage event
   cost_usd          REAL,                   -- NULL when it can't be priced
   cost_provenance   TEXT CHECK (cost_provenance IN ('reported', 'estimated')),
   price_version     TEXT,
-  phase             TEXT,                   -- implement | verify | review, NULL if not sent
+  phase             TEXT,                   -- plan | implement | verify | review, NULL if not sent
   agent_id          TEXT,                   -- subagent, NULL = main agent (v2 -> v3 ALTER)
   step              TEXT,                   -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)
   session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)

@@ -59,8 +59,8 @@ func TestRejects(t *testing.T) {
 		"payload.status must be":                    {"attempt.finished", `{"status":"done"}`},
 		"unknown type":                              {"nope", `{}`},
 		"payload.passed missing":                    {"gate", `{"name":"test"}`},
-		"payload.phase must be":                     {"usage", `{"model":"m","input":1,"output":1,"phase":"plan"}`},
-		"phase must be implement, verify":           {"activity", `{"agent_id":"a1","phase":"plan"}`},
+		"payload.phase must be":                     {"usage", `{"model":"m","input":1,"output":1,"phase":"design"}`},
+		"phase must be plan, implement, verify":     {"activity", `{"agent_id":"a1","phase":"design"}`},
 		"payload must be an object":                 {"activity", `[]`},
 		"cannot unmarshal":                          {"usage", `{"model":"m","input":1.5,"output":1}`},
 	}
