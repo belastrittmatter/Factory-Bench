@@ -627,3 +627,56 @@ func TestSteps(t *testing.T) {
 		t.Errorf("a1 sessions: %v", s)
 	}
 }
+
+// Lanes of two factories on one card, both with attempt id a1: fa runs build → review → build (one bounce), fb runs
+// review → build (none). Counted per factory and attempt, the card has 1 bounce; across factories it would have 2.
+func TestLanesTwoFactories(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "fb.db")
+	rw, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	at := func(h, m int) string { return store.FormatTS(time.Date(2026, 1, 2, h, m, 0, 0, time.Local)) }
+	for _, q := range []string{
+		`INSERT INTO work_items (repo, issue, first_seen) VALUES ('o/r', 9, 'x')`,
+		`INSERT INTO attempts (factory_id, attempt_id, repo, issue, config_version, state, started_at, ended_at) VALUES
+			('fa', 'a1', 'o/r', 9, 'v', 'completed', '` + at(10, 0) + `', '` + at(10, 30) + `'),
+			('fb', 'a1', 'o/r', 9, 'v', 'completed', '` + at(11, 0) + `', '` + at(11, 30) + `')`,
+	} {
+		if _, err := rw.Exec(q); err != nil {
+			t.Fatal(err, q)
+		}
+	}
+	rw.Close()
+	db, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	runs := filepath.Join(dir, "runs")
+	os.MkdirAll(runs, 0o755)
+	os.WriteFile(filepath.Join(runs, "2026-01-02-x.md"), []byte("[10:00:00] dispatch lane=build issue=#9 pid=1\n[10:10:00] dispatch lane=review issue=#9 pid=2\n"+
+		"[10:20:00] dispatch lane=build issue=#9 pid=3\n[11:00:00] dispatch lane=review issue=#9 pid=4\n[11:10:00] dispatch lane=build issue=#9 pid=5\n"), 0o644)
+	h := Handler(db, Options{Addr: "127.0.0.1:8081", Runs: runs, Idle: DefaultIdleTimeout})
+
+	var item map[string]any
+	get(t, h, "/api/item?repo=o/r&issue=9", &item)
+	back := map[string]any{}
+	for _, f := range item["factories"].([]any) {
+		back[f.(map[string]any)["factory_id"].(string)] = f.(map[string]any)["sent_back"]
+	}
+	if back["fa"] != 1.0 || back["fb"] != 0.0 {
+		t.Errorf("factories sent_back: %v", back)
+	}
+	var fl cardFlow
+	if get(t, h, "/api/flow?repo=o/r&issue=9", &fl); fl.Bounces != 1 {
+		t.Errorf("flow bounces %d: %+v", fl.Bounces, fl.Dispatches)
+	}
+	for f, want := range map[string]int{"": 1, "fa": 1, "fb": 0} {
+		var s summary
+		if get(t, h, "/api/summary?factory="+f, &s); s.Bounces != want {
+			t.Errorf("summary factory=%q bounces %d, want %d", f, s.Bounces, want)
+		}
+	}
+}

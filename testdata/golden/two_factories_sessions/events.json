@@ -1,0 +1,909 @@
+{
+  "factories": {
+    "omp": "omp-bot@example.com",
+    "cc": "cc-bot@example.com"
+  },
+  "batches": [
+    {
+      "factory": "omp",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-20T10:00:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 40
+            },
+            "factory_config_version": "turbo-12f@abc+omp@1.0+model:claude-haiku-5-5",
+            "role": "request"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-20T10:01:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "implement",
+            "step": "analyzer",
+            "session": "s-a",
+            "duration_ms": 60000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:2",
+          "type": "usage",
+          "ts": "2026-11-20T10:05:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "implement",
+            "step": "engineer",
+            "session": "s-b",
+            "duration_ms": 120000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:3",
+          "type": "usage",
+          "ts": "2026-11-20T10:05:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "implement",
+            "step": "engineer",
+            "session": "s-b"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:4",
+          "type": "usage",
+          "ts": "2026-11-20T10:10:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "verify",
+            "step": "qc",
+            "session": "s-c",
+            "duration_ms": 30000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:5",
+          "type": "usage",
+          "ts": "2026-11-20T10:12:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "implement",
+            "step": "engineer",
+            "session": "s-d",
+            "duration_ms": 40000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:6",
+          "type": "usage",
+          "ts": "2026-11-20T10:15:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "verify",
+            "step": "qc",
+            "session": "s-e",
+            "duration_ms": 20000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:usage:7",
+          "type": "usage",
+          "ts": "2026-11-20T10:20:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "verify",
+            "step": "deslop"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-20T10:30:00Z",
+          "attempt_id": "o1",
+          "payload": {
+            "status": "failed"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o2:started",
+          "type": "attempt.started",
+          "ts": "2026-11-20T11:00:00Z",
+          "attempt_id": "o2",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 40
+            },
+            "factory_config_version": "turbo-12f@abc+omp@1.0+model:claude-haiku-5-5",
+            "role": "request",
+            "parent_attempt_id": "o1"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o2:usage:1",
+          "type": "usage",
+          "ts": "2026-11-20T11:01:00Z",
+          "attempt_id": "o2",
+          "payload": {
+            "model": "claude-haiku-5-5",
+            "input": 1000,
+            "output": 200,
+            "cache_read": 500,
+            "phase": "implement",
+            "step": "analyzer",
+            "session": "s-f",
+            "duration_ms": 50000
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "o2:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-20T11:10:00Z",
+          "attempt_id": "o2",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    },
+    {
+      "factory": "cc",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-20T10:02:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 40
+            },
+            "factory_config_version": "turbo-12f@abc+claude@2.1+model:claude-haiku-5-5",
+            "role": "request"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "c1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-20T10:25:00Z",
+          "attempt_id": "c1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "otlp": [
+    {
+      "factory": "cc",
+      "bodies": [
+        {
+          "resourceLogs": [
+            {
+              "resource": {
+                "attributes": [
+                  {
+                    "key": "factorybench.attempt",
+                    "value": {
+                      "stringValue": "c1"
+                    }
+                  },
+                  {
+                    "key": "service.name",
+                    "value": {
+                      "stringValue": "claude-code"
+                    }
+                  }
+                ]
+              },
+              "scopeLogs": [
+                {
+                  "scope": {
+                    "name": "com.anthropic.claude_code.events"
+                  },
+                  "logRecords": [
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-1"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:02:30.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "analyzer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-1"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:03:30.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 1
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "analyzer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-2"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:06:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "engineer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-2"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:08:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 1
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "engineer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-3"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:11:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "qc"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "verify"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-4"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:13:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "engineer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-4"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:14:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 1
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "engineer"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "implement"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "timeUnixNano": "0",
+                      "body": {
+                        "stringValue": "claude_code.api_request"
+                      },
+                      "attributes": [
+                        {
+                          "key": "session.id",
+                          "value": {
+                            "stringValue": "cc-5"
+                          }
+                        },
+                        {
+                          "key": "event.name",
+                          "value": {
+                            "stringValue": "api_request"
+                          }
+                        },
+                        {
+                          "key": "event.timestamp",
+                          "value": {
+                            "stringValue": "2026-11-20T10:16:00.000Z"
+                          }
+                        },
+                        {
+                          "key": "event.sequence",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "model",
+                          "value": {
+                            "stringValue": "claude-haiku-5-5"
+                          }
+                        },
+                        {
+                          "key": "input_tokens",
+                          "value": {
+                            "intValue": 1000
+                          }
+                        },
+                        {
+                          "key": "output_tokens",
+                          "value": {
+                            "intValue": 200
+                          }
+                        },
+                        {
+                          "key": "cache_read_tokens",
+                          "value": {
+                            "intValue": 500
+                          }
+                        },
+                        {
+                          "key": "cache_creation_tokens",
+                          "value": {
+                            "intValue": 0
+                          }
+                        },
+                        {
+                          "key": "duration_ms",
+                          "value": {
+                            "intValue": 4000
+                          }
+                        },
+                        {
+                          "key": "factorybench.step",
+                          "value": {
+                            "stringValue": "qc"
+                          }
+                        },
+                        {
+                          "key": "factorybench.phase",
+                          "value": {
+                            "stringValue": "verify"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "report": [
+    "acme/app#40"
+  ],
+  "now": "2026-11-21T00:00:00Z"
+}

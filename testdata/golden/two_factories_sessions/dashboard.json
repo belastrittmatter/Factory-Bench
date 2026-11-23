@@ -1,0 +1,224 @@
+{
+  "factories": [
+    {
+      "active_ms": 4200000,
+      "attempts": 2,
+      "cost_usd": 0.005485,
+      "factory_id": "omp",
+      "sent_back": 1,
+      "sessions": 7,
+      "tokens": 13600,
+      "unpriced": 0
+    },
+    {
+      "active_ms": 1380000,
+      "attempts": 1,
+      "cost_usd": 0.00164,
+      "factory_id": "cc",
+      "sent_back": 1,
+      "sessions": 5,
+      "tokens": 13600,
+      "unpriced": 0
+    }
+  ],
+  "step_runs": [
+    {
+      "factory_id": "omp",
+      "reruns": 0,
+      "sent_back": 1
+    },
+    {
+      "factory_id": "cc",
+      "reruns": 0,
+      "sent_back": 1
+    }
+  ],
+  "step_stats": [
+    {
+      "cost_usd": 0.00041,
+      "factory_id": "omp",
+      "ms": 110000,
+      "sent_back": 0,
+      "sessions": 2,
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.00041,
+      "factory_id": "cc",
+      "ms": 60000,
+      "sent_back": 0,
+      "sessions": 1,
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.00446,
+      "factory_id": "omp",
+      "ms": 160000,
+      "sent_back": 1,
+      "sessions": 2,
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.00082,
+      "factory_id": "cc",
+      "ms": 180000,
+      "sent_back": 1,
+      "sessions": 2,
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.00041,
+      "factory_id": "omp",
+      "ms": 50000,
+      "sent_back": 0,
+      "sessions": 2,
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.00041,
+      "factory_id": "cc",
+      "ms": 8000,
+      "sent_back": 0,
+      "sessions": 2,
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.000205,
+      "factory_id": "omp",
+      "ms": null,
+      "sent_back": 0,
+      "sessions": null,
+      "step": "deslop",
+      "unpriced": 0
+    }
+  ],
+  "steps": [
+    {
+      "at": "2026-11-20T10:01:00.000Z",
+      "attempt_id": "o1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:01:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:02:30.000Z",
+      "attempt_id": "c1",
+      "calls": 2,
+      "cost_usd": 0.00041,
+      "end": "2026-11-20T10:03:30.000Z",
+      "factory_id": "cc",
+      "phase": "implement",
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:05:00.000Z",
+      "attempt_id": "o1",
+      "calls": 2,
+      "cost_usd": 0.004255,
+      "end": "2026-11-20T10:05:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:06:00.000Z",
+      "attempt_id": "c1",
+      "calls": 2,
+      "cost_usd": 0.00041,
+      "end": "2026-11-20T10:08:00.000Z",
+      "factory_id": "cc",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:10:00.000Z",
+      "attempt_id": "o1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:10:00.000Z",
+      "factory_id": "omp",
+      "phase": "verify",
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:11:00.000Z",
+      "attempt_id": "c1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:11:00.000Z",
+      "factory_id": "cc",
+      "phase": "verify",
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:12:00.000Z",
+      "attempt_id": "o1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:12:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:13:00.000Z",
+      "attempt_id": "c1",
+      "calls": 2,
+      "cost_usd": 0.00041,
+      "end": "2026-11-20T10:14:00.000Z",
+      "factory_id": "cc",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:15:00.000Z",
+      "attempt_id": "o1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:15:00.000Z",
+      "factory_id": "omp",
+      "phase": "verify",
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:16:00.000Z",
+      "attempt_id": "c1",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T10:16:00.000Z",
+      "factory_id": "cc",
+      "phase": "verify",
+      "step": "qc",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T11:01:00.000Z",
+      "attempt_id": "o2",
+      "calls": 1,
+      "cost_usd": 0.000205,
+      "end": "2026-11-20T11:01:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "analyzer",
+      "unpriced": 0
+    }
+  ]
+}

@@ -703,6 +703,7 @@ type ItemRow struct {
 	// the same values as numbers, for aggregates; nil = unknown or nothing to measure
 	HasPR, Merged  bool
 	ToPRSeconds    *float64
+	ActiveMS       int64    `json:"-"` // elapsed minus human waits, for the dashboard's per-factory numbers
 	CostUSD        *float64 // priced sessions; nil when nothing was priced
 	CostLowerBound bool     // some sessions unpriced or attempts without usage (the +? of Cost)
 
@@ -736,7 +737,7 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 	for _, u := range buildUnits(d, false, now) {
 		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
 			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
-			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
+			Elapsed: dur(u.elapsed), ActiveMS: u.active.Milliseconds(), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
 		if u.staged {
 			r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
 		}

@@ -85,7 +85,7 @@ type cardFlow struct {
 }
 
 func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error) {
-	att, err := rows(s.db, `SELECT a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.waiting_since, a.pr_url, `+lastEventSQL+` AS last_event
+	att, err := rows(s.db, `SELECT a.factory_id, a.attempt_id, a.role, a.state, a.started_at, a.ended_at, a.waiting_since, a.pr_url, `+lastEventSQL+` AS last_event
 		FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`, repo, n)
 	if err != nil {
 		return cardFlow{}, err
@@ -103,7 +103,7 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 	}
 	var wins []attemptWin
 	for _, a := range att {
-		w := attemptWin{ID: a["attempt_id"].(string), State: a["status"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])}
+		w := attemptWin{Factory: a["factory_id"].(string), ID: a["attempt_id"].(string), State: a["status"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])}
 		if w.State != "running" { // an open attempt that went idle or waits stops at its last event, not at now
 			w.LastActive = tsPtr(a["last_event"])
 		}
@@ -111,14 +111,14 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 		wins = append(wins, w)
 	}
 	var calls []call
-	err = store.Each(s.db, `SELECT u.ts, u.attempt_id, u.model, u.phase, u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0),
+	err = store.Each(s.db, `SELECT u.ts, u.factory_id, u.attempt_id, u.model, u.phase, u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0),
 		u.cost_usd, u.duration_ms FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ? AND a.issue = ? ORDER BY u.ts`, func(r *sql.Rows) error {
 		var c call
 		var ts string
 		var phase sql.NullString
 		var cost sql.NullFloat64
 		var d sql.NullInt64
-		if err := r.Scan(&ts, &c.Attempt, &c.Model, &phase, &c.Tokens, &cost, &d); err != nil {
+		if err := r.Scan(&ts, &c.Factory, &c.Attempt, &c.Model, &phase, &c.Tokens, &cost, &d); err != nil {
 			return err
 		}
 		c.TS = parseTS(ts)
@@ -143,13 +143,7 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 	}
 	ds := rl.dispatches[n]
 	grouped := groupByDispatch(ds, wins, calls, now)
-	var lanes []string
-	for _, d := range grouped {
-		if d.Lane != "" {
-			lanes = append(lanes, d.Lane)
-		}
-	}
-	bounces, redis, _ := rework(lanes)
+	bounces, redis := laneRework(grouped)
 	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n], Waits: waits,
 		Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
 }

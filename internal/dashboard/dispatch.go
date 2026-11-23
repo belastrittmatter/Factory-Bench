@@ -105,6 +105,7 @@ const dispatchSkew = time.Minute
 
 // attemptWin is one attempt's time window.
 type attemptWin struct {
+	Factory    string
 	ID, State  string
 	Start      time.Time
 	End        *time.Time
@@ -114,6 +115,7 @@ type attemptWin struct {
 // call is one model call (one usage row).
 type call struct {
 	TS         time.Time `json:"ts"`
+	Factory    string    `json:"factory_id"`
 	Attempt    string    `json:"attempt_id"`
 	Model      string    `json:"model"`
 	Phase      *string   `json:"phase"`
@@ -131,6 +133,7 @@ type dispatchRow struct {
 	EndReported  bool      `json:"end_reported"` // false: End is derived (next dispatch, attempt end, last event)
 	Outcome      string    `json:"outcome"`
 	File         string    `json:"file"`
+	Factory      string    `json:"factory_id"` // its attempt's factory
 	Attempt      string    `json:"attempt_id"` // "" = before any attempt
 	AttemptState string    `json:"attempt_state"`
 	Failed       bool      `json:"failed_attempt"` // its attempt failed or was cancelled
@@ -154,8 +157,10 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	sort.SliceStable(calls, func(i, j int) bool { return calls[i].TS.Before(calls[j].TS) })
 	byID := map[string]*attemptWin{}
 	for i := range atts {
-		byID[atts[i].ID] = &atts[i]
+		byID[atts[i].Factory+"\x00"+atts[i].ID] = &atts[i]
 	}
+	// shortcut: manifests name no factory, so a dispatch belongs to the attempt of any factory on the card that ran at t;
+	// two factories running one card at the same time can swap dispatches; upgrade when manifests carry a factory id
 	// attemptAt is the attempt a dispatch at t ran in: the latest one started by t, unless that one had already
 	// ended and another starts within dispatchSkew after t (the dispatch line is written just before attempt.started).
 	attemptAt := func(t time.Time) *attemptWin {
@@ -176,7 +181,7 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	row := func(at time.Time, a *attemptWin) dispatchRow {
 		r := dispatchRow{At: at, Calls: []call{}}
 		if a != nil {
-			r.Attempt, r.AttemptState, r.Failed = a.ID, a.State, failedState(a.State)
+			r.Factory, r.Attempt, r.AttemptState, r.Failed = a.Factory, a.ID, a.State, failedState(a.State)
 		}
 		return r
 	}
@@ -190,20 +195,21 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 		rows = append(rows, r)
 	}
 	n := len(rows)
-	loose := map[string]int{} // attempt -> its row of calls outside every dispatch
+	loose := map[string]int{} // factory, attempt -> its row of calls outside every dispatch
 	for _, c := range calls {
 		idx := -1
 		for i := 0; i < n; i++ {
-			if rows[i].Attempt == c.Attempt && !rows[i].At.After(c.TS.Add(dispatchSkew)) {
+			if rows[i].Factory == c.Factory && rows[i].Attempt == c.Attempt && !rows[i].At.After(c.TS.Add(dispatchSkew)) {
 				idx = i
 			}
 		}
 		if idx < 0 {
-			j, ok := loose[c.Attempt]
+			k := c.Factory + "\x00" + c.Attempt
+			j, ok := loose[k]
 			if !ok {
-				rows = append(rows, row(c.TS, byID[c.Attempt]))
+				rows = append(rows, row(c.TS, byID[k]))
 				j = len(rows) - 1
-				loose[c.Attempt] = j
+				loose[k] = j
 			}
 			idx = j
 		}
@@ -226,7 +232,7 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 			continue
 		}
 		end := now
-		if a := byID[r.Attempt]; a != nil && a.End != nil {
+		if a := byID[r.Factory+"\x00"+r.Attempt]; a != nil && a.End != nil {
 			end = *a.End
 		} else if a != nil && a.LastActive != nil {
 			end = *a.LastActive
@@ -246,22 +252,41 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	return rows
 }
 
-// rework counts how often a card went back to a lane it had already visited after another lane (bounces, and per
-// lane in back) and how often the same lane was dispatched twice in a row (re-dispatches). lanes are in dispatch order.
-// Named steps use it the same way, a step for a lane.
+// rework counts how often a card was sent back to a lane that first ran before the lane it came from (bounces, and per
+// lane in back; the lanes that then run again on the way forward are not bounces) and how often the same lane was
+// dispatched twice in a row (re-dispatches). lanes are in dispatch order, of one attempt.
 func rework(lanes []string) (bounces, redispatches int, back map[string]int) {
-	seen, back := map[string]bool{}, map[string]int{}
+	first, back := map[string]int{}, map[string]int{} // lane -> index of its first dispatch
 	for i, l := range lanes {
+		f, seen := first[l]
 		switch {
 		case i > 0 && l == lanes[i-1]:
 			redispatches++
-		case seen[l]:
+		case seen && f < first[lanes[i-1]]:
 			bounces++
 			back[l]++
 		}
-		seen[l] = true
+		if !seen {
+			first[l] = i
+		}
 	}
 	return bounces, redispatches, back
+}
+
+// laneRework is rework over the lanes of each attempt's dispatches, summed: never across attempts or factories.
+func laneRework(rows []dispatchRow) (bounces, redispatches int) {
+	lanes := map[string][]string{}
+	for _, d := range rows {
+		if d.Lane != "" {
+			k := d.Factory + "\x00" + d.Attempt
+			lanes[k] = append(lanes[k], d.Lane)
+		}
+	}
+	for _, l := range lanes {
+		b, r, _ := rework(l)
+		bounces, redispatches = bounces+b, redispatches+r
+	}
+	return bounces, redispatches
 }
 
 // barEnd is where an attempt's timeline bar stops and why: its end ("ended"), the start of the human wait it is in

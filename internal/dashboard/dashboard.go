@@ -302,16 +302,16 @@ func (s *server) live(r *http.Request) (any, error) {
 			x.Phase = &phase.String
 		}
 		if d := ds[l.Issue]; len(d) > 0 {
-			att, err := rows(s.db, `SELECT attempt_id, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2`, l.Repo, l.Issue)
+			att, err := rows(s.db, `SELECT factory_id, attempt_id, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2`, l.Repo, l.Issue)
 			if err != nil {
 				return nil, err
 			}
 			var wins []attemptWin
 			for _, a := range att {
-				wins = append(wins, attemptWin{ID: a["attempt_id"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])})
+				wins = append(wins, attemptWin{Factory: a["factory_id"].(string), ID: a["attempt_id"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])})
 			}
 			for _, r := range groupByDispatch(d, wins, nil, now) { // the newest dispatch that ran in this attempt
-				if r.Attempt == l.Attempt && r.Lane != "" {
+				if r.Factory == l.Factory && r.Attempt == l.Attempt && r.Lane != "" {
 					lane := r.Lane
 					x.Lane = &lane
 				}
@@ -362,6 +362,11 @@ func (s *server) item(r *http.Request) (any, error) {
 		// the issue's model calls and cache reads, for its KPI tiles
 		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2`,
+		// per factory, so the header shows each factory's numbers instead of a sum; unknown stays null, never 0
+		"factories": `SELECT a.factory_id, count(*) AS attempts, sum(u.cost) AS cost_usd, coalesce(sum(u.unpriced), 0) AS unpriced,
+			sum(u.tokens) AS tokens, sum(u.sessions) AS sessions FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, sum(cost_usd) AS cost,
+			  sum(cost_usd IS NULL) AS unpriced, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, ` + nSessionsSQL + ` AS sessions
+			  FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1 ORDER BY min(a.started_at)`,
 		// cost per attempt and phase, for the issue's cost per stage on single-session runs
 		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1, 2, 3 ORDER BY min(u.ts)`,
@@ -388,6 +393,37 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	res["units"] = units
+	var dispatches []dispatchRow
+	if s.local && s.o.Runs != "" {
+		fl, err := s.cardFlow(repo, n, time.Now())
+		if err != nil {
+			return nil, err
+		}
+		dispatches = fl.Dispatches
+	}
+	// sent_back per factory: from its step sequence, else from its lanes in the run manifests, else unknown (nil)
+	for _, x := range res["factories"].([]map[string]any) {
+		x["active_ms"], x["sent_back"] = nil, nil
+		for _, u := range units {
+			if u.Factory == x["factory_id"] {
+				x["active_ms"] = u.ActiveMS
+			}
+		}
+		for _, r := range res["step_runs"].([]map[string]any) {
+			if r["factory_id"] == x["factory_id"] {
+				x["sent_back"] = r["sent_back"]
+			}
+		}
+		var lanes []dispatchRow
+		for _, d := range dispatches {
+			if d.Factory == x["factory_id"] && d.Lane != "" {
+				lanes = append(lanes, d)
+			}
+		}
+		if x["sent_back"] == nil && len(lanes) > 0 {
+			x["sent_back"], _ = laneRework(lanes)
+		}
+	}
 	return res, nil
 }
 
@@ -456,6 +492,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	}
 	mine, runLanes := []dispatchRow{}, []string{} // runLanes: the lane of each dispatch of the run, for its run format
 	for _, d := range fl.Dispatches {
+		if d.Factory != f {
+			continue
+		}
 		if d.Attempt == id {
 			mine = append(mine, d)
 		}
