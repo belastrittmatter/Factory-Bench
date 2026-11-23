@@ -219,6 +219,7 @@ pre.secret{margin:12px 0 0;padding:12px 14px;background:var(--surface-2);font:13
 @media (max-width:760px){
   .mast-in{padding:0 16px;gap:18px;overflow-x:auto}.ticker{display:none}
   main{padding:0 16px 40px}.top h1{font-size:26px}.search{width:100%}
+  .grid{grid-template-columns:minmax(0,1fr)}.c12,.c8,.c6,.c4{grid-column:auto}
   .kpi{padding:12px 12px 14px}.kpi:nth-child(odd){border-left:0;padding-left:0}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi .v{font-size:24px}
   .lstats{grid-template-columns:repeat(3,minmax(0,1fr))}.ev{grid-template-columns:62px 10px minmax(0,1fr)}
 }
@@ -433,7 +434,7 @@ V.overview=async()=>{
   const inRange=new Set(ar.map(a=>a.factory_id+'/'+a.attempt_id)),aOf={};ar.forEach(a=>aOf[a.factory_id+'/'+a.attempt_id]=a);
   const byIssue={};ar.forEach(a=>{const k=a.repo+'#'+a.issue,x=byIssue[k]=byIssue[k]||{repo:a.repo,issue:a.issue,title:a.title,cost:0,lost:0,n:0,unp:false};x.first=x.first&&x.first<a.started_at?x.first:a.started_at;x.cost+=a.cost_usd||0;if(['failed','cancelled'].includes(a.state))x.lost+=a.cost_usd||0;x.n++;x.unp=x.unp||a.unpriced>0||nil(a.cost_usd);x.ph=x.ph||{}});
   (s.attempt_phases||[]).filter(p=>inRange.has(p.factory_id+'/'+p.attempt_id)).forEach(p=>{const a=aOf[p.factory_id+'/'+p.attempt_id],x=byIssue[a.repo+'#'+a.issue],k=p.phase??'unknown phase';x.ph[k]=(x.ph[k]||0)+(p.cost_usd||0)});
-  const top=Object.values(byIssue).sort((p,q)=>+T(q.first)-+T(p.first)).slice(0,TOP_ISSUES).reverse(),issuePhases=uniq(top.flatMap(x=>Object.keys(x.ph)));
+  const top=Object.values(byIssue).sort((p,q)=>+T(q.first)-+T(p.first)).slice(0,TOP_ISSUES).reverse(),issuePhases=byPhase(uniq(top.flatMap(x=>Object.keys(x.ph))));
   const pser=issuePhases.map(k=>({name:k,color:phaseColor(k),values:top.map(x=>x.ph[k]||0)}));
   // tool mix
   const tm={};s.tools.filter(t=>keep(t)&&+new Date(t.day)>=lo-864e5).forEach(t=>{const x=tm[t.tool_name]=tm[t.tool_name]||{c:0,f:0,ms:0};x.c+=t.calls;x.f+=t.failed||0;x.ms+=t.duration_ms||0});
@@ -549,16 +550,16 @@ const attLabels=atts=>{const m={},n={},many=uniq(atts.filter(a=>a.staged).map(a=
     const k=a.factory_id+'\0'+a.role,r=n[k]=(n[k]||0)+1;m[a.attempt_id]=(many?a.factory_id+' · ':'')+a.role+(r>1?` (${a.stage==='retry'?'retry':'again'}${r>2?' '+(r-1):''})`:'')});return m};
 const STAGED_TIP='Staged run: the factory split this try into separate sessions per stage (a handoff = the next attempt has a different role than its parent)\nSingle session: no handoff, so every new attempt is a retry or a rerun';
 // a run's format (one factory's attempts on an issue) as [kind, text with counts, text without] parts: staged (handoffs between roles), sessions (an attempt
-// ran several Claude Code sessions; phases are not used: a session is not a phase), subagents (subagent
+// ran several agent sessions; phases are not used: a session is not a phase), subagents (subagent
 // runs, as on the attempt page and the scorecard), lanes (the lane of each dispatch)
 const seq=a=>a.filter((r,i,x)=>r!==x[i-1]);
-const ONE='one Claude Code session per attempt',NO_SESSIONS='sessions unknown (no Claude Code telemetry)';
+const ONE='one agent session per attempt',NO_SESSIONS='sessions unknown (no Claude Code telemetry)';
 const runParts=(as,ss,ls)=>{const p=[],n=as.reduce((t,a)=>t+(a.subagents||0),0);
   if(as.some(a=>a.staged)){const t='staged: '+seq(as.filter(a=>a.stage!=='retry').map(a=>a.role||'?')).join(' → ');p.push(['staged',t,t])}
   // sessions of each attempt; an attempt without any is unknown (no telemetry), not 0: "up to" and counts use known attempts only
   const ns=as.map(a=>ss.filter(s=>s.factory_id===a.factory_id&&s.attempt_id===a.attempt_id).length),kn=ns.filter(k=>k>0),most=Math.max(0,...kn),unk=ns.length-kn.length;
   if(!most)p.push(['unknown',NO_SESSIONS,NO_SESSIONS]);
-  else{if(most>1)p.push(['sessions',`${kn.some(k=>k!==most)?'up to ':''}${most} Claude Code sessions per attempt`,'several Claude Code sessions per attempt']);
+  else{if(most>1)p.push(['sessions',`${kn.some(k=>k!==most)?'up to ':''}${most} agent sessions per attempt`,'several agent sessions per attempt']);
     if(unk)p.push(['unknown',`sessions unknown for ${unk} of ${ns.length} attempts`,'sessions unknown for some attempts'])}
   if(n)p.push(['subagents',plural(n,'subagent'),'Claude Code with subagents']);
   if(ls.length){const t='lanes: '+[...new Set(ls)].join(' → ');p.push(['lanes',t,t])}return p};
@@ -594,10 +595,10 @@ function dispatchEv(d,labels){
 const ON_FILL={'var(--s3)':'#0b0b0b','var(--s4)':'#0b0b0b'};
 const keySq=c=>`<i style="background:${c}"></i>`,keyLine=c=>`<i style="width:14px;height:2px;background:${c}"></i>`;
 const crossMark=(x,y)=>`<path d="M${x-4},${y-4}l8,8m0,-8l-8,8" stroke="var(--surface)" stroke-width="5"/><path d="M${x-4},${y-4}l8,8m0,-8l-8,8" stroke="var(--crit)" stroke-width="2" stroke-linecap="round"/>`;
-// gantt of an issue or attempt, its legend above it: one row per lane (a bar per dispatch) and per named step (f.steps: a bar per Claude Code session with its length;
+// gantt of an issue or attempt, its legend above it: one row per lane (a bar per dispatch) and per named step (f.steps: a bar per agent session with its length;
 // f.gates: failed checks as crosses; f.send_backs: a red line from the check that sent the work back to the next session of the step it went to; a grey line for every
 // other hand-off between steps), extra rows (f.rows: {label, bars:[{at,end,color,tip}]}), the board (f.moves), questions to a human (f.hwaits),
-// each attempt unless f.hideAttempts (its tooltip counts its Claude Code sessions, f.sessions), then GitHub markers
+// each attempt unless f.hideAttempts (its tooltip counts its agent sessions, f.sessions), then GitHub markers
 function gantt(w,atts,tl,f){
   if(!atts.length)return'';const xr=f.rows||[];
   const bar={};f.attempts.forEach(a=>bar[a.attempt_id]=a);
@@ -623,7 +624,8 @@ function gantt(w,atts,tl,f){
   const stack=bars=>{const ends=[];bars.forEach(b=>{b.x1=X(+T(b.at));b.x2=Math.max(b.x1+4,X(+T(b.end)));let k=ends.findIndex(e=>e+2<=b.x1);if(k<0)k=ends.push(0)-1;ends[k]=b.x2;b.k=k});return Math.max(34,ends.length*20+14)};
   xr.forEach(r=>{r.h=stack(r.bars.sort((a,b)=>+T(a.at)-+T(b.at)))});
   // a step row for every step that ran a session, a check that failed or sent work back, in order of first appearance
-  groups.forEach(g=>{const all=g.word==='step'?[...g.items,...fails.map(x=>({row:x.row,at:x.ts})),...sbs.map(x=>({row:x.row,at:x.at}))].sort((a,b)=>+T(a.at)-+T(b.at)):g.items;
+  // with several factories each factory's rows stay together
+  groups.forEach(g=>{const all=g.word==='step'?[...g.items,...fails.map(x=>({row:x.row,run:x.factory_id,at:x.ts})),...sbs.map(x=>({row:x.row,run:x.factory_id,at:x.at}))].sort((a,b)=>(a.run<b.run?-1:a.run>b.run?1:0)||+T(a.at)-+T(b.at)):g.items;
     g.rows=[...new Set(all.map(i=>i.row))].map(n=>({n,h:stack(g.items.filter(i=>i.row===n))}))});
   const rowH=34,gh=groups.reduce((t,g)=>t+g.rows.reduce((u,r)=>u+r.h,0),0),rows=nRows+(ev.length?1:0)+xr.length+(board.length?1:0)+(hw.length?1:0),h=rows*rowH+40+gh+xr.reduce((t,r)=>t+r.h-rowH,0),cy=y=>y+17,lab=(y,t)=>`<text x="0" y="${cy(y)+4}" style="fill:var(--text-2)">${esc(t)}</text>`;
   let g='<g class="grid">'+ax.ticks.map(t=>`<line x1="${X(t)}" x2="${X(t)}" y1="6" y2="${h-22}"/>`).join('')+axisTicks(ax,h-6,t=>fmtWhen(new Date(t).toISOString()))+'</g>'+gapMarks(ax,6,h-22);
@@ -677,7 +679,7 @@ function gantt(w,atts,tl,f){
     // staged run: a solid elbow from the parent's bar for a handoff to the next stage, a dashed red one for a retry
     if(p){const mid=(p.x2+x1)/2;m+=`<path d="M${p.x2},${p.c}H${mid}V${c}H${x1}" fill="none" stroke="${a.stage==='retry'?'var(--crit)':'var(--text-3)'}" stroke-width="1.5" ${a.stage==='retry'?'stroke-dasharray="3 2"':''}/>`}
     rowAt[a.attempt_id]={x2,c};
-    m+=(drawn.has(rowOf[a.attempt_id])?'':lab(ry,labels[a.attempt_id]))+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]}${p?' · '+how(a):''} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}${all.length>1?` · ${all.length} Claude Code sessions`:''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
+    m+=(drawn.has(rowOf[a.attempt_id])?'':lab(ry,labels[a.attempt_id]))+`<rect x="${x1}" y="${c-9}" width="${Math.max(3,x2-x1)}" height="18" rx="4" fill="${SC[a.state]||'var(--text-3)'}" data-tip="${esc(`${labels[a.attempt_id]}${p?' · '+how(a):''} · ${(a.status||a.state).replace(/_/g,' ')}${open?' since '+fmtWhen(b.bar_end):''}\n${fmtDur(((T(a.ended_at)||Date.now())-T(a.started_at))/1000)} · ${fmtTok(a.tokens)} tokens · ${fmtUsd(a.cost_usd)}${a.unpriced?' +?':''}${all.length>1?` · ${all.length} agent sessions`:''}\nclick to open`)}" style="cursor:pointer" data-href="${esc(attHref(a.factory_id,a.attempt_id))}"/>`+
       (open?`<line x1="${x2}" x2="${X(ax.t1)}" y1="${c}" y2="${c}" stroke="var(--text-3)" stroke-dasharray="2 3"/><text x="${Math.min(x2+6,w-56)}" y="${c-8}" style="fill:var(--text-3)">${esc(b.bar_state)}</text>`:'');drawn.add(rowOf[a.attempt_id])});y=y0+nRows*rowH;
   if(ev.length){m+=lab(y,'GitHub');ev.forEach(l=>{m+=`<rect x="${X(+T(l.TS))-6}" y="${cy(y)-9}" width="12" height="18" rx="2" fill="${evKind(l)[1]}" data-tip="${esc(l.Text+'\n'+fmtWhen(l.TS))}"/>`})}
   // legend: only what this chart drew
@@ -687,7 +689,7 @@ function gantt(w,atts,tl,f){
     keys.has('fail')&&`<span><svg width="10" height="10" viewBox="-5 -5 10 10" aria-hidden="true"><path d="M-4,-4l8,8m0,-8l-8,8" stroke="var(--crit)" stroke-width="2"/></svg>failed check</span>`,
     keys.has('blocking')&&`<span><i style="background:var(--warn);transform:rotate(45deg) scale(.8)"></i>blocking question</span>`,keys.has('planning')&&`<span><i style="background:var(--text-3);border-radius:50%"></i>planning questions</span>`,
     ...uniq(ev.map(l=>evKind(l)[2])).map(n=>`<span>${keySq(evKind(ev.find(l=>evKind(l)[2]===n))[1])}GitHub · ${esc(n)}</span>`)].filter(Boolean);
-  return (leg.length?`<div class="legend">${leg.join('')}</div>`:'')+`<div class="tw"><svg class="chart" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${tmap(X,ax.t0,ax.t1)}>${g}${ln}${m}</svg></div>`;
+  return (leg.length?`<div class="legend">${leg.join('')}</div>`:'')+`<div class="tw"><svg class="chart" style="min-width:640px" viewBox="0 0 ${w} ${h}" width="${w}" height="${h}"${tmap(X,ax.t0,ax.t1)}>${g}${ln}${m}</svg></div>`;
 }
 
 // time at least one session was running: the union of the session spans, so parallel sessions count once
@@ -745,9 +747,9 @@ V.item=async(repo,issue)=>{
   ${d.factories.length>1?`<div class="card c12"><h3>Factories on this issue</h3><div class="hint">Same issue, one row per factory · bars compare each column</div>${(()=>{const mx=k=>Math.max(...d.factories.map(x=>x[k]||0),1e-9),b=(x,k,s)=>`<span class="ibar"><i style="width:${Math.max(2,(x[k]||0)/mx(k)*64)}px;background:${colorOf('group',x.factory_id)}"></i>${s}</span>`,u=x=>d.units.find(v=>v.Factory===x.factory_id)||{};
      return table([{h:'Factory',f:x=>`<b>${esc(x.factory_id)}</b>`},{h:'Outcome',f:x=>chip(u(x).Outcome||'?')},{h:'Attempts',n:1,f:x=>x.attempts},{h:'Cost',n:1,f:x=>b(x,'cost_usd',usd(x.cost_usd,x.unpriced>0))},{h:'Tokens',n:1,f:x=>b(x,'tokens',tok(x.tokens))},
        {h:'Active',n:1,f:x=>b(x,'active_ms',dur(nil(x.active_ms)?null:x.active_ms/1000))},{h:'Sessions',n:1,f:x=>x.sessions},{h:'Sent back',n:1,f:x=>x.sent_back},{h:'Human',n:1,f:x=>u(x).Human??U}],d.factories)})()}</div>`:''}
-  <div class="card c12"><h3>Timeline</h3><div class="hint">${d.steps.length?'Which step ran when: one bar per Claude Code session with its length, in its step\'s row, coloured by phase. A line is a hand-off to the next step; a red line starts at the check that sent the work back.':'Which lane worked on the card and when, one bar per dispatch.'} Hover any mark for details.</div>
+  <div class="card c12"><h3>Timeline</h3><div class="hint">${d.steps.length?'Which step ran when: one bar per agent session with its length, in its step\'s row, coloured by phase. A line is a hand-off to the next step; a red line starts at the check that sent the work back.':'Which lane worked on the card and when, one bar per dispatch.'} Hover any mark for details.</div>
    ${gantt(w,d.attempts,d.timeline,{...f,sessions:d.sessions,steps:d.steps,gates:d.gates,send_backs:d.send_backs,hwaits:d.waits,multi:facs.length>1,hideAttempts:d.attempts.length===1&&!!(d.steps.length||lanes.length)})}</div>
-  ${d.step_stats.length?`<div class="card c8"><h3>Where the time and money went</h3><div class="hint">Per step: its Claude Code sessions, their summed length and their cost</div>${facs.filter(fc=>d.step_stats.some(x=>x.factory_id===fc)).map(fc=>head(fc)+stepTable(d.step_stats.filter(x=>x.factory_id===fc),d.send_backs,d.gates)).join('')}</div>`:''}
+  ${d.step_stats.length?`<div class="card c8"><h3>Where the time and money went</h3><div class="hint">Per step: its agent sessions, their summed length and their cost</div>${facs.filter(fc=>d.step_stats.some(x=>x.factory_id===fc)).map(fc=>head(fc)+stepTable(d.step_stats.filter(x=>x.factory_id===fc),d.send_backs,d.gates)).join('')}</div>`:''}
   <div class="card c4"><h3>Cost by ${d.attempts.some(a=>a.staged)?'stage':'phase'}</h3>${facs.map(fc=>head(fc)+phaseSplit(stageCost(fAtts(fc),d.phases.filter(p=>p.factory_id===fc)))).join('')}
    <h3 style="margin-top:22px">Attempts</h3>${table([{h:'Attempt',c:'t',f:a=>`<b>${esc(labels[a.attempt_id])}</b>${a.role&&!a.staged?` <span class="muted">${esc(a.role)}</span>`:''} <span class="muted">${esc(fmtWhen(a.started_at))}</span>`},{h:'State',f:a=>`${chip(a.status||a.state)}${a.pr_url?`<div><a href="${esc(a.pr_url)}" target="_blank" rel="noreferrer noopener">PR #${esc(a.pr_url.split('/').pop())} ↗</a></div>`:''}`},{h:'Cost',n:1,f:a=>usd(a.cost_usd,a.unpriced>0)}],d.attempts,{href:a=>attHref(a.factory_id,a.attempt_id)})}</div>
   <div class="card c8"><h3>What went wrong or needed a person</h3><div class="hint">Send-backs with their reason, blocking questions, failed checks${fsess?' and failed tool calls':''}, oldest first</div>${problems(d,fsess?[{ts:(d.sessions.find(s=>s.failed_tools)||{}).first_ts,k:'var(--crit)',what:`<b>${plural(fsess,'failed tool call')}</b> <span class="muted">in ${plural(d.sessions.filter(s=>s.failed_tools).length,'session')} · open the attempt for which</span>`}]:[])}</div>
@@ -814,8 +816,8 @@ V.attempt=async(f,id)=>{
    ${d.agents.length||d.api_errors.length?kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':''):''}
   </div>
   <div class="grid">
-   ${d.steps.length||lanes.length||grows.length?`<div class="card c12"><h3>Timeline</h3><div class="hint">${[d.steps.length&&'Which step ran when: one bar per Claude Code session with its length, in its step\'s row, coloured by phase. A line is a hand-off to the next step; a red line starts at the check that sent the work back',lanes.length&&'Which lane worked on this attempt and when, one bar per dispatch',grows.some(r=>r.label!=='subagents')&&'one bar per Claude Code session, in the row of its phase',subs.length&&'subagents from their first to their last model call'].filter(Boolean).join(' · ')}. Hover any mark for details.</div>${gantt(Math.max(640,main-2),[a],[],{dispatches:d.dispatches,steps:d.steps,gates:d.gates,send_backs:d.send_backs,hwaits:d.waits,rows:grows,moves:[],attempts:[],hideAttempts:true})}</div>`:''}
-   ${d.step_stats.length?`<div class="card c8"><h3>Where the time and money went</h3><div class="hint">Per step: its Claude Code sessions, their summed length and their cost</div>${stepTable(d.step_stats,d.send_backs,d.gates)}</div>`:''}
+   ${d.steps.length||lanes.length||grows.length?`<div class="card c12"><h3>Timeline</h3><div class="hint">${[d.steps.length&&'Which step ran when: one bar per agent session with its length, in its step\'s row, coloured by phase. A line is a hand-off to the next step; a red line starts at the check that sent the work back',lanes.length&&'Which lane worked on this attempt and when, one bar per dispatch',grows.some(r=>r.label!=='subagents')&&'one bar per agent session, in the row of its phase',subs.length&&'subagents from their first to their last model call'].filter(Boolean).join(' · ')}. Hover any mark for details.</div>${gantt(Math.max(640,main-2),[a],[],{dispatches:d.dispatches,steps:d.steps,gates:d.gates,send_backs:d.send_backs,hwaits:d.waits,rows:grows,moves:[],attempts:[],hideAttempts:true})}</div>`:''}
+   ${d.step_stats.length?`<div class="card c8"><h3>Where the time and money went</h3><div class="hint">Per step: its agent sessions, their summed length and their cost</div>${stepTable(d.step_stats,d.send_backs,d.gates)}</div>`:''}
    <div class="card c4"><h3>Cost by phase</h3><div class="hint">Cost, then tokens incl. cache</div>${split.length?phaseSplit(split):'<div class="empty">No phase data</div>'}
      ${models.length>1?`<h3 style="margin-top:18px">Models</h3>${hbars(models.map(([k,v])=>({label:k,value:v,color:colorOf('model',k),tip:`${k}\n${fmtUsd(v)}`})),fmtUsd)}`:''}
      ${d.model_purposes.length?`<h3 style="margin-top:18px">Used for</h3><div class="hint">Purpose of each model's calls, as the agent reports it</div><div class="stat-list">${d.model_purposes.map(p=>`<div><span>${esc(p.model??'?')} <span class="muted">· ${esc(p.purpose)}</span></span><b>${plural(p.calls,'call')} <span class="muted">· ${usd(p.cost_usd)}</span></b></div>`).join('')}</div>`:''}</div>
