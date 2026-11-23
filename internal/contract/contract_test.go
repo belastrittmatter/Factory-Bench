@@ -62,6 +62,9 @@ func TestRejects(t *testing.T) {
 		"payload.phase must be":                     {"usage", `{"model":"m","input":1,"output":1,"phase":"design"}`},
 		"phase must be plan, implement, verify":     {"activity", `{"agent_id":"a1","phase":"design"}`},
 		"payload must be an object":                 {"activity", `[]`},
+		"payload.kind must be planning or blocking": {"human.waiting", `{"kind":"later"}`},
+		"payload.from missing":                      {"send_back", `{"to":"engineer"}`},
+		"payload.to missing":                        {"send_back", `{"from":"qc"}`},
 		"cannot unmarshal":                          {"usage", `{"model":"m","input":1.5,"output":1}`},
 	}
 	for want, c := range cases {

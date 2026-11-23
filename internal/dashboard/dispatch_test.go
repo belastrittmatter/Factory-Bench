@@ -133,13 +133,9 @@ func TestRework(t *testing.T) {
 		{[]string{"red", "green", "review", "green", "review"}, 1, 0}, // review running again after green is not a send-back
 		{[]string{"a", "b", "c", "a", "b", "c", "b", "c"}, 2, 0},
 	} {
-		b, r, back := rework(c.lanes)
-		n := 0
-		for _, k := range back {
-			n += k
-		}
-		if b != c.bounces || r != c.redo || n != b {
-			t.Errorf("rework(%v) = %d, %d; want %d, %d", c.lanes, b, r, c.bounces, c.redo)
+		b, r := rework(c.lanes)
+		if len(b) != c.bounces || r != c.redo {
+			t.Errorf("rework(%v) = %v, %d; want %d, %d", c.lanes, b, r, c.bounces, c.redo)
 		}
 	}
 }

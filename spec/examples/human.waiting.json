@@ -4,5 +4,5 @@
   "type": "human.waiting",
   "ts": "2026-11-11T09:19:00Z",
   "attempt_id": "run-8f2c",
-  "payload": { "reason": "plan_review" }
+  "payload": { "reason": "plan_review", "kind": "planning" }
 }

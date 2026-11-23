@@ -68,6 +68,11 @@ type Payload struct {
 	// human.*, gate, attempt.finished
 	Reason string `json:"reason"`
 	Source string `json:"source"`
+	// human.waiting: planning (a question before the work is confirmed) or blocking; send_back: the factory's kind
+	Kind string `json:"kind"`
+	// send_back: the step that sent the run back, and the step it goes back to
+	From string `json:"from"`
+	To   string `json:"to"`
 	// pr.linked
 	PRURL string `json:"pr_url"`
 	// attempt.finished
@@ -76,7 +81,7 @@ type Payload struct {
 
 var types = map[string]bool{
 	"attempt.started": true, "usage": true, "activity": true, "human.waiting": true,
-	"human.resumed": true, "human.steering": true, "pr.linked": true, "attempt.finished": true, "gate": true,
+	"human.resumed": true, "human.steering": true, "pr.linked": true, "attempt.finished": true, "gate": true, "send_back": true,
 }
 
 var repoRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
@@ -156,6 +161,17 @@ func Validate(raw []byte) (Event, Payload, error) {
 	case "attempt.finished":
 		if p.Status != "completed" && p.Status != "failed" && p.Status != "cancelled" {
 			return e, p, errors.New("payload.status must be completed, failed, or cancelled")
+		}
+	case "human.waiting":
+		if p.Kind != "" && p.Kind != "planning" && p.Kind != "blocking" {
+			return e, p, errors.New("payload.kind must be planning or blocking")
+		}
+	case "send_back":
+		switch {
+		case p.From == "":
+			return e, p, errors.New("payload.from missing")
+		case p.To == "":
+			return e, p, errors.New("payload.to missing")
 		}
 	case "human.steering":
 		if p.Source != "" && p.Source != "comment" && p.Source != "chat" && p.Source != "label" {

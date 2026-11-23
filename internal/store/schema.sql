@@ -122,6 +122,16 @@ CREATE TABLE gates (                        -- factory-internal gate results (ga
   reason       TEXT
 );
 
+CREATE TABLE send_backs (                   -- send_back events: the factory sent the run back to an earlier step (v4 -> v5)
+  factory_id   TEXT NOT NULL,
+  attempt_id   TEXT NOT NULL,
+  ts           TEXT NOT NULL,
+  from_step    TEXT NOT NULL,               -- e.g. qc, code-review
+  to_step      TEXT NOT NULL,               -- e.g. engineer, analyzer
+  reason       TEXT,
+  kind         TEXT                         -- e.g. fix-attempt, retry-token
+);
+
 CREATE TABLE prs (
   repo             TEXT NOT NULL,
   number           INTEGER NOT NULL,

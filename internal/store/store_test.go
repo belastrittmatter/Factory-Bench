@@ -38,10 +38,14 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	// v4 is the current schema without usage.session, v3 also without usage.step
-	v4 := strings.Replace(schema, "\n  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)", "", 1)
+	// v4 is the current schema without send_backs and usage.session, v3 also without usage.step
+	noSendBacks := strings.Replace(schema, create("send_backs"), "", 1)
+	if noSendBacks == schema {
+		t.Fatal("schema.sql no longer has the send_backs table this test removes")
+	}
+	v4 := strings.Replace(noSendBacks, "\n  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)", "", 1)
 	v4 = strings.Replace(v4, "step              TEXT,                   -- worker step", "step              TEXT                    -- worker step", 1)
-	if v4 == schema || strings.Contains(v4, "  session ") {
+	if v4 == noSendBacks || strings.Contains(v4, "  session ") {
 		t.Fatal("schema.sql no longer has the usage.session line this test removes")
 	}
 	v3 := strings.Replace(v4, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)", "", 1)

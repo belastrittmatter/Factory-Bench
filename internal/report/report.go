@@ -360,22 +360,46 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		return nil, nil, err
 	}
 
+	err = store.Each(db, `SELECT s.factory_id, s.ts, s.from_step, s.to_step, coalesce(s.kind, ''), coalesce(s.reason, '')
+		FROM send_backs s JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ? AND a.issue = ?
+		ORDER BY s.ts, s.factory_id, s.attempt_id, s.rowid`, func(r *sql.Rows) error {
+		var f, ts, from, to, kind, reason string
+		if err := r.Scan(&f, &ts, &from, &to, &kind, &reason); err != nil {
+			return err
+		}
+		text := "sent back from " + from + " to " + to
+		if kind != "" {
+			text += " (" + kind + ")"
+		}
+		if reason != "" {
+			text += ": " + reason
+		}
+		lines = append(lines, line{ts, 2, f, text, ""})
+		return nil
+	}, repo, issue)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	waitingSince := map[string]string{} // factory \x00 attempt -> open wait, paired like normalize does
 	err = store.Each(db, `SELECT e.factory_id, a.attempt_id, a.parent_attempt_id, e.ts, e.type, json_extract(e.payload, '$.payload.reason'),
-		json_extract(e.payload, '$.payload.pr_url'), json_extract(e.payload, '$.payload.source')
+		json_extract(e.payload, '$.payload.pr_url'), json_extract(e.payload, '$.payload.source'), json_extract(e.payload, '$.payload.kind')
 		FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 		WHERE e.source = 'contract' AND e.rejected IS NULL AND a.repo = ? AND a.issue = ?
 		  AND e.type IN ('human.waiting', 'human.resumed', 'human.steering', 'pr.linked')
 		ORDER BY e.ts, e.factory_id, e.id`, func(r *sql.Rows) error {
 		var f, att, ts, typ string
-		var parent, reason, url, src sql.NullString
-		if err := r.Scan(&f, &att, &parent, &ts, &typ, &reason, &url, &src); err != nil {
+		var parent, reason, url, src, kind sql.NullString
+		if err := r.Scan(&f, &att, &parent, &ts, &typ, &reason, &url, &src, &kind); err != nil {
 			return err
 		}
 		l := line{ts: ts, rank: 2, who: f}
 		switch typ {
 		case "human.waiting":
 			l.text = "waiting for human (" + reason.String + ")"
+			if kind.Valid {
+				l.text = kind.String + " " + l.text
+			}
 			if k := f + "\x00" + att; waitingSince[k] == "" {
 				waitingSince[k] = ts
 			}

@@ -1,0 +1,92 @@
+acme/app#41   outcome open · survival n/a
+  11-20 10:00  omp  attempt t12-r1 started (request)                                                                                                          config turbo-12f@abc+omp@19.1.0+model:anthropic/claude-sonnet-5-5
+  11-20 10:00       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   23s session, $0.07 reported
+  11-20 10:00       session t12-r1 claude-sonnet-5-5: 4 in / 6.0k cache read / 7.0k cache write / 700 out                                                     10s session, $0.02 reported
+  11-20 10:00       planning waiting for human (Who will look at the page?)                                                                                   
+  11-20 10:00       planning waiting for human (Who says the page is done?)                                                                                   
+  11-20 10:02       resumed by human ()                                                                                                                       waited 1m29s
+  11-20 10:02       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   30s session, $0.05 reported
+  11-20 10:02       gate context-creator passed                                                                                                               
+  11-20 10:03       gate devops passed                                                                                                                        
+  11-20 10:06       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   31s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:06       session t12-r1 claude-haiku-5-5: 4 in / 4.0k cache read / 0 cache write / 500 out                                                         <$0.01 est. (prices 2026-11-13)
+  11-20 10:06       gate analyzer passed                                                                                                                      
+  11-20 10:10       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   3m40s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:10       gate engineer passed                                                                                                                      
+  11-20 10:10       gate qc failed: - [blocking] existing test case "lists post titles on the home page" was removed or renamed                               
+  11-20 10:10       sent back from qc to engineer (fix-attempt): - [blocking] existing test case "lists post titles on the home page" was removed or renamed  
+  11-20 10:11       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   27s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:11       gate engineer failed: blocked                                                                                                             
+  11-20 10:11       blocking waiting for human (May I change the existing home page test?)                                                                    
+  11-20 10:13       resumed by human ()                                                                                                                       waited 1m28s
+  11-20 10:14       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   32s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:14       gate engineer passed                                                                                                                      
+  11-20 10:14       gate qc passed                                                                                                                            
+  11-20 10:14       session t12-r1 claude-sonnet-5-5: 4 in / 6.0k cache read / 7.0k cache write / 700 out                                                     10s session, $0.08 reported
+  11-20 10:14       gate deslop passed                                                                                                                        
+  11-20 10:14       session t12-r1 claude-sonnet-5-5: 4 in / 6.0k cache read / 7.0k cache write / 700 out                                                     9s session, $0.03 reported
+  11-20 10:14       gate red-team passed                                                                                                                      
+  11-20 10:16       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   1m0s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:16       gate code-review failed: the hours table has no caption                                                                                   
+  11-20 10:16       sent back from code-review to analyze (retry-token): the hours table has no caption                                                       
+  11-20 10:17       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   40s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:19       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   1m0s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:19       gate qc passed                                                                                                                            
+  11-20 10:21       session t12-r1 claude-sonnet-5-5: 4 in / 20.0k cache read / 9.0k cache write / 3.0k out                                                   1m0s session, $0.05 est. (prices 2026-11-13)
+  11-20 10:21       gate code-review passed                                                                                                                   
+  11-20 10:22       gate merge passed                                                                                                                         
+  11-20 10:23       attempt t12-r1 completed                                                                                                                  23m0s, $0.69 (reported $0.25 + est. $0.44), 6 tool calls (2 failed)
+  totals  omp  1 attempts (1 completed) · 13 sessions · tokens 56 in / 32.6k out / 333.0k cache · 20m3s active / 23m0s elapsed · 1 human waits (2m57s) · $0.69 (reported $0.25 + est. $0.44) · usage coverage 1/1 attempts
+
+$ report items
+item         title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR  escaped
+acme/app#41         omp      open     1         365.7k  $0.69  20m3s   23m0s    1      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       omp
+work items                   1
+attempts                     1 (0 failed)
+sessions                     13
+tokens / issue               365.7k
+time / issue                 20m3s active / 23m0s elapsed
+cost total                   $0.69 (reported $0.25 + est. $0.44)
+cost / issue                 $0.69
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  1.0 (1/1)
+escaped defects              n/a (no PRs)
+tool calls / issue           6.0 (6/1)
+tool mix                     bash 5, context_turn 1
+tool failure rate            33% (2/6)
+time in model / tool calls   10m12s / 2s
+subagents / issue            0.0 (0/1)
+API errors / attempt         0.0 (0/1)
+usage coverage               100% (1/1) attempts
+activity coverage            100% (1/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source   gate             failed / runs
+  omp      factory  analyzer         0% (0/1)
+  omp      factory  code-review      50% (1/2)
+  omp      factory  context-creator  0% (0/1)
+  omp      factory  deslop           0% (0/1)
+  omp      factory  devops           0% (0/1)
+  omp      factory  engineer         33% (1/3)
+  omp      factory  merge            0% (0/1)
+  omp      factory  qc               33% (1/3)
+  omp      factory  red-team         0% (0/1)
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

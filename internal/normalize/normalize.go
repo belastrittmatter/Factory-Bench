@@ -14,7 +14,7 @@ import (
 )
 
 // tables lists every table normalize rebuilds.
-var tables = []string{"work_items", "attempts", "usage", "gates", "prs", "checks", "reviews", "pr_commits",
+var tables = []string{"work_items", "attempts", "usage", "gates", "send_backs", "prs", "checks", "reviews", "pr_commits",
 	"tool_calls", "agent_runs", "api_errors"}
 
 type event struct {
@@ -60,6 +60,11 @@ type gate struct {
 	Reason                     *string
 }
 
+type sendBack struct {
+	Factory, Attempt, TS, From, To string
+	Reason, Kind                   *string
+}
+
 type pr struct {
 	Repo                   string
 	Number                 int64
@@ -96,6 +101,7 @@ type result struct {
 	Attempts  []attempt
 	Usage     []usage
 	Gates     []gate
+	SendBacks []sendBack
 	PRs       []pr
 	Checks    []check
 	Reviews   []review
@@ -228,6 +234,8 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			a.PRURL = ptr(p.PRURL)
 		case "gate":
 			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
+		case "send_back":
+			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind)})
 		case "usage":
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
@@ -410,6 +418,9 @@ func Run(db *sql.DB) error {
 	}
 	for _, g := range d.Gates {
 		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)
+	}
+	for _, s := range d.SendBacks {
+		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind)
 	}
 	for _, p := range d.PRs {
 		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits,

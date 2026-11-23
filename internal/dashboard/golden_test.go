@@ -18,9 +18,13 @@ import (
 var update = flag.Bool("update", false, "rewrite dashboard.json of the golden cases")
 
 // TestItemGolden loads a golden case (testdata/golden/<case>/events.json: contract batches and inline OTLP bodies) and
-// compares the issue endpoint's per-factory and per-step numbers with its dashboard.json.
+// compares the issue endpoint's per-factory, per-step and timeline data, and the attempt endpoint's timeline data of one
+// attempt, with its dashboard.json.
 func TestItemGolden(t *testing.T) {
-	for _, c := range []struct{ dir, repo, issue string }{{"two_factories_sessions", "acme/app", "40"}} {
+	for _, c := range []struct{ dir, repo, issue, factory, attempt string }{
+		{"two_factories_sessions", "acme/app", "40", "omp", "o1"},
+		{"omp_new_core", "acme/app", "41", "omp", "t12-r1"},
+	} {
 		t.Run(c.dir, func(t *testing.T) {
 			dir := filepath.Join("../../testdata/golden", c.dir)
 			var gc struct {
@@ -82,10 +86,18 @@ func TestItemGolden(t *testing.T) {
 			defer db.Close()
 			var item map[string]any
 			get(t, Handler(db, Options{Addr: "127.0.0.1:8081"}), "/api/item?repo="+c.repo+"&issue="+c.issue, &item)
+			var at map[string]any
+			get(t, Handler(db, Options{Addr: "127.0.0.1:8081"}), "/api/attempt?factory="+c.factory+"&id="+c.attempt, &at)
 			got := map[string]any{}
-			for _, k := range []string{"factories", "steps", "step_stats", "step_runs"} {
+			timeline := []string{"sessions", "checks", "send_backs", "waits"}
+			for _, k := range append([]string{"factories", "steps", "step_stats", "step_runs"}, timeline...) {
 				got[k] = item[k]
 			}
+			atl := map[string]any{}
+			for _, k := range timeline {
+				atl[k] = at[k]
+			}
+			got["attempt "+c.attempt] = atl
 			out, _ := json.MarshalIndent(got, "", "  ")
 			out = append(out, '\n')
 			file := filepath.Join(dir, "dashboard.json")

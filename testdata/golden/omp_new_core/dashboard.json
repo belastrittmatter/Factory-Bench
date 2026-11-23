@@ -1,0 +1,996 @@
+{
+  "attempt t12-r1": {
+    "checks": [
+      {
+        "at": "2026-11-20T10:02:41.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "context-creator",
+        "passed": true,
+        "reason": null,
+        "step": "context-creator"
+      },
+      {
+        "at": "2026-11-20T10:03:00.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "devops",
+        "passed": true,
+        "reason": null,
+        "step": null
+      },
+      {
+        "at": "2026-11-20T10:06:01.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "analyzer",
+        "passed": true,
+        "reason": null,
+        "step": "analyzer"
+      },
+      {
+        "at": "2026-11-20T10:10:01.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "engineer",
+        "passed": true,
+        "reason": null,
+        "step": "engineer"
+      },
+      {
+        "at": "2026-11-20T10:10:30.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "qc",
+        "passed": false,
+        "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
+        "step": null
+      },
+      {
+        "at": "2026-11-20T10:11:31.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "engineer",
+        "passed": false,
+        "reason": "blocked",
+        "step": "engineer"
+      },
+      {
+        "at": "2026-11-20T10:14:01.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "engineer",
+        "passed": true,
+        "reason": null,
+        "step": "engineer"
+      },
+      {
+        "at": "2026-11-20T10:14:30.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "qc",
+        "passed": true,
+        "reason": null,
+        "step": null
+      },
+      {
+        "at": "2026-11-20T10:14:46.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "deslop",
+        "passed": true,
+        "reason": null,
+        "step": "deslop"
+      },
+      {
+        "at": "2026-11-20T10:14:59.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "red-team",
+        "passed": true,
+        "reason": null,
+        "step": "red-team"
+      },
+      {
+        "at": "2026-11-20T10:16:01.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "code-review",
+        "passed": false,
+        "reason": "the hours table has no caption",
+        "step": "code-review"
+      },
+      {
+        "at": "2026-11-20T10:19:30.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "qc",
+        "passed": true,
+        "reason": null,
+        "step": null
+      },
+      {
+        "at": "2026-11-20T10:21:01.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "code-review",
+        "passed": true,
+        "reason": null,
+        "step": "code-review"
+      },
+      {
+        "at": "2026-11-20T10:22:00.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "name": "merge",
+        "passed": true,
+        "reason": null,
+        "step": null
+      }
+    ],
+    "send_backs": [
+      {
+        "at": "2026-11-20T10:10:31.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "from": "qc",
+        "inferred": false,
+        "kind": "fix-attempt",
+        "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
+        "to": "engineer"
+      },
+      {
+        "at": "2026-11-20T10:16:02.000Z",
+        "attempt_id": "t12-r1",
+        "factory_id": "omp",
+        "from": "code-review",
+        "inferred": false,
+        "kind": "retry-token",
+        "reason": "the hours table has no caption",
+        "to": "analyze"
+      }
+    ],
+    "sessions": [
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.069118,
+        "end": "2026-11-20T10:00:30.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": null,
+        "first_ts": "2026-11-20T10:00:07.000Z",
+        "last_ts": "2026-11-20T10:00:30.000Z",
+        "phase": "plan",
+        "session": "context-creator-001-turn",
+        "start": "2026-11-20T10:00:07.000Z",
+        "step": "context-creator",
+        "tokens": 32004,
+        "tools": null
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.02,
+        "end": "2026-11-20T10:00:30.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": null,
+        "first_ts": "2026-11-20T10:00:20.000Z",
+        "last_ts": "2026-11-20T10:00:30.000Z",
+        "phase": "plan",
+        "session": "context-creator-001-spec",
+        "start": "2026-11-20T10:00:20.000Z",
+        "step": "context-creator",
+        "tokens": 13704,
+        "tools": null
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.05,
+        "end": "2026-11-20T10:02:40.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:02:10.000Z",
+        "last_ts": "2026-11-20T10:02:40.000Z",
+        "phase": "plan",
+        "session": "context-creator-002-turn",
+        "start": "2026-11-20T10:02:10.000Z",
+        "step": "context-creator",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054798400000000004,
+        "end": "2026-11-20T10:06:00.000Z",
+        "events": 2,
+        "factory_id": "omp",
+        "failed_tools": 1,
+        "first_ts": "2026-11-20T10:05:29.000Z",
+        "last_ts": "2026-11-20T10:06:00.000Z",
+        "phase": "implement",
+        "session": "analyzer-t1",
+        "start": "2026-11-20T10:05:29.000Z",
+        "step": "analyzer",
+        "tokens": 36508,
+        "tools": 2
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:10:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 1,
+        "first_ts": "2026-11-20T10:06:20.000Z",
+        "last_ts": "2026-11-20T10:10:00.000Z",
+        "phase": "implement",
+        "session": "engineer-t1-1",
+        "start": "2026-11-20T10:06:20.000Z",
+        "step": "engineer",
+        "tokens": 32004,
+        "tools": 2
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:11:30.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:11:03.000Z",
+        "last_ts": "2026-11-20T10:11:30.000Z",
+        "phase": "implement",
+        "session": "engineer-t1-1-2",
+        "start": "2026-11-20T10:11:03.000Z",
+        "step": "engineer",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:14:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:13:28.000Z",
+        "last_ts": "2026-11-20T10:14:00.000Z",
+        "phase": "implement",
+        "session": "engineer-t1-1-3",
+        "start": "2026-11-20T10:13:28.000Z",
+        "step": "engineer",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.0772,
+        "end": "2026-11-20T10:14:45.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:14:35.000Z",
+        "last_ts": "2026-11-20T10:14:45.000Z",
+        "phase": "verify",
+        "session": "deslop-t1",
+        "start": "2026-11-20T10:14:35.000Z",
+        "step": "deslop",
+        "tokens": 13704,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.0329,
+        "end": "2026-11-20T10:14:58.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:14:49.000Z",
+        "last_ts": "2026-11-20T10:14:58.000Z",
+        "phase": "verify",
+        "session": "red-team-t1",
+        "start": "2026-11-20T10:14:49.000Z",
+        "step": "red-team",
+        "tokens": 13704,
+        "tools": 1
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:16:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:15:00.000Z",
+        "last_ts": "2026-11-20T10:16:00.000Z",
+        "phase": "review",
+        "session": "code-review-t1",
+        "start": "2026-11-20T10:15:00.000Z",
+        "step": "code-review",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:17:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:16:20.000Z",
+        "last_ts": "2026-11-20T10:17:00.000Z",
+        "phase": "implement",
+        "session": "analyzer-t1-2",
+        "start": "2026-11-20T10:16:20.000Z",
+        "step": "analyzer",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:19:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:18:00.000Z",
+        "last_ts": "2026-11-20T10:19:00.000Z",
+        "phase": "implement",
+        "session": "engineer-t1-2",
+        "start": "2026-11-20T10:18:00.000Z",
+        "step": "engineer",
+        "tokens": 32004,
+        "tools": 0
+      },
+      {
+        "attempt_id": "t12-r1",
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:21:00.000Z",
+        "events": 1,
+        "factory_id": "omp",
+        "failed_tools": 0,
+        "first_ts": "2026-11-20T10:20:00.000Z",
+        "last_ts": "2026-11-20T10:21:00.000Z",
+        "phase": "review",
+        "session": "code-review-t1-2",
+        "start": "2026-11-20T10:20:00.000Z",
+        "step": "code-review",
+        "tokens": 32004,
+        "tools": 0
+      }
+    ],
+    "waits": [
+      {
+        "attempt_id": "t12-r1",
+        "end": "2026-11-20T10:02:00.000Z",
+        "factory_id": "omp",
+        "kind": "planning",
+        "reason": "Who will look at the page?",
+        "start": "2026-11-20T10:00:31.000Z"
+      },
+      {
+        "attempt_id": "t12-r1",
+        "end": "2026-11-20T10:02:00.000Z",
+        "factory_id": "omp",
+        "kind": "planning",
+        "reason": "Who says the page is done?",
+        "start": "2026-11-20T10:00:32.000Z"
+      },
+      {
+        "attempt_id": "t12-r1",
+        "end": "2026-11-20T10:13:00.000Z",
+        "factory_id": "omp",
+        "kind": "blocking",
+        "reason": "May I change the existing home page test?",
+        "start": "2026-11-20T10:11:32.000Z"
+      }
+    ]
+  },
+  "checks": [
+    {
+      "at": "2026-11-20T10:02:41.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "context-creator",
+      "passed": true,
+      "reason": null,
+      "step": "context-creator"
+    },
+    {
+      "at": "2026-11-20T10:03:00.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "devops",
+      "passed": true,
+      "reason": null,
+      "step": null
+    },
+    {
+      "at": "2026-11-20T10:06:01.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "analyzer",
+      "passed": true,
+      "reason": null,
+      "step": "analyzer"
+    },
+    {
+      "at": "2026-11-20T10:10:01.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "engineer",
+      "passed": true,
+      "reason": null,
+      "step": "engineer"
+    },
+    {
+      "at": "2026-11-20T10:10:30.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "qc",
+      "passed": false,
+      "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
+      "step": null
+    },
+    {
+      "at": "2026-11-20T10:11:31.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "engineer",
+      "passed": false,
+      "reason": "blocked",
+      "step": "engineer"
+    },
+    {
+      "at": "2026-11-20T10:14:01.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "engineer",
+      "passed": true,
+      "reason": null,
+      "step": "engineer"
+    },
+    {
+      "at": "2026-11-20T10:14:30.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "qc",
+      "passed": true,
+      "reason": null,
+      "step": null
+    },
+    {
+      "at": "2026-11-20T10:14:46.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "deslop",
+      "passed": true,
+      "reason": null,
+      "step": "deslop"
+    },
+    {
+      "at": "2026-11-20T10:14:59.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "red-team",
+      "passed": true,
+      "reason": null,
+      "step": "red-team"
+    },
+    {
+      "at": "2026-11-20T10:16:01.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "code-review",
+      "passed": false,
+      "reason": "the hours table has no caption",
+      "step": "code-review"
+    },
+    {
+      "at": "2026-11-20T10:19:30.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "qc",
+      "passed": true,
+      "reason": null,
+      "step": null
+    },
+    {
+      "at": "2026-11-20T10:21:01.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "code-review",
+      "passed": true,
+      "reason": null,
+      "step": "code-review"
+    },
+    {
+      "at": "2026-11-20T10:22:00.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "name": "merge",
+      "passed": true,
+      "reason": null,
+      "step": null
+    }
+  ],
+  "factories": [
+    {
+      "active_ms": 1203000,
+      "attempts": 1,
+      "cost_usd": 0.6855724,
+      "factory_id": "omp",
+      "sent_back": 2,
+      "sessions": 13,
+      "tokens": 365656,
+      "unpriced": 0
+    }
+  ],
+  "send_backs": [
+    {
+      "at": "2026-11-20T10:10:31.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "from": "qc",
+      "inferred": false,
+      "kind": "fix-attempt",
+      "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
+      "to": "engineer"
+    },
+    {
+      "at": "2026-11-20T10:16:02.000Z",
+      "attempt_id": "t12-r1",
+      "factory_id": "omp",
+      "from": "code-review",
+      "inferred": false,
+      "kind": "retry-token",
+      "reason": "the hours table has no caption",
+      "to": "analyze"
+    }
+  ],
+  "sessions": [
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.069118,
+      "end": "2026-11-20T10:00:30.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": null,
+      "first_ts": "2026-11-20T10:00:07.000Z",
+      "last_ts": "2026-11-20T10:00:30.000Z",
+      "phase": "plan",
+      "session": "context-creator-001-turn",
+      "start": "2026-11-20T10:00:07.000Z",
+      "step": "context-creator",
+      "tokens": 32004,
+      "tools": null
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.02,
+      "end": "2026-11-20T10:00:30.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": null,
+      "first_ts": "2026-11-20T10:00:20.000Z",
+      "last_ts": "2026-11-20T10:00:30.000Z",
+      "phase": "plan",
+      "session": "context-creator-001-spec",
+      "start": "2026-11-20T10:00:20.000Z",
+      "step": "context-creator",
+      "tokens": 13704,
+      "tools": null
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.05,
+      "end": "2026-11-20T10:02:40.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:02:10.000Z",
+      "last_ts": "2026-11-20T10:02:40.000Z",
+      "phase": "plan",
+      "session": "context-creator-002-turn",
+      "start": "2026-11-20T10:02:10.000Z",
+      "step": "context-creator",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054798400000000004,
+      "end": "2026-11-20T10:06:00.000Z",
+      "events": 2,
+      "factory_id": "omp",
+      "failed_tools": 1,
+      "first_ts": "2026-11-20T10:05:29.000Z",
+      "last_ts": "2026-11-20T10:06:00.000Z",
+      "phase": "implement",
+      "session": "analyzer-t1",
+      "start": "2026-11-20T10:05:29.000Z",
+      "step": "analyzer",
+      "tokens": 36508,
+      "tools": 2
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:10:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 1,
+      "first_ts": "2026-11-20T10:06:20.000Z",
+      "last_ts": "2026-11-20T10:10:00.000Z",
+      "phase": "implement",
+      "session": "engineer-t1-1",
+      "start": "2026-11-20T10:06:20.000Z",
+      "step": "engineer",
+      "tokens": 32004,
+      "tools": 2
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:11:30.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:11:03.000Z",
+      "last_ts": "2026-11-20T10:11:30.000Z",
+      "phase": "implement",
+      "session": "engineer-t1-1-2",
+      "start": "2026-11-20T10:11:03.000Z",
+      "step": "engineer",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:14:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:13:28.000Z",
+      "last_ts": "2026-11-20T10:14:00.000Z",
+      "phase": "implement",
+      "session": "engineer-t1-1-3",
+      "start": "2026-11-20T10:13:28.000Z",
+      "step": "engineer",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.0772,
+      "end": "2026-11-20T10:14:45.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:14:35.000Z",
+      "last_ts": "2026-11-20T10:14:45.000Z",
+      "phase": "verify",
+      "session": "deslop-t1",
+      "start": "2026-11-20T10:14:35.000Z",
+      "step": "deslop",
+      "tokens": 13704,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.0329,
+      "end": "2026-11-20T10:14:58.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:14:49.000Z",
+      "last_ts": "2026-11-20T10:14:58.000Z",
+      "phase": "verify",
+      "session": "red-team-t1",
+      "start": "2026-11-20T10:14:49.000Z",
+      "step": "red-team",
+      "tokens": 13704,
+      "tools": 1
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:16:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:15:00.000Z",
+      "last_ts": "2026-11-20T10:16:00.000Z",
+      "phase": "review",
+      "session": "code-review-t1",
+      "start": "2026-11-20T10:15:00.000Z",
+      "step": "code-review",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:17:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:16:20.000Z",
+      "last_ts": "2026-11-20T10:17:00.000Z",
+      "phase": "implement",
+      "session": "analyzer-t1-2",
+      "start": "2026-11-20T10:16:20.000Z",
+      "step": "analyzer",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:19:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:18:00.000Z",
+      "last_ts": "2026-11-20T10:19:00.000Z",
+      "phase": "implement",
+      "session": "engineer-t1-2",
+      "start": "2026-11-20T10:18:00.000Z",
+      "step": "engineer",
+      "tokens": 32004,
+      "tools": 0
+    },
+    {
+      "attempt_id": "t12-r1",
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:21:00.000Z",
+      "events": 1,
+      "factory_id": "omp",
+      "failed_tools": 0,
+      "first_ts": "2026-11-20T10:20:00.000Z",
+      "last_ts": "2026-11-20T10:21:00.000Z",
+      "phase": "review",
+      "session": "code-review-t1-2",
+      "start": "2026-11-20T10:20:00.000Z",
+      "step": "code-review",
+      "tokens": 32004,
+      "tools": 0
+    }
+  ],
+  "step_runs": [
+    {
+      "factory_id": "omp",
+      "reruns": 4,
+      "sent_back": 2
+    }
+  ],
+  "step_stats": [
+    {
+      "cost_usd": 0.13911800000000002,
+      "factory_id": "omp",
+      "ms": 63000,
+      "sent_back": 0,
+      "sessions": 3,
+      "step": "context-creator",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.1093064,
+      "factory_id": "omp",
+      "ms": 71000,
+      "sent_back": 0,
+      "sessions": 2,
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.218032,
+      "factory_id": "omp",
+      "ms": 339000,
+      "sent_back": 1,
+      "sessions": 4,
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.0772,
+      "factory_id": "omp",
+      "ms": 10000,
+      "sent_back": 0,
+      "sessions": 1,
+      "step": "deslop",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.0329,
+      "factory_id": "omp",
+      "ms": 9000,
+      "sent_back": 0,
+      "sessions": 1,
+      "step": "red-team",
+      "unpriced": 0
+    },
+    {
+      "cost_usd": 0.109016,
+      "factory_id": "omp",
+      "ms": 120000,
+      "sent_back": 0,
+      "sessions": 2,
+      "step": "code-review",
+      "unpriced": 0
+    }
+  ],
+  "steps": [
+    {
+      "at": "2026-11-20T10:00:07.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.069118,
+      "end": "2026-11-20T10:00:30.000Z",
+      "factory_id": "omp",
+      "phase": "plan",
+      "step": "context-creator",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:00:20.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.02,
+      "end": "2026-11-20T10:00:30.000Z",
+      "factory_id": "omp",
+      "phase": "plan",
+      "step": "context-creator",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:02:10.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.05,
+      "end": "2026-11-20T10:02:40.000Z",
+      "factory_id": "omp",
+      "phase": "plan",
+      "step": "context-creator",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:05:29.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 2,
+      "cost_usd": 0.054798400000000004,
+      "end": "2026-11-20T10:06:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:06:20.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:10:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:11:03.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:11:30.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:13:28.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:14:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:14:35.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.0772,
+      "end": "2026-11-20T10:14:45.000Z",
+      "factory_id": "omp",
+      "phase": "verify",
+      "step": "deslop",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:14:49.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.0329,
+      "end": "2026-11-20T10:14:58.000Z",
+      "factory_id": "omp",
+      "phase": "verify",
+      "step": "red-team",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:15:00.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:16:00.000Z",
+      "factory_id": "omp",
+      "phase": "review",
+      "step": "code-review",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:16:20.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:17:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "analyzer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:18:00.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:19:00.000Z",
+      "factory_id": "omp",
+      "phase": "implement",
+      "step": "engineer",
+      "unpriced": 0
+    },
+    {
+      "at": "2026-11-20T10:20:00.000Z",
+      "attempt_id": "t12-r1",
+      "calls": 1,
+      "cost_usd": 0.054508,
+      "end": "2026-11-20T10:21:00.000Z",
+      "factory_id": "omp",
+      "phase": "review",
+      "step": "code-review",
+      "unpriced": 0
+    }
+  ],
+  "waits": [
+    {
+      "attempt_id": "t12-r1",
+      "end": "2026-11-20T10:02:00.000Z",
+      "factory_id": "omp",
+      "kind": "planning",
+      "reason": "Who will look at the page?",
+      "start": "2026-11-20T10:00:31.000Z"
+    },
+    {
+      "attempt_id": "t12-r1",
+      "end": "2026-11-20T10:02:00.000Z",
+      "factory_id": "omp",
+      "kind": "planning",
+      "reason": "Who says the page is done?",
+      "start": "2026-11-20T10:00:32.000Z"
+    },
+    {
+      "attempt_id": "t12-r1",
+      "end": "2026-11-20T10:13:00.000Z",
+      "factory_id": "omp",
+      "kind": "blocking",
+      "reason": "May I change the existing home page test?",
+      "start": "2026-11-20T10:11:32.000Z"
+    }
+  ]
+}

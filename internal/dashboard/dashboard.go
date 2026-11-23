@@ -56,7 +56,7 @@ const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.facto
 // its first and last event, phase(s) and step (one, normally), phases sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
 func sessionsSQL(filter string) string {
 	return `SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session,
-	min(ts) AS first_ts, max(ts) AS last_ts,
+	min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
 	group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
 	group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
 	WHERE source = 'otlp' AND (factory_id, json_extract(payload, '$."factorybench.attempt"')) IN (SELECT factory_id, attempt_id FROM attempts a WHERE ` + filter + `)
@@ -351,13 +351,17 @@ func (s *server) item(r *http.Request) (any, error) {
 		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"gates": `SELECT g.factory_id, g.attempt_id, g.ts, g.name, g.passed, g.reason FROM gates g JOIN attempts a USING (factory_id, attempt_id)
 			WHERE a.repo = ?1 AND a.issue = ?2 ORDER BY g.ts, g.rowid`,
-		"step_usage": stepUsageSQL(`a.repo = ?1 AND a.issue = ?2`),
-		"prs":        `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
+		"step_usage":  stepUsageSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"step_tools":  stepToolsSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"sent":        sendBacksSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"wait_events": waitsSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"prs":         `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
 		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
-		"checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
+		// GitHub check runs of the issue's PRs ("checks" are the factory's gates, see stepData)
+		"ci_checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
 		// the issue's model calls and cache reads, for its KPI tiles
 		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read
@@ -375,10 +379,16 @@ func (s *server) item(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
-	for k, v := range stepData(res["sessions"].([]map[string]any), res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+	for k, v := range stepData(res["sessions"].([]map[string]any), res["step_usage"].([]map[string]any), res["gates"].([]map[string]any),
+		res["step_tools"].([]map[string]any), res["sent"].([]map[string]any)) {
 		res[k] = v
 	}
-	delete(res, "step_usage")
+	if w := waits(res["wait_events"].([]map[string]any), ""); len(w) > 0 {
+		res["waits"] = w
+	}
+	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events"} {
+		delete(res, k)
+	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
 	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
@@ -449,10 +459,10 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"gates", `SELECT factory_id, attempt_id, ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts, rowid`},
 		{"step_usage", stepUsageSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
-		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
-			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
-			group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
-			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
+		{"step_tools", stepToolsSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
+		{"sent", sendBacksSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
+		// the run's waits: a plan's wait may be resumed by its build
+		{"wait_events", waitsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
 		// the attempts of this attempt's run (factory × issue), for its run format
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = r.factory_id AND g.attempt_id = r.attempt_id) AS subagents
@@ -475,10 +485,16 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			own = append(own, x)
 		}
 	}
-	for k, v := range stepData(own, res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+	for k, v := range stepData(own, res["step_usage"].([]map[string]any), res["gates"].([]map[string]any),
+		res["step_tools"].([]map[string]any), res["sent"].([]map[string]any)) {
 		res[k] = v
 	}
-	delete(res, "step_usage")
+	if w := waits(res["wait_events"].([]map[string]any), id); len(w) > 0 {
+		res["waits"] = w
+	}
+	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events"} {
+		delete(res, k)
+	}
 	res["attempt"] = a[0]
 	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
 	at := res["attempt"].(map[string]any)

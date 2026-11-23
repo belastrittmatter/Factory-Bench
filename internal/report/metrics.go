@@ -56,7 +56,7 @@ type mCommit struct {
 	at    string
 }
 type mCheck struct{ name, sha, concl, started, done string } // "" = NULL
-type mEvent struct{ typ, attempt, ts string }
+type mEvent struct{ typ, attempt, ts, kind string }          // kind: human.waiting planning or blocking, else ""
 type mGate struct {
 	name   string
 	passed bool
@@ -162,14 +162,14 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			d.checks[key(repo, n)] = append(d.checks[key(repo, n)], c)
 			return err
 		}),
-		store.Each(db, `SELECT e.factory_id, a.repo, a.issue, e.type, a.attempt_id, e.ts FROM events e
+		store.Each(db, `SELECT e.factory_id, a.repo, a.issue, e.type, a.attempt_id, e.ts, coalesce(json_extract(e.payload, '$.payload.kind'), '') FROM events e
 			JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 			WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed', 'human.steering')
 			ORDER BY e.ts, e.id`, func(r *sql.Rows) error {
 			var f, repo string
 			var n int64
 			var e mEvent
-			err := r.Scan(&f, &repo, &n, &e.typ, &e.attempt, &e.ts)
+			err := r.Scan(&f, &repo, &n, &e.typ, &e.attempt, &e.ts, &e.kind)
 			k := f + "\x00" + key(repo, n)
 			d.human[k] = append(d.human[k], e)
 			return err
@@ -487,7 +487,8 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 
 	evs := d.human[u.factory+"\x00"+u.item.key]
 	for _, e := range evs {
-		if ids[e.attempt] != nil && (e.typ == "human.waiting" || e.typ == "human.steering") {
+		// a planning wait (a question before the work is confirmed) is part of the job, not an intervention
+		if ids[e.attempt] != nil && (e.typ == "human.waiting" && e.kind != "planning" || e.typ == "human.steering") {
 			u.human++
 		}
 	}

@@ -252,25 +252,24 @@ func groupByDispatch(ds []dispatch, atts []attemptWin, calls []call, now time.Ti
 	return rows
 }
 
-// rework counts how often a card was sent back to a lane that first ran before the lane it came from (bounces, and per
-// lane in back; the lanes that then run again on the way forward are not bounces) and how often the same lane was
+// rework finds where a card was sent back to a lane that first ran before the lane it came from (the indexes of those
+// bounces; the lanes that then run again on the way forward are not bounces) and how often the same lane was
 // dispatched twice in a row (re-dispatches). lanes are in dispatch order, of one attempt.
-func rework(lanes []string) (bounces, redispatches int, back map[string]int) {
-	first, back := map[string]int{}, map[string]int{} // lane -> index of its first dispatch
+func rework(lanes []string) (bounced []int, redispatches int) {
+	first := map[string]int{} // lane -> index of its first dispatch
 	for i, l := range lanes {
 		f, seen := first[l]
 		switch {
 		case i > 0 && l == lanes[i-1]:
 			redispatches++
 		case seen && f < first[lanes[i-1]]:
-			bounces++
-			back[l]++
+			bounced = append(bounced, i)
 		}
 		if !seen {
 			first[l] = i
 		}
 	}
-	return bounces, redispatches, back
+	return bounced, redispatches
 }
 
 // laneRework is rework over the lanes of each attempt's dispatches, summed: never across attempts or factories.
@@ -283,8 +282,8 @@ func laneRework(rows []dispatchRow) (bounces, redispatches int) {
 		}
 	}
 	for _, l := range lanes {
-		b, r, _ := rework(l)
-		bounces, redispatches = bounces+b, redispatches+r
+		b, r := rework(l)
+		bounces, redispatches = bounces+len(b), redispatches+r
 	}
 	return bounces, redispatches
 }

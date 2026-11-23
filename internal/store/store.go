@@ -60,7 +60,7 @@ func migrate(db *sql.DB, from int) error {
 	if from < 4 {
 		q += "ALTER TABLE usage ADD COLUMN step TEXT;"
 	}
-	q += fmt.Sprintf("ALTER TABLE usage ADD COLUMN session TEXT; PRAGMA user_version = %d", SchemaVersion)
+	q += "ALTER TABLE usage ADD COLUMN session TEXT;" + create("send_backs") + fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)
 	tx, err := db.Begin()
 	if err != nil {
 		return err
