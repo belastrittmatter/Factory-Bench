@@ -60,7 +60,7 @@ func (s *server) manifests() (runLog, error) {
 	return out, nil
 }
 
-// flow returns one card's dispatches with the model calls made in each, its board moves and waits, its attempts,
+// flow returns one card's dispatches with the model calls made in each, its board moves, its attempts,
 // its merge time and its rework counts. Without manifests every attempt is one row of calls with no lane.
 func (s *server) flow(r *http.Request) (any, error) {
 	repo, issue := r.URL.Query().Get("repo"), r.URL.Query().Get("issue")
@@ -78,7 +78,6 @@ type cardFlow struct {
 	Dispatches   []dispatchRow    `json:"dispatches"`
 	Notes        []note           `json:"notes"`
 	Moves        []move           `json:"moves"`
-	Waits        []map[string]any `json:"waits"`
 	Bounces      int              `json:"bounces"`
 	Redispatches int              `json:"redispatches"`
 	Manifest     bool             `json:"manifest"` // run manifests are configured and served
@@ -92,12 +91,6 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 	}
 	withStatus(att, now, s.o.Idle)
 	merged, err := rows(s.db, `SELECT min(p.merged_at) AS merged_at FROM prs p WHERE p.merged_at IS NOT NULL AND p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`, repo, n)
-	if err != nil {
-		return cardFlow{}, err
-	}
-	waits, err := rows(s.db, `SELECT e.ts, e.type, json_extract(e.payload, '$.attempt_id') AS attempt_id, json_extract(e.payload, '$.payload.reason') AS reason
-		FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
-		WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed') AND a.repo = ?1 AND a.issue = ?2 ORDER BY e.ts`, repo, n)
 	if err != nil {
 		return cardFlow{}, err
 	}
@@ -144,7 +137,7 @@ func (s *server) cardFlow(repo string, n int64, now time.Time) (cardFlow, error)
 	ds := rl.dispatches[n]
 	grouped := groupByDispatch(ds, wins, calls, now)
 	bounces, redis := laneRework(grouped)
-	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n], Waits: waits,
+	return cardFlow{Attempts: att, MergedAt: merged[0]["merged_at"], Dispatches: grouped, Notes: rl.notes[n], Moves: rl.moves[n],
 		Bounces: bounces, Redispatches: redis, Manifest: s.local && s.o.Runs != ""}, nil
 }
 
