@@ -1,0 +1,53 @@
+acme/app#3   outcome open · survival n/a
+  11-11 09:00  fa  attempt r1 started (request)                                                    config t12@1
+  11-11 09:05      session r1 claude-sonnet-5-5: 1.0k in / ? cache read / ? cache write / 200 out  4m0s session, $0.01 est. (prices 2026-11-11)
+  11-11 09:05      retried engineer (retry): out of turns                                          
+  11-11 09:09      session r1 claude-sonnet-5-5: 800 in / ? cache read / ? cache write / 150 out   3m20s session, <$0.01 est. (prices 2026-11-11)
+  11-11 09:09      gate qc passed                                                                  
+  11-11 09:10      attempt r1 completed                                                            10m0s, $0.01 est., 1 tool call
+  totals  fa  1 attempts (1 completed) · 2 sessions · tokens 1.8k in / 350 out / ? cache · 10m0s active / 10m0s elapsed · 0 human waits (0s) · $0.01 est. · usage coverage 1/1 attempts
+
+$ report items
+item        title  factory  outcome  attempts  tokens  cost   active  elapsed  human  PR  escaped
+acme/app#3         fa       open     1         2.1k    $0.01  10m0s   10m0s    0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       fa
+work items                   1
+attempts                     1 (0 failed)
+sessions                     2
+tokens / issue               2.1k
+time / issue                 10m0s active / 10m0s elapsed
+cost total                   $0.01 est.
+cost / issue                 $0.01
+cost / merged issue          n/a (0 merged)
+verification tokens / PR     n/a (no PRs)
+issues closed by agent       n/a (no github login)
+first-pass plan approval     n/a
+first-pass PR approval       n/a
+review rounds / PR           n/a
+human interventions / issue  0.0 (0/1)
+escaped defects              n/a (no PRs)
+tool calls / issue           1.0 (1/1)
+tool mix                     bash 1
+tool failure rate            n/a
+time in model / tool calls   7m20s / 0s
+subagents / issue            0.0 (0/1)
+API errors / attempt         0.0 (0/1)
+usage coverage               100% (1/1) attempts
+activity coverage            100% (1/1) attempts
+unpriced sessions            0
+rejected events              0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  factory  source   gate  failed / runs
+  fa       factory  qc    0% (0/1)
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

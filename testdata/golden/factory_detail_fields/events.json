@@ -1,0 +1,117 @@
+{
+  "batches": [
+    {
+      "factory": "fa",
+      "events": [
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:started",
+          "type": "attempt.started",
+          "ts": "2026-11-11T09:00:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "work_item": {
+              "repo": "acme/app",
+              "issue": 3
+            },
+            "factory_config_version": "t12@1",
+            "role": "request"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:usage:1",
+          "type": "usage",
+          "ts": "2026-11-11T09:05:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 1000,
+            "output": 200,
+            "duration_ms": 240000,
+            "step": "engineer",
+            "session": "s1",
+            "harness": "omp",
+            "status": "out-of-turns",
+            "turns": 40,
+            "lane": "api",
+            "role": "engineer"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:retry",
+          "type": "send_back",
+          "ts": "2026-11-11T09:05:01Z",
+          "attempt_id": "r1",
+          "payload": {
+            "from": "engineer",
+            "to": "engineer",
+            "kind": "retry",
+            "reason": "out of turns",
+            "lane": "api"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:usage:2",
+          "type": "usage",
+          "ts": "2026-11-11T09:09:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "model": "claude-sonnet-5-5",
+            "input": 800,
+            "output": 150,
+            "duration_ms": 200000,
+            "step": "engineer",
+            "session": "s2",
+            "harness": "omp",
+            "status": "accepted",
+            "turns": 12,
+            "lane": "api",
+            "role": "engineer"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:tool",
+          "type": "activity",
+          "ts": "2026-11-11T09:08:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "tool": "bash",
+            "lane": "api"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:gate",
+          "type": "gate",
+          "ts": "2026-11-11T09:09:30Z",
+          "attempt_id": "r1",
+          "payload": {
+            "name": "qc",
+            "passed": true,
+            "lane": "api"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:finished",
+          "type": "attempt.finished",
+          "ts": "2026-11-11T09:10:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "status": "completed"
+          }
+        }
+      ]
+    }
+  ],
+  "factories": {
+    "fa": ""
+  },
+  "report": [
+    "acme/app#3"
+  ]
+}

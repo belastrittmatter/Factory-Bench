@@ -66,15 +66,20 @@
         "cost_usd": 0.0054,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 1000,
+        "lane": null,
         "model": "gemini-3-pro",
         "output": 200,
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:05:00.000Z"
+        "ts": "2026-11-11T10:05:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -85,15 +90,20 @@
         "cost_usd": 0.5,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 100,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 50,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:21:00.000Z"
+        "ts": "2026-11-11T10:21:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -104,15 +114,20 @@
         "cost_usd": null,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 10,
+        "lane": null,
         "model": "unpriced-model",
         "output": 10,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:20:00.000Z"
+        "ts": "2026-11-11T10:20:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

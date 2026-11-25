@@ -99,15 +99,20 @@
         "cost_usd": 0.02,
         "duration_ms": null,
         "factory_id": "fs",
+        "harness": null,
         "input": 2000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 400,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:18:00.000Z"
+        "ts": "2026-11-11T10:18:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -118,15 +123,20 @@
         "cost_usd": 0.04,
         "duration_ms": null,
         "factory_id": "fs",
+        "harness": null,
         "input": 3000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 500,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:34:00.000Z"
+        "ts": "2026-11-11T10:34:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -137,15 +147,20 @@
         "cost_usd": 0.01,
         "duration_ms": null,
         "factory_id": "fs",
+        "harness": null,
         "input": 1000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 300,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:10:00.000Z"
+        "ts": "2026-11-11T10:10:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

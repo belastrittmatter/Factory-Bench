@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"fmt"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -38,12 +39,16 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	// v4 is the current schema without send_backs and usage.session, v3 also without usage.step
-	noSendBacks := strings.Replace(schema, create("send_backs"), "", 1)
-	if noSendBacks == schema {
+	// v5 is the current schema without the v5 -> v6 columns; v4 also without send_backs and usage.session, v3 also without usage.step
+	v5 := regexp.MustCompile(`,( *(?:--[^\n]*)?)(?:\n[^\n]*\(v5 -> v6 ALTER\))+\n\);`).ReplaceAllString(schema, " $1\n);")
+	if strings.Contains(v5, "v5 -> v6") || strings.Contains(v5, "harness") {
+		t.Fatal("schema.sql no longer has the v5 -> v6 columns this test removes")
+	}
+	noSendBacks := regexp.MustCompile(`CREATE TABLE send_backs \([^;]*\n\);`).ReplaceAllString(v5, "")
+	if noSendBacks == v5 {
 		t.Fatal("schema.sql no longer has the send_backs table this test removes")
 	}
-	v4 := strings.Replace(noSendBacks, "\n  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)", "", 1)
+	v4 := strings.Replace(noSendBacks, "\n  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (v4 -> v5 ALTER)", "", 1)
 	v4 = strings.Replace(v4, "step              TEXT,                   -- worker step", "step              TEXT                    -- worker step", 1)
 	if v4 == noSendBacks || strings.Contains(v4, "  session ") {
 		t.Fatal("schema.sql no longer has the usage.session line this test removes")
@@ -53,7 +58,7 @@ func TestOpenMigrates(t *testing.T) {
 	if v3 == v4 || strings.Contains(v3, "  step ") {
 		t.Fatal("schema.sql no longer has the usage.step line this test removes")
 	}
-	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3, 4: v4} {
+	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3, 4: v4, 5: v5} {
 		t.Run(fmt.Sprint("v", v), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "fb.db")
 			raw, err := sql.Open("sqlite", "file:"+path)

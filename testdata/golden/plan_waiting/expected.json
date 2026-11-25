@@ -60,15 +60,20 @@
         "cost_usd": 0.0135,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 2000,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 500,
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T09:02:00.000Z"
+        "ts": "2026-11-11T09:02:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

@@ -172,6 +172,7 @@
       {
         "attempt_id": "b1",
         "factory_id": "fa",
+        "lane": null,
         "name": "test",
         "passed": 0,
         "reason": "1 failing test",
@@ -180,6 +181,7 @@
       {
         "attempt_id": "b1",
         "factory_id": "fa",
+        "lane": null,
         "name": "test",
         "passed": 1,
         "reason": null,
@@ -188,6 +190,7 @@
       {
         "attempt_id": "c2",
         "factory_id": "fb",
+        "lane": null,
         "name": "build",
         "passed": 1,
         "reason": null,
@@ -325,15 +328,20 @@
         "cost_usd": 0.03,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 3000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 500,
         "phase": "implement",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:15:00.000Z"
+        "ts": "2026-11-11T10:15:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -344,15 +352,20 @@
         "cost_usd": 0.01,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 1000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 100,
         "phase": "verify",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:18:00.000Z"
+        "ts": "2026-11-11T10:18:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -363,15 +376,20 @@
         "cost_usd": null,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 900,
+        "lane": null,
         "model": "mystery-model",
         "output": 200,
         "phase": "review",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T11:12:00.000Z"
+        "ts": "2026-11-11T11:12:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -382,15 +400,20 @@
         "cost_usd": 0.012,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 1000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 300,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:02:00.000Z"
+        "ts": "2026-11-11T10:02:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -401,15 +424,20 @@
         "cost_usd": 0.005,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 500,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 100,
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T11:01:00.000Z"
+        "ts": "2026-11-11T11:01:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -420,15 +448,20 @@
         "cost_usd": 0.02,
         "duration_ms": null,
         "factory_id": "fb",
+        "harness": null,
         "input": 2000,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 400,
         "phase": "implement",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:09:00.000Z"
+        "ts": "2026-11-11T10:09:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -439,15 +472,20 @@
         "cost_usd": 0.006,
         "duration_ms": null,
         "factory_id": "fb",
+        "harness": null,
         "input": 600,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 100,
         "phase": "review",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T10:11:00.000Z"
+        "ts": "2026-11-11T10:11:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

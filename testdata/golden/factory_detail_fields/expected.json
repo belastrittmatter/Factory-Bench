@@ -1,0 +1,136 @@
+{
+  "derived": {
+    "agent_runs": [],
+    "api_errors": [],
+    "attempts": [
+      {
+        "attempt_id": "r1",
+        "config_version": "t12@1",
+        "ended_at": "2026-11-11T09:10:00.000Z",
+        "factory_id": "fa",
+        "human_wait_ms": 0,
+        "issue": 3,
+        "parent_attempt_id": null,
+        "pr_url": null,
+        "repo": "acme/app",
+        "role": "request",
+        "started_at": "2026-11-11T09:00:00.000Z",
+        "state": "completed",
+        "waiting_since": null
+      }
+    ],
+    "checks": [],
+    "gates": [
+      {
+        "attempt_id": "r1",
+        "factory_id": "fa",
+        "lane": "api",
+        "name": "qc",
+        "passed": 1,
+        "reason": null,
+        "ts": "2026-11-11T09:09:30.000Z"
+      }
+    ],
+    "pr_commits": [],
+    "prs": [],
+    "reviews": [],
+    "send_backs": [
+      {
+        "attempt_id": "r1",
+        "factory_id": "fa",
+        "from_step": "engineer",
+        "kind": "retry",
+        "lane": "api",
+        "reason": "out of turns",
+        "to_step": "engineer",
+        "ts": "2026-11-11T09:05:01.000Z"
+      }
+    ],
+    "tool_calls": [
+      {
+        "agent_id": null,
+        "attempt_id": "r1",
+        "duration_ms": null,
+        "error_type": null,
+        "factory_id": "fa",
+        "lane": "api",
+        "success": null,
+        "tool_name": "bash",
+        "ts": "2026-11-11T09:08:00.000Z"
+      }
+    ],
+    "usage": [
+      {
+        "agent_id": null,
+        "attempt_id": "r1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.006,
+        "duration_ms": 240000,
+        "factory_id": "fa",
+        "harness": "omp",
+        "input": 1000,
+        "lane": "api",
+        "model": "claude-sonnet-5-5",
+        "output": 200,
+        "phase": null,
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "role": "engineer",
+        "session": "s1",
+        "status": "out-of-turns",
+        "step": "engineer",
+        "ts": "2026-11-11T09:05:00.000Z",
+        "turns": 40
+      },
+      {
+        "agent_id": null,
+        "attempt_id": "r1",
+        "cache_read": null,
+        "cache_write": null,
+        "cost_provenance": "estimated",
+        "cost_usd": 0.00465,
+        "duration_ms": 200000,
+        "factory_id": "fa",
+        "harness": "omp",
+        "input": 800,
+        "lane": "api",
+        "model": "claude-sonnet-5-5",
+        "output": 150,
+        "phase": null,
+        "price_version": "2026-11-11",
+        "reasoning": null,
+        "role": "engineer",
+        "session": "s2",
+        "status": "accepted",
+        "step": "engineer",
+        "ts": "2026-11-11T09:09:00.000Z",
+        "turns": 12
+      }
+    ],
+    "work_items": [
+      {
+        "closed_at": null,
+        "closed_by": null,
+        "corrects": null,
+        "first_seen": "2026-11-11T09:00:00.000Z",
+        "issue": 3,
+        "issue_state": null,
+        "outcome": "open",
+        "repo": "acme/app",
+        "survival": null,
+        "task_type": null,
+        "title": null
+      }
+    ]
+  },
+  "rejected_stored": null,
+  "responses": [
+    {
+      "accepted": 7,
+      "duplicates": 0,
+      "rejected": []
+    }
+  ]
+}

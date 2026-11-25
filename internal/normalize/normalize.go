@@ -52,17 +52,19 @@ type usage struct {
 	Provenance, PriceVersion, Phase, Agent     *string
 	Step                                       *string // worker step (factorybench.step on OTLP logs, payload.step on usage events)
 	Session                                    *string // agent session (session.id on OTLP logs, payload.session on usage events)
+	Harness, Status, Lane, Role                *string // payload fields of usage events
+	Turns                                      *int64
 }
 
 type gate struct {
 	Factory, Attempt, TS, Name string
 	Passed                     bool
-	Reason                     *string
+	Reason, Lane               *string
 }
 
 type sendBack struct {
 	Factory, Attempt, TS, From, To string
-	Reason, Kind                   *string
+	Reason, Kind, Lane             *string
 }
 
 type pr struct {
@@ -233,14 +235,15 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "pr.linked":
 			a.PRURL = ptr(p.PRURL)
 		case "gate":
-			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
+			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason), Lane: str(p.Lane)})
 		case "send_back":
-			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind)})
+			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind), Lane: str(p.Lane)})
 		case "usage":
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
-				Phase: str(p.Phase), Step: str(stepName(p.Step)), Session: str(strings.TrimSpace(p.Session)), Agent: str(p.AgentID)}, p.ReportedCostUSD))
+				Phase: str(p.Phase), Step: str(stepName(p.Step)), Session: str(strings.TrimSpace(p.Session)), Agent: str(p.AgentID),
+				Harness: str(p.Harness), Status: str(p.Status), Turns: p.Turns, Lane: str(p.Lane), Role: str(p.Role)}, p.ReportedCostUSD))
 		case "activity":
 			r := runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			if r != nil && r.Phase == nil && contract.Phases[p.Phase] {
@@ -252,7 +255,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 					ok = ptr(!*p.Failed)
 				}
 				d.ToolCalls = append(d.ToolCalls, toolCall{Factory: e.Factory, Attempt: a.ID, Agent: str(p.AgentID), TS: e.TS,
-					Tool: p.Tool, Success: ok, Duration: p.DurationMS})
+					Tool: p.Tool, Success: ok, Duration: p.DurationMS, Lane: str(p.Lane)})
 			}
 		}
 	}
@@ -413,14 +416,15 @@ func Run(db *sql.DB) error {
 			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
 	}
 	for _, u := range d.Usage {
-		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
-			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step, u.Session)
+		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
+			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step, u.Session,
+			u.Harness, u.Status, u.Turns, u.Lane, u.Role)
 	}
 	for _, g := range d.Gates {
-		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)
+		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason, g.Lane)
 	}
 	for _, s := range d.SendBacks {
-		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind)
+		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind, s.Lane)
 	}
 	for _, p := range d.PRs {
 		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits,
@@ -436,7 +440,7 @@ func Run(db *sql.DB) error {
 		ins(`INSERT INTO pr_commits VALUES (?,?,?,?,?,?)`, c.Repo, c.PR, c.SHA, c.Email, c.Factory, c.Committed)
 	}
 	for _, c := range d.ToolCalls {
-		ins(`INSERT INTO tool_calls VALUES (?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.Agent, c.TS, c.Tool, c.Success, c.Duration, c.ErrorType)
+		ins(`INSERT INTO tool_calls VALUES (?,?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.Agent, c.TS, c.Tool, c.Success, c.Duration, c.ErrorType, c.Lane)
 	}
 	for _, r := range d.AgentRuns {
 		ins(`INSERT INTO agent_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, r.Factory, r.Attempt, r.ID, r.Parent, r.Type, r.Async,

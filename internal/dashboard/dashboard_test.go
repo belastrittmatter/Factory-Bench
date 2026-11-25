@@ -34,7 +34,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, agent_id) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1, 'sub1')`,
 		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'a1', 'sub1', 0, 'completed', '` + ts(19*time.Minute) + `'), ('f', 'a1', 'sub2', 0, 'killed', '` + ts(19*time.Minute) + `')`, // sub2 made no model call
-		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
+		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1', NULL)`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"p1","model":"m","query_source":"q1","cost_usd":0.5}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e3', 'otlp.user_prompt', '` + ts(19*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"a0"}')`,
@@ -562,7 +562,7 @@ func TestSteps(t *testing.T) {
 		use("a1", "analyzer", "2026-11-10T10:00:00.000Z", "0.25"), use("a1", "green", "2026-11-10T10:10:00.000Z", "1"),
 		use("a1", "green", "2026-11-10T10:40:00.000Z", "0.5"), use("a1", "reviewer", "2026-11-10T10:30:00.000Z", "NULL"),
 		use("b1", "other", "2026-11-10T10:00:00.000Z", "9"),
-		`INSERT INTO gates VALUES ('f', 'a1', '2026-11-10T10:21:00.000Z', 'unit', 1, NULL), ('f', 'a1', '2026-11-10T10:31:00.000Z', 'e2e', 0, 'timeout'),
+		`INSERT INTO gates (factory_id, attempt_id, ts, name, passed, reason) VALUES ('f', 'a1', '2026-11-10T10:21:00.000Z', 'unit', 1, NULL), ('f', 'a1', '2026-11-10T10:31:00.000Z', 'e2e', 0, 'timeout'),
 			('f', 'a1', '2026-11-10T10:02:00.000Z', 'red', 0, 'no failing test'), ('f', 'a1', '2026-11-10T10:04:00.000Z', 'red', 1, NULL),
 			('f', 'a2', '2026-11-10T12:10:00.000Z', 'red', 1, NULL), ('f', 'b1', '2026-11-10T10:01:00.000Z', 'red', 0, NULL)`,
 	} {

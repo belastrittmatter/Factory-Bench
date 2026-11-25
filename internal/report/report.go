@@ -368,6 +368,9 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 			return err
 		}
 		text := "sent back from " + from + " to " + to
+		if from == to {
+			text = "retried " + from
+		}
 		if kind != "" {
 			text += " (" + kind + ")"
 		}
