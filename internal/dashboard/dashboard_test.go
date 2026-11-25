@@ -709,3 +709,22 @@ func TestWaitsResumeTheOldestOpenWait(t *testing.T) {
 		t.Errorf("waits %v", ws)
 	}
 }
+
+func TestSessionsCarryHarnessStatusTurnsAndLane(t *testing.T) {
+	u := func(session, ts, status string, turns any) map[string]any {
+		return map[string]any{"factory_id": "f", "attempt_id": "a", "session": session, "step": "engineer", "ts": ts, "tokens": int64(1),
+			"harness": "omp", "lane": "api", "status": status, "turns": turns}
+	}
+	d := stepData(nil, []map[string]any{u("s1", "2026-11-20T10:00:00.000Z", "out-of-turns", int64(40)), u("s1", "2026-11-20T10:01:00.000Z", "accepted", int64(12)),
+		{"factory_id": "f", "attempt_id": "a", "session": "s2", "ts": "2026-11-20T10:02:00.000Z", "tokens": int64(1)}}, nil, nil, nil)
+	s, plain := d["sessions"].([]map[string]any)[0], d["sessions"].([]map[string]any)[1]
+	if s["harness"] != "omp" || s["status"] != "accepted" || s["turns"] != int64(52) || s["lane"] != "api" {
+		t.Errorf("session %v", s)
+	}
+	if st := d["steps"].([]map[string]any)[0]; st["turns"] != int64(52) || st["status"] != "accepted" {
+		t.Errorf("step %v", st)
+	}
+	if plain["harness"] != nil || plain["status"] != nil || plain["turns"] != nil || plain["lane"] != nil {
+		t.Errorf("session without them: %v", plain)
+	}
+}

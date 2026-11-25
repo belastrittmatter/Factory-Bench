@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"cmp"
 	"sort"
 	"strings"
 	"time"
@@ -15,7 +16,7 @@ const stepSQL = `nullif(trim(substr(trim(json_extract(payload, '$."factorybench.
 
 // stepUsageSQL is every usage row with a step or a session of the attempts a matching filter, for stepData.
 func stepUsageSQL(filter string) string {
-	return `SELECT u.factory_id, u.attempt_id, u.step, u.ts, u.cost_usd, u.session, u.duration_ms, u.phase,
+	return `SELECT u.factory_id, u.attempt_id, u.step, u.ts, u.cost_usd, u.session, u.duration_ms, u.phase, u.harness, u.status, u.turns, u.lane,
 	u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0) AS tokens FROM usage u JOIN attempts a USING (factory_id, attempt_id)
 	WHERE (u.step IS NOT NULL OR u.session IS NOT NULL) AND ` + filter + ` ORDER BY u.ts`
 }
@@ -136,7 +137,8 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 	for _, s := range all {
 		at, end := s.start, parseTS(s.end)
 		var cost float64
-		var calls, priced, tokens int64
+		var calls, priced, tokens, turns, withTurns int64
+		var harness, status, lane any // from its usage rows: the first harness and lane, the last status
 		for _, u := range usage {
 			if u["factory_id"] != s.f || u["attempt_id"] != s.att {
 				continue
@@ -149,6 +151,14 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 			}
 			calls++
 			tokens += u["tokens"].(int64)
+			if t, ok := u["turns"].(int64); ok {
+				turns += t
+				withTurns++
+			}
+			harness, lane = cmp.Or(harness, u["harness"]), cmp.Or(lane, u["lane"])
+			if u["status"] != nil {
+				status = u["status"]
+			}
 			if c, ok := u["cost_usd"].(float64); ok {
 				cost += c
 				priced++
@@ -161,6 +171,7 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 				"first_ts": s.at, "last_ts": s.end, "events": calls}
 		}
 		row["start"], row["end"], row["cost_usd"], row["tokens"], row["tools"], row["failed_tools"] = s.at, s.end, orNil(cost, priced), orNilInt(tokens, calls), nil, nil
+		row["harness"], row["status"], row["turns"], row["lane"] = harness, status, orNilInt(turns, withTurns), lane
 		overlaps := false // another session of the attempt runs in this one's window: its tool calls cannot be told apart
 		for _, o := range all {
 			if o.f == s.f && o.att == s.att && o.id != s.id && !o.start.After(end) && !at.After(parseTS(o.end)) {
@@ -188,7 +199,8 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 		}
 		stepOf[s.f+"\x00"+s.att+"\x00"+step] = true
 		steps = append(steps, map[string]any{"factory_id": s.f, "attempt_id": s.att, "step": step, "phase": s.phase,
-			"at": s.at, "end": s.end, "calls": calls, "cost_usd": orNil(cost, priced), "unpriced": calls - priced})
+			"at": s.at, "end": s.end, "calls": calls, "cost_usd": orNil(cost, priced), "unpriced": calls - priced,
+			"harness": harness, "status": status, "turns": row["turns"], "lane": lane})
 		x := statOf(s.f, s.att, step)
 		x.sessions++
 		if s.ms != nil {
