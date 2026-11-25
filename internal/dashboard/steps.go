@@ -40,7 +40,7 @@ func sendBacksSQL(filter string) string {
 //     another of its sessions overlaps the window)
 //   - steps: one row per session that has a step, with the cost of its step's model calls (its own, by session id;
 //     by time window for usage rows without one)
-//   - step_stats: per factory and step: sessions and ms (sum of session times; both nil when unknown, never 0),
+//   - step_stats: per attempt and step: sessions and ms (sum of session times; both nil when unknown, never 0),
 //     cost (all its model calls) and sent_back (send-backs to it)
 //   - send_backs: an attempt's send_back events or, only when it has none, the send-backs inferred from its step order
 //   - step_runs: per factory: sent_back (its send_backs) and re-runs (from the step sequence of each of its attempts)
@@ -54,11 +54,11 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 		priced, sessions, known int64 // known: sessions whose time is known
 	}
 	steps, stats, order, seq, runOrder := []map[string]any{}, map[string]*stat{}, []string{}, map[string][]string{}, []string{}
-	seqAt := map[string][]any{} // the start of each session in seq
-	statOf := func(f, step string) *stat {
-		k := f + "\x00" + step
+	seqAt := map[string][]any{}                 // the start of each session in seq
+	statOf := func(f, att, step string) *stat { // per run (attempt): two runs of one factory never merge
+		k := f + "\x00" + att + "\x00" + step
 		if stats[k] == nil {
-			stats[k] = &stat{row: map[string]any{"factory_id": f, "step": step}}
+			stats[k] = &stat{row: map[string]any{"factory_id": f, "attempt_id": att, "step": step}}
 			order = append(order, k)
 		}
 		return stats[k]
@@ -188,7 +188,7 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 		stepOf[s.f+"\x00"+s.att+"\x00"+step] = true
 		steps = append(steps, map[string]any{"factory_id": s.f, "attempt_id": s.att, "step": step, "phase": s.phase,
 			"at": s.at, "end": s.end, "calls": calls, "cost_usd": orNil(cost, priced), "unpriced": calls - priced})
-		x := statOf(s.f, step)
+		x := statOf(s.f, s.att, step)
 		x.sessions++
 		if s.ms != nil {
 			x.ms += *s.ms
@@ -205,7 +205,7 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 		if !ok {
 			continue
 		}
-		x := statOf(u["factory_id"].(string), step)
+		x := statOf(u["factory_id"].(string), u["attempt_id"].(string), step)
 		if c, ok := u["cost_usd"].(float64); ok {
 			x.cost += c
 			x.priced++
@@ -245,7 +245,7 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 	for _, b := range backs {
 		f := b["factory_id"].(string)
 		runOf[f]["sent_back"] = runOf[f]["sent_back"].(int) + 1
-		back[f+"\x00"+b["to"].(string)]++
+		back[f+"\x00"+b["attempt_id"].(string)+"\x00"+b["to"].(string)]++
 	}
 	st := []map[string]any{}
 	for _, k := range order {
@@ -310,7 +310,7 @@ func waits(evs []map[string]any, attempt string) []map[string]any {
 		f, att := e["factory_id"].(string), e["attempt_id"].(string)
 		k := f + "\x00" + att
 		if e["type"] == "human.waiting" {
-			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"]}
+			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"], "end_reason": nil, "auto_answered": false}
 			open[k] = append(open[k], w)
 			if attempt == "" || att == attempt {
 				out = append(out, w)
@@ -321,11 +321,33 @@ func waits(evs []map[string]any, attempt string) []map[string]any {
 			k = f + "\x00" + p
 		}
 		for _, w := range open[k] {
-			w["end"] = e["ts"]
+			w["end"], w["end_reason"] = e["ts"], e["reason"]
+			w["auto_answered"] = autoAnswered(w)
 		}
 		delete(open, k)
 	}
 	return out
+}
+
+// autoAnswerMax is the quickest a person answers a question: a faster answer came from a script.
+const autoAnswerMax = 5 * time.Second
+
+// autoAnswered reports whether a closed wait (waits row) was answered within autoAnswerMax. A resume that says the
+// question went unanswered (the bench ended the run) is not an answer.
+func autoAnswered(w map[string]any) bool {
+	if w["end"] == nil {
+		return false
+	}
+	if unanswered(w) {
+		return false
+	}
+	return parseTS(w["end"]).Sub(parseTS(w["start"])) < autoAnswerMax
+}
+
+// unanswered reports whether a wait (waits row) ended with a resume that says nobody answered: the bench ended the run.
+func unanswered(w map[string]any) bool {
+	r, _ := w["end_reason"].(string)
+	return strings.Contains(strings.ToLower(r), "unanswered")
 }
 
 // orNilInt is n, or nil when none of its parts was known.

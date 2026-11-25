@@ -7,6 +7,7 @@ import (
 	"maps"
 	"slices"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -14,10 +15,13 @@ import (
 
 // The `report factories` scorecard: units summed per factory (or factory+config), plus gate and CI breakdowns.
 
-// card is the scorecard of one factory (or factory+config): its units summed.
+// card is the scorecard of one group (factory, config or config part, see groupOf): its units summed. A pooled card
+// (any grouping but by factory) reports per-run medians instead of per-issue sums, since it holds several runs of an issue.
 type card struct {
 	group, factory string
 	units          []*unit
+	pooled         bool
+	seen           map[string]bool // its items
 
 	items, merged, closed, prs, phasedPR                                  int
 	attempts, failed, sessions, withUsage                                 int
@@ -33,19 +37,28 @@ type card struct {
 	run                                                                   runStats
 }
 
-func buildCards(d *metricsData, byConfig bool, now time.Time) []*card {
+func buildCards(d *metricsData, by string, now time.Time) []*card {
 	var cards []*card
 	byGroup := map[string]*card{}
-	for _, u := range buildUnits(d, byConfig, now) {
+	for _, u := range buildUnits(d, by, now) {
 		c := byGroup[u.group]
 		if c == nil {
 			login := d.login[u.factory]
-			c = &card{group: u.group, factory: u.factory, rejected: d.rejected[u.factory], hasLogin: login != ""}
+			c = &card{group: u.group, factory: u.factory, rejected: d.rejected[u.factory], hasLogin: login != "", pooled: by != "", seen: map[string]bool{}}
 			byGroup[u.group] = c
 			cards = append(cards, c)
 		}
+		if c.factory != u.factory { // a pooled group of several factories: their rejected events and logins add up
+			if !slices.ContainsFunc(c.units, func(o *unit) bool { return o.factory == u.factory }) {
+				c.rejected += d.rejected[u.factory]
+			}
+			c.hasLogin = c.hasLogin && d.login[u.factory] != ""
+		}
 		c.units = append(c.units, u)
-		c.items++
+		if !c.seen[u.item.key] {
+			c.seen[u.item.key] = true
+			c.items++
+		}
 		if u.outcome == "merged" {
 			c.merged++
 		}
@@ -111,6 +124,48 @@ func active(val func(c *card) string) func(c *card) string {
 	}
 }
 
+// perIssue hides a row on pooled cards, whose units are runs, not issues: their per-run rows replace it.
+func perIssue(val func(c *card) string) func(c *card) string {
+	return func(c *card) string {
+		if c.pooled {
+			return ""
+		}
+		return val(c)
+	}
+}
+
+// pooledOnly shows a per-run row on pooled cards only.
+func pooledOnly(val func(c *card) string) func(c *card) string {
+	return func(c *card) string {
+		if !c.pooled {
+			return ""
+		}
+		return val(c)
+	}
+}
+
+// spread is the median of a card's per-run values and their min–max, "?" when no run has one: "$3.10 · $1.20–$5.00 (8 runs)".
+func spread(c *card, val func(u *unit) (float64, bool), f func(float64) string) string {
+	var xs []float64
+	for _, u := range c.units {
+		if v, ok := val(u); ok {
+			xs = append(xs, v)
+		}
+	}
+	if len(xs) == 0 {
+		return "?"
+	}
+	slices.Sort(xs)
+	n := len(xs)
+	s := f((xs[(n-1)/2] + xs[n/2]) / 2)
+	if n > 1 {
+		s += " · " + f(xs[0]) + "–" + f(xs[n-1])
+	}
+	return s + fmt.Sprintf(" (%s)", plural(n, "run"))
+}
+
+func secs(v float64) string { return dur(time.Duration(v * float64(time.Second))) }
+
 // scorecard rows. A row whose value is "" for every card is left out, so factories without tool calls or
 // PR size see no rows for them; a single "" among other values shows as n/a.
 var scorecard = []struct {
@@ -118,7 +173,47 @@ var scorecard = []struct {
 	val   func(c *card) string
 }{
 	{"work items", func(c *card) string { return fmt.Sprint(c.items) }},
+	{"runs", pooledOnly(func(c *card) string {
+		failed := 0
+		for _, u := range c.units {
+			if u.failed > 0 && u.failed == u.attempts {
+				failed++
+			}
+		}
+		return fmt.Sprintf("%d · %d failed", len(c.units), failed)
+	})},
+	{"lanes merged", func(c *card) string {
+		var m, p, n int
+		for _, u := range c.units {
+			if u.lanes != nil {
+				m, p, n = m+u.lanes.Merged, p+u.lanes.Planned, n+1
+			}
+		}
+		if n == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%.0f%% · %d/%d · %s", float64(m)/float64(max(p, 1))*100, m, p, plural(n, "run"))
+	}},
+	{"cost / run", pooledOnly(func(c *card) string {
+		s := spread(c, func(u *unit) (float64, bool) { return u.cost.rep + u.cost.est, u.cost.sessions > u.cost.nUnk }, usd)
+		if slices.ContainsFunc(c.units, func(u *unit) bool { return u.cost.nUnk > 0 || u.attempts > u.withUsage }) {
+			s = strings.Replace(s, " (", " +? (", 1)
+		}
+		return s
+	})},
+	{"active time / run", pooledOnly(func(c *card) string {
+		return spread(c, func(u *unit) (float64, bool) { return u.active.Seconds(), true }, secs)
+	})},
+	{"wall time / run", pooledOnly(func(c *card) string {
+		return spread(c, func(u *unit) (float64, bool) { return u.elapsed.Seconds(), true }, secs)
+	})},
+	{"send-backs / run", pooledOnly(func(c *card) string {
+		return spread(c, func(u *unit) (float64, bool) { return float64(u.sentBack), true }, func(v float64) string { return strconv.FormatFloat(v, 'f', -1, 64) })
+	})},
 	{"attempts", func(c *card) string {
+		if c.pooled && c.attempts == len(c.units) { // one attempt per run: the runs row says it
+			return ""
+		}
 		s := fmt.Sprintf("%d (%d failed)", c.attempts, c.failed)
 		if c.stagedRuns > 0 {
 			s += fmt.Sprintf(" · %s in %s", stagesText(c.stages, c.retries), plural(c.stagedRuns, "staged run"))
@@ -133,7 +228,7 @@ var scorecard = []struct {
 		return strings.Join(es, ", ")
 	}},
 	{"sessions", func(c *card) string { return fmt.Sprint(c.sessions) }},
-	{"tokens / issue", func(c *card) string {
+	{"tokens / issue", perIssue(func(c *card) string {
 		if c.withUsage == 0 {
 			return "?"
 		}
@@ -142,11 +237,11 @@ var scorecard = []struct {
 			s += fmt.Sprintf(" +? (%d attempt(s) without usage)", c.attempts-c.withUsage)
 		}
 		return s
-	}},
-	{"time / issue", func(c *card) string {
+	})},
+	{"time / issue", perIssue(func(c *card) string {
 		n := time.Duration(c.items)
 		return dur(c.active/n) + " active / " + dur(c.elapsed/n) + " elapsed"
-	}},
+	})},
 	{"cost total", func(c *card) string {
 		if c.cost.sessions == c.cost.nUnk {
 			return "?"
@@ -167,9 +262,9 @@ var scorecard = []struct {
 		}
 		return s
 	}},
-	{"cost / issue", func(c *card) string {
+	{"cost / issue", perIssue(func(c *card) string {
 		return money((c.cost.rep+c.cost.est)/float64(c.items), c.cost, c.attempts-c.withUsage)
-	}},
+	})},
 	{"cost / merged issue", func(c *card) string {
 		if c.merged == 0 {
 			return "n/a (0 merged)"
@@ -195,7 +290,8 @@ var scorecard = []struct {
 	{"first-pass plan approval", func(c *card) string { return rate(c.planPass, c.planN) }},
 	{"first-pass PR approval", func(c *card) string { return rate(c.prPass, c.prN) }},
 	{"review rounds / PR", func(c *card) string { return avg(c.changesReq, c.reviewedPRs) }},
-	{"human interventions / issue", func(c *card) string { return avg(c.human, c.items) }},
+	{"human interventions / issue", perIssue(func(c *card) string { return avg(c.human, c.items) })},
+	{"human interventions / run", pooledOnly(func(c *card) string { return avg(c.human, len(c.units)) })},
 	{"escaped defects", func(c *card) string {
 		if c.prs == 0 {
 			return "n/a (no PRs)"
@@ -248,7 +344,8 @@ var scorecard = []struct {
 		}
 		return s + fmt.Sprintf(" (%d lines)", lines)
 	}},
-	{"tool calls / issue", active(func(c *card) string { return avg(c.run.toolCalls, c.items) })},
+	{"tool calls / issue", perIssue(active(func(c *card) string { return avg(c.run.toolCalls, c.items) }))},
+	{"tool calls / run", pooledOnly(active(func(c *card) string { return avg(c.run.toolCalls, len(c.units)) }))},
 	{"tool mix", active(func(c *card) string {
 		names := slices.Collect(maps.Keys(c.run.tools))
 		sort.Slice(names, func(i, j int) bool {
@@ -274,7 +371,8 @@ var scorecard = []struct {
 		// summed per call: parallel subagents can make either exceed the elapsed time
 		return dur(time.Duration(c.run.modelMS)*time.Millisecond) + " / " + dur(time.Duration(c.run.toolMS)*time.Millisecond)
 	})},
-	{"subagents / issue", active(func(c *card) string { return avg(c.run.subagents, c.items) })},
+	{"subagents / issue", perIssue(active(func(c *card) string { return avg(c.run.subagents, c.items) }))},
+	{"subagents / run", pooledOnly(active(func(c *card) string { return avg(c.run.subagents, len(c.units)) }))},
 	{"API errors / attempt", func(c *card) string {
 		if c.run.apiErrors == 0 && c.run.withActivity == 0 {
 			return ""
@@ -293,13 +391,13 @@ type ScoreRow struct {
 	Values []string
 }
 
-// Scorecard returns the `report factories` scorecard as data: group names (factory or factory + config) and the shown rows.
-func Scorecard(db *sql.DB, byConfig bool, now time.Time) ([]string, []ScoreRow, error) {
+// Scorecard returns the `report factories` scorecard as data: group names (see GroupBy) and the shown rows.
+func Scorecard(db *sql.DB, by string, now time.Time) ([]string, []ScoreRow, error) {
 	d, err := loadMetrics(db)
 	if err != nil {
 		return nil, nil, err
 	}
-	cards := buildCards(d, byConfig, now)
+	cards := buildCards(d, by, now)
 	groups := []string{}
 	for _, c := range cards {
 		groups = append(groups, c.group)
@@ -322,12 +420,12 @@ func Scorecard(db *sql.DB, byConfig bool, now time.Time) ([]string, []ScoreRow, 
 }
 
 // Factories prints the scorecard (metrics as rows, factories as columns), then gate and CI breakdowns.
-func Factories(db *sql.DB, w io.Writer, byConfig bool, now time.Time) error {
+func Factories(db *sql.DB, w io.Writer, by string, now time.Time) error {
 	d, err := loadMetrics(db)
 	if err != nil {
 		return err
 	}
-	cards := buildCards(d, byConfig, now)
+	cards := buildCards(d, by, now)
 	if len(cards) == 0 {
 		_, err := fmt.Fprintln(w, "no attempts yet")
 		return err

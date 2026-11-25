@@ -108,7 +108,7 @@ func TestEndpoints(t *testing.T) {
 	if a := item["attempts"].([]any)[0].(map[string]any); a["status"] != "idle" {
 		t.Errorf("item attempt status: %v", a)
 	}
-	if tl := item["timeline"].([]any); len(tl) == 0 || tl[0].(map[string]any)["Text"] != "attempt a1 started" || len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
+	if len(item["attempts"].([]any)) != 1 || item["title"] != "<b>t</b>" {
 		t.Errorf("item: %v", item)
 	}
 	if a := item["attempts"].([]any)[0].(map[string]any); a["subagents"].(float64) != 2 { // subagent runs, not distinct agent ids in usage
@@ -118,8 +118,8 @@ func TestEndpoints(t *testing.T) {
 		s[0].(map[string]any)["phase"] != "a0,p1" || s[0].(map[string]any)["first_ts"] == nil {
 		t.Errorf("item sessions: %v", s)
 	}
-	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 2 {
-		t.Errorf("item activity: %v", a)
+	if a := item["attempts"].([]any)[0].(map[string]any); a["input"] == nil || a["tool_calls"] == nil { // per-run token mix and tool calls
+		t.Errorf("item attempt sums: %v", a)
 	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
 		t.Errorf("units: %v", u)
@@ -204,6 +204,9 @@ func TestEndpoints(t *testing.T) {
 	if pc != cost || len(se["attempt_phases"]) == 0 {
 		t.Errorf("attempt phases: %v", se["attempt_phases"])
 	}
+	if _, ok := se["attempt_steps"]; !ok {
+		t.Errorf("series has no attempt_steps")
+	}
 
 	var sm summary
 	get(t, h, "/api/summary", &sm)
@@ -221,7 +224,7 @@ func TestEndpoints(t *testing.T) {
 		}
 	}
 	get(t, h, "/api/scorecard?by=config", &sc)
-	if len(sc.Groups) != 1 || sc.Groups[0] != "f v1" || sc.Rows[0].Label != "work items" || sc.Rows[0].Values[0] != "1" {
+	if len(sc.Groups) != 1 || sc.Groups[0] != "v1" || sc.Rows[0].Label != "work items" || sc.Rows[0].Values[0] != "1" {
 		t.Errorf("scorecard: %+v", sc)
 	}
 }
@@ -268,8 +271,8 @@ func TestScopes(t *testing.T) {
 	if g := ids(item["attempts"].([]any), "attempt_id"); g != "c1 a1" {
 		t.Errorf("item attempts: %s", g)
 	}
-	if a := item["activity"].([]any)[0].(map[string]any); a["calls"].(float64) != 3 { // a1's two calls and c1's, not b1's
-		t.Errorf("item activity: %v", a)
+	if a := item["attempts"].([]any)[0].(map[string]any); a["attempt_id"] != "c1" || a["input"] != 1.0 { // c1's one call, not a1's or b1's
+		t.Errorf("item attempt sums: %v", a)
 	}
 	var at map[string]any
 	get(t, h, "/api/attempt?factory=f&id=a1", &at)
@@ -281,6 +284,9 @@ func TestScopes(t *testing.T) {
 	}
 	if l := at["run_lanes"].([]any); len(l) != 0 { // the dispatches ran in c1, another factory's run
 		t.Errorf("run lanes: %v", l)
+	}
+	if g := ids(at["timeline"].([]any), "Who"); g == "" || strings.Trim(strings.ReplaceAll(g, "github", ""), "f ") != "" { // the run's log: f's lines, not g's on the same issue
+		t.Errorf("run timeline: %s", g)
 	}
 	get(t, h, "/api/attempt?factory=g&id=c1", &at)
 	if g := ids(at["run"].([]any), "attempt_id") + " | " + ids(at["run_sessions"].([]any), "session") + " | " + fmt.Sprint(at["run_lanes"]); g != "c1 | sc1 | [alpha beta alpha]" {
@@ -574,14 +580,16 @@ func TestSteps(t *testing.T) {
 
 	var item map[string]any
 	get(t, h, "/api/item?repo=o/r&issue=7", &item)
+	var a1 map[string]any // the issue's step sessions are sessions[] with a step; the attempt endpoint lists them as steps[]
+	get(t, h, "/api/attempt?factory=f&id=a1", &a1)
 	var steps []string
-	for _, s := range item["steps"].([]any) {
+	for _, s := range a1["steps"].([]any) {
 		steps = append(steps, s.(map[string]any)["step"].(string))
 	}
 	if strings.Join(steps, " ") != "analyzer green reviewer green" {
 		t.Errorf("steps %v", steps)
 	}
-	if s := item["steps"].([]any)[1].(map[string]any); s["cost_usd"] != 1.0 || s["at"] != "2026-11-10T10:10:00.000Z" || s["end"] != "2026-11-10T10:20:00.000Z" || s["phase"] != "implement" {
+	if s := a1["steps"].([]any)[1].(map[string]any); s["cost_usd"] != 1.0 || s["at"] != "2026-11-10T10:10:00.000Z" || s["end"] != "2026-11-10T10:20:00.000Z" || s["phase"] != "implement" {
 		t.Errorf("green session: %v", s)
 	}
 	stats := map[string]map[string]any{}
@@ -597,11 +605,8 @@ func TestSteps(t *testing.T) {
 	if _, ok := stats["other"]; ok || len(stats) != 3 {
 		t.Errorf("another issue's steps leaked in: %v", stats)
 	}
-	if r := item["step_runs"].([]any); len(r) != 1 || r[0].(map[string]any)["sent_back"] != 1.0 || r[0].(map[string]any)["reruns"] != 0.0 {
-		t.Errorf("step runs: %v", r)
-	}
-	if g := item["gates"].([]any); len(g) != 5 || g[0].(map[string]any)["name"] != "red" || g[4].(map[string]any)["attempt_id"] != "a2" {
-		t.Errorf("gates: %v", g)
+	if g := item["checks"].([]any); len(g) != 5 || g[0].(map[string]any)["name"] != "red" || g[4].(map[string]any)["attempt_id"] != "a2" {
+		t.Errorf("checks: %v", g)
 	}
 	gs := map[string]map[string]any{}
 	for _, g := range item["gate_stats"].([]any) {
@@ -620,6 +625,9 @@ func TestSteps(t *testing.T) {
 		t.Errorf("a2 steps %v gates %v", at["steps"], at["gate_stats"])
 	}
 	get(t, h, "/api/attempt?factory=f&id=a1", &at)
+	if r := at["step_runs"].([]any); len(r) != 1 || r[0].(map[string]any)["sent_back"] != 1.0 || r[0].(map[string]any)["reruns"] != 0.0 {
+		t.Errorf("step runs: %v", r)
+	}
 	if len(at["steps"].([]any)) != 4 || len(at["step_stats"].([]any)) != 3 {
 		t.Errorf("a1 steps %v stats %v", at["steps"], at["step_stats"])
 	}
@@ -660,15 +668,6 @@ func TestLanesTwoFactories(t *testing.T) {
 		"[10:20:00] dispatch lane=build issue=#9 pid=3\n[11:00:00] dispatch lane=review issue=#9 pid=4\n[11:10:00] dispatch lane=build issue=#9 pid=5\n"), 0o644)
 	h := Handler(db, Options{Addr: "127.0.0.1:8081", Runs: runs, Idle: DefaultIdleTimeout})
 
-	var item map[string]any
-	get(t, h, "/api/item?repo=o/r&issue=9", &item)
-	back := map[string]any{}
-	for _, f := range item["factories"].([]any) {
-		back[f.(map[string]any)["factory_id"].(string)] = f.(map[string]any)["sent_back"]
-	}
-	if back["fa"] != 1.0 || back["fb"] != 0.0 {
-		t.Errorf("factories sent_back: %v", back)
-	}
 	var fl cardFlow
 	if get(t, h, "/api/flow?repo=o/r&issue=9", &fl); fl.Bounces != 1 {
 		t.Errorf("flow bounces %d: %+v", fl.Bounces, fl.Dispatches)
@@ -678,5 +677,20 @@ func TestLanesTwoFactories(t *testing.T) {
 		if get(t, h, "/api/summary?factory="+f, &s); s.Bounces != want {
 			t.Errorf("summary factory=%q bounces %d, want %d", f, s.Bounces, want)
 		}
+	}
+}
+
+func TestQuestionCounts(t *testing.T) {
+	ev := func(typ, ts, kind, reason string) map[string]any {
+		return map[string]any{"factory_id": "f", "attempt_id": "a", "type": typ, "ts": ts, "kind": kind, "reason": reason}
+	}
+	ws := waits([]map[string]any{
+		ev("human.waiting", "2026-11-20T10:00:00Z", "blocking", "q1"), ev("human.resumed", "2026-11-20T10:00:02Z", "", "ok"), // auto-answered
+		ev("human.waiting", "2026-11-20T10:01:00Z", "blocking", "q2"), ev("human.resumed", "2026-11-20T10:05:00Z", "", "a person"),
+		ev("human.waiting", "2026-11-20T10:06:00Z", "blocking", "q3"), ev("human.resumed", "2026-11-20T10:06:01Z", "", "bench ended with the question unanswered"),
+		ev("human.waiting", "2026-11-20T10:07:00Z", "planning", "p"), ev("human.resumed", "2026-11-20T10:07:01Z", "", ""),
+	}, "")
+	if got := questionCounts(ws)["f\x00a"]; got != [3]int{3, 1, 1} {
+		t.Errorf("blocking, auto-answered, unanswered = %v, want [3 1 1]", got)
 	}
 }

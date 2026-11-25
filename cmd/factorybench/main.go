@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -37,7 +38,7 @@ const usage = `usage:
   factorybench report live [--db fb.db]
   factorybench report item <owner/repo#issue> [--db fb.db]
   factorybench report items [--factory f] [--outcome merged|rejected|open] [--db fb.db]
-  factorybench report factories [--by config] [--db fb.db]
+  factorybench report factories [--by config|harness|model|commit] [--db fb.db]
   factorybench claude-translate <stream.jsonl>   (test harness: Claude Code stream -> contract payloads)`
 
 func main() {
@@ -133,12 +134,12 @@ func main() {
 		check(report.Items(open(*dbp), os.Stdout, *factory, *outcome, time.Now()))
 	case cmd == "report" && len(args) >= 1 && args[0] == "factories":
 		fs, dbp := dbFlags("report factories")
-		by := fs.String("by", "", `"config" for one column per factory + config version`)
+		by := fs.String("by", "", `one column per "config" version, or per config part: "harness", "model" or "commit"`)
 		fs.Parse(args[1:])
-		if *by != "" && *by != "config" {
-			log.Fatal("--by only supports config")
+		if !slices.Contains(report.GroupBy, *by) {
+			log.Fatal("--by is one of config, harness, model, commit")
 		}
-		check(report.Factories(open(*dbp), os.Stdout, *by == "config", time.Now()))
+		check(report.Factories(open(*dbp), os.Stdout, *by, time.Now()))
 	case cmd == "report" && len(args) >= 2 && args[0] == "item":
 		fs, dbp := dbFlags("report item")
 		fs.Parse(args[2:])
