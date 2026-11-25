@@ -48,38 +48,40 @@ Gates (defects caught)
 CI suite
   factory  check  median runtime  flake rate (sha pairs)
   fb       test   6m0s            0% (0/1)
-metric                       fb fb@2
-work items                   1
-attempts                     2 (1 failed)
-sessions                     2
-tokens / issue               3.1k +? (1 attempt(s) without usage)
-time / issue                 13m0s active / 13m0s elapsed
-cost total                   $0.03 reported +? (1 attempt(s) without usage)
-cost / issue                 $0.03 +?
-cost / merged issue          n/a (0 merged)
-verification tokens / PR     700 (700 / 1 PRs)
-issues closed by agent       0% (0/1)
-first-pass plan approval     n/a
-first-pass PR approval       0% (0/1)
-review rounds / PR           2.0 (2/1)
-human interventions / issue  2.0 (2/1)
-escaped defects              2 on 1/1 PRs
-time to first PR             12m0s (1 issues)
-CI passing on first push     0% (0/1) PRs
-usage coverage               50% (1/2) attempts
-activity coverage            0% (0/2) attempts
-unpriced sessions            0
-rejected events              0
+metric                     fb@2
+work items                 1
+runs                       1 · 0 failed
+cost / run                 $0.03 +? (1 run)
+active time / run          13m0s (1 run)
+wall time / run            13m0s (1 run)
+send-backs / run           0 (1 run)
+attempts                   2 (1 failed)
+sessions                   2
+cost total                 $0.03 reported +? (1 attempt(s) without usage)
+cost / merged issue        n/a (0 merged)
+verification tokens / PR   700 (700 / 1 PRs)
+issues closed by agent     0% (0/1)
+first-pass plan approval   n/a
+first-pass PR approval     0% (0/1)
+review rounds / PR         2.0 (2/1)
+human interventions / run  2.0 (2/1)
+escaped defects            2 on 1/1 PRs
+time to first PR           12m0s (1 issues)
+CI passing on first push   0% (0/1) PRs
+usage coverage             50% (1/2) attempts
+activity coverage          0% (0/2) attempts
+unpriced sessions          0
+rejected events            0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 
 Gates (defects caught)
   factory  source   gate   failed / runs
-  fb fb@2  factory  build  0% (0/1)
-  fb fb@2  CI       test   100% (1/1)
+  fb@2     factory  build  0% (0/1)
+  fb@2     CI       test   100% (1/1)
 
 CI suite
   factory  check  median runtime  flake rate (sha pairs)
-  fb fb@2  test   6m0s            0% (0/1)
+  fb@2     test   6m0s            0% (0/1)
 [
  {
   "Item": "acme/app#10",
@@ -148,26 +150,28 @@ Gates (defects caught)
 
 CI suite
   none
-metric                       fa fake@1.0
-work items                   1
-attempts                     3 (2 failed)
-sessions                     3
-tokens / issue               6.4k +? (1 attempt(s) without usage)
-time / issue                 22m0s active / 22m0s elapsed
-cost total                   $0.51 (reported $0.50 + est. $0.01) +? (1 attempt(s) without usage)
-cost / issue                 $0.51 +?
-cost / merged issue          n/a (0 merged)
-verification tokens / PR     n/a (no PRs)
-issues closed by agent       n/a (no github login)
-first-pass plan approval     n/a
-first-pass PR approval       n/a
-review rounds / PR           n/a
-human interventions / issue  0.0 (0/1)
-escaped defects              n/a (no PRs)
-usage coverage               67% (2/3) attempts
-activity coverage            0% (0/3) attempts
-unpriced sessions            1
-rejected events              0
+metric                     fake@1.0
+work items                 1
+runs                       1 · 0 failed
+cost / run                 $0.51 +? (1 run)
+active time / run          22m0s (1 run)
+wall time / run            22m0s (1 run)
+send-backs / run           0 (1 run)
+attempts                   3 (2 failed)
+sessions                   3
+cost total                 $0.51 (reported $0.50 + est. $0.01) +? (1 attempt(s) without usage)
+cost / merged issue        n/a (0 merged)
+verification tokens / PR   n/a (no PRs)
+issues closed by agent     n/a (no github login)
+first-pass plan approval   n/a
+first-pass PR approval     n/a
+review rounds / PR         n/a
+human interventions / run  0.0 (0/1)
+escaped defects            n/a (no PRs)
+usage coverage             67% (2/3) attempts
+activity coverage          0% (0/3) attempts
+unpriced sessions          1
+rejected events            0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 
 Gates (defects caught)
@@ -245,36 +249,37 @@ Gates (defects caught)
 CI suite
   factory  check  median runtime  flake rate (sha pairs)
   fa       test   n/a             n/a
-metric                       fa fake@1.0
-work items                   1
-attempts                     1 (0 failed)
-sessions                     1
-tokens / issue               2.5k
-time / issue                 4m0s active / 4m0s elapsed
-cost total                   $0.01 est.
-cost / issue                 $0.01
-cost / merged issue          n/a (0 merged)
-verification tokens / PR     n/a (no phase data)
-issues closed by agent       n/a (no github login)
-first-pass plan approval     n/a
-first-pass PR approval       n/a
-review rounds / PR           n/a
-human interventions / issue  2.0 (2/1)
-escaped defects              0 on 0/1 PRs
-time to first PR             3m0s (1 issues)
-usage coverage               100% (1/1) attempts
-activity coverage            0% (0/1) attempts
-unpriced sessions            0
-rejected events              0
+metric                     fake@1.0
+work items                 1
+runs                       1 · 0 failed
+cost / run                 $0.01 (1 run)
+active time / run          4m0s (1 run)
+wall time / run            4m0s (1 run)
+send-backs / run           0 (1 run)
+sessions                   1
+cost total                 $0.01 est.
+cost / merged issue        n/a (0 merged)
+verification tokens / PR   n/a (no phase data)
+issues closed by agent     n/a (no github login)
+first-pass plan approval   n/a
+first-pass PR approval     n/a
+review rounds / PR         n/a
+human interventions / run  2.0 (2/1)
+escaped defects            0 on 0/1 PRs
+time to first PR           3m0s (1 issues)
+usage coverage             100% (1/1) attempts
+activity coverage          0% (0/1) attempts
+unpriced sessions          0
+rejected events            0
 +? = lower bound: some attempts sent no usage or some sessions couldn't be priced
 
 Gates (defects caught)
-  factory      source  gate  failed / runs
-  fa fake@1.0  CI      test  n/a
+  factory   source  gate  failed / runs
+  fake@1.0  CI      test  n/a
 
 CI suite
-  factory      check  median runtime  flake rate (sha pairs)
-  fa fake@1.0  test   n/a             n/a
+  factory   check  median runtime  flake rate (sha pairs)
+  fake@1.0  test   n/a             n/a
 [
  {
   "Item": "acme/app#2",

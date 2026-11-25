@@ -221,7 +221,7 @@ func snapshot(t *testing.T, db *sql.DB, items []string, now time.Time) (derived,
 		t.Fatal(err)
 	}
 	buf.WriteString("\n$ report factories\n")
-	if err := report.Factories(db, &buf, false, now); err != nil {
+	if err := report.Factories(db, &buf, "", now); err != nil {
 		t.Fatal(err)
 	}
 	buf.WriteString("\n$ report live\n")

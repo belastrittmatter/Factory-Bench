@@ -77,7 +77,7 @@ func singleSession(t *testing.T) []byte {
 				t.Fatal(err)
 			}
 		}
-		err = firstErr(Items(db, &out, "", "", now), Factories(db, &out, false, now), Factories(db, &out, true, now))
+		err = firstErr(Items(db, &out, "", "", now), Factories(db, &out, "", now), Factories(db, &out, "config", now))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -113,19 +113,19 @@ func TestStagedRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	now := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
-	for _, byConfig := range []bool{false, true} {
-		us := buildUnits(d, byConfig, now)
+	for _, by := range []string{"", "config"} {
+		us := buildUnits(d, by, now)
 		if len(us) != 1 {
-			t.Fatalf("byConfig %v: %d units, want the staged run as one", byConfig, len(us))
+			t.Fatalf("by %q: %d units, want the staged run as one", by, len(us))
 		}
 		u := us[0]
 		got := fmt.Sprintf("%s | %s | ci %d/%d | escalations %v", u.group, u.attemptsText(), u.run.ciPass, u.run.ciN, u.escalations)
 		want := "fs | 3 attempts · 2 stages · 1 retry (2 failed) | ci 1/1 | escalations []" // config columns only
-		if byConfig {
-			want = "fs fs@1+gemini | 3 attempts · 2 stages · 1 retry (2 failed) | ci 1/1 | escalations [fs@1+opus]"
+		if by != "" {
+			want = "fs@1+gemini | 3 attempts · 2 stages · 1 retry (2 failed) | ci 1/1 | escalations [fs@1+opus]"
 		}
 		if got != want {
-			t.Errorf("byConfig %v:\n got %s\nwant %s", byConfig, got, want)
+			t.Errorf("by %q:\n got %s\nwant %s", by, got, want)
 		}
 	}
 	rows, err := ItemRows(db, now)
@@ -155,9 +155,9 @@ func TestStagedRun(t *testing.T) {
 func TestSingleSessionBesideStaged(t *testing.T) {
 	now := time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC)
 	mixed, alone := loadGolden(t, "../../testdata/golden/metrics/events.json"), loadGolden(t, fbOnlyCase(t))
-	for _, byConfig := range []bool{false, true} {
+	for _, by := range []string{"", "config"} {
 		cards := func(db *sql.DB) map[string]string { // "fb… label" -> value, for fb's columns
-			groups, rows, err := Scorecard(db, byConfig, now)
+			groups, rows, err := Scorecard(db, by, now)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -175,11 +175,11 @@ func TestSingleSessionBesideStaged(t *testing.T) {
 		for k, v := range got {
 			// a row empty for every column is hidden, so a row only another factory fills shows n/a for fb
 			if w, ok := want[k]; ok && w != v || !ok && v != "n/a" {
-				t.Errorf("byConfig %v: %s = %q beside a staged run, %q alone", byConfig, k, v, w)
+				t.Errorf("by %q: %s = %q beside a staged run, %q alone", by, k, v, w)
 			}
 		}
 		if len(got) < len(want) {
-			t.Errorf("byConfig %v: fb has %d values beside a staged run, %d alone", byConfig, len(got), len(want))
+			t.Errorf("by %q: fb has %d values beside a staged run, %d alone", by, len(got), len(want))
 		}
 	}
 	rows := func(db *sql.DB) []ItemRow {
@@ -212,7 +212,7 @@ func TestStagedCIIgnoresLatePlanCheck(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if u := buildUnits(d, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))[0]; u.run.ciPass != 1 || u.run.ciN != 1 {
+	if u := buildUnits(d, "", time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))[0]; u.run.ciPass != 1 || u.run.ciN != 1 {
 		t.Errorf("CI on first push %d/%d, want 1/1 from s2", u.run.ciPass, u.run.ciN)
 	}
 }

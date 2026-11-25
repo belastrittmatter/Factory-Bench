@@ -90,11 +90,11 @@ func TestItemGolden(t *testing.T) {
 			get(t, Handler(db, Options{Addr: "127.0.0.1:8081"}), "/api/attempt?factory="+c.factory+"&id="+c.attempt, &at)
 			got := map[string]any{}
 			timeline := []string{"sessions", "checks", "send_backs", "waits"}
-			for _, k := range append([]string{"factories", "steps", "step_stats", "step_runs"}, timeline...) {
+			for _, k := range append([]string{"step_stats"}, timeline...) {
 				got[k] = item[k]
 			}
 			atl := map[string]any{}
-			for _, k := range timeline {
+			for _, k := range append([]string{"steps", "step_runs"}, timeline...) {
 				atl[k] = at[k]
 			}
 			got["attempt "+c.attempt] = atl

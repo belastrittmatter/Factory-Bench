@@ -67,7 +67,7 @@ CI passing on first push     100% (1/1) PRs
 PR size                      +42 / -8 lines, 3 files (avg of 1 PRs)
 cost / changed line          $0.0002 (50 lines)
 tool calls / issue           8.5 (17/2)
-tool mix                     Write 11, Bash 3, Agent 2, 1 other
+tool mix                     write 11, bash 3, agent 2, 1 other
 tool failure rate            6% (1/17)
 time in model / tool calls   45s / 11s
 subagents / issue            1.5 (3/2)

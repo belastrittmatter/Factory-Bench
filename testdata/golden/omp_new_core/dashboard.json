@@ -360,10 +360,164 @@
         "tools": 0
       }
     ],
+    "step_runs": [
+      {
+        "factory_id": "omp",
+        "reruns": 4,
+        "sent_back": 2
+      }
+    ],
+    "steps": [
+      {
+        "at": "2026-11-20T10:00:07.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.069118,
+        "end": "2026-11-20T10:00:30.000Z",
+        "factory_id": "omp",
+        "phase": "plan",
+        "step": "context-creator",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:00:20.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.02,
+        "end": "2026-11-20T10:00:30.000Z",
+        "factory_id": "omp",
+        "phase": "plan",
+        "step": "context-creator",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:02:10.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.05,
+        "end": "2026-11-20T10:02:40.000Z",
+        "factory_id": "omp",
+        "phase": "plan",
+        "step": "context-creator",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:05:29.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 2,
+        "cost_usd": 0.054798400000000004,
+        "end": "2026-11-20T10:06:00.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "analyzer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:06:20.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:10:00.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "engineer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:11:03.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:11:30.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "engineer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:13:28.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:14:00.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "engineer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:14:35.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.0772,
+        "end": "2026-11-20T10:14:45.000Z",
+        "factory_id": "omp",
+        "phase": "verify",
+        "step": "deslop",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:14:49.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.0329,
+        "end": "2026-11-20T10:14:58.000Z",
+        "factory_id": "omp",
+        "phase": "verify",
+        "step": "red-team",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:15:00.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:16:00.000Z",
+        "factory_id": "omp",
+        "phase": "review",
+        "step": "code-review",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:16:20.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:17:00.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "analyzer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:18:00.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:19:00.000Z",
+        "factory_id": "omp",
+        "phase": "implement",
+        "step": "engineer",
+        "unpriced": 0
+      },
+      {
+        "at": "2026-11-20T10:20:00.000Z",
+        "attempt_id": "t12-r1",
+        "calls": 1,
+        "cost_usd": 0.054508,
+        "end": "2026-11-20T10:21:00.000Z",
+        "factory_id": "omp",
+        "phase": "review",
+        "step": "code-review",
+        "unpriced": 0
+      }
+    ],
     "waits": [
       {
         "attempt_id": "t12-r1",
+        "auto_answered": false,
         "end": "2026-11-20T10:02:00.000Z",
+        "end_reason": null,
         "factory_id": "omp",
         "kind": "planning",
         "reason": "Who will look at the page?",
@@ -371,7 +525,9 @@
       },
       {
         "attempt_id": "t12-r1",
+        "auto_answered": false,
         "end": "2026-11-20T10:02:00.000Z",
+        "end_reason": null,
         "factory_id": "omp",
         "kind": "planning",
         "reason": "Who says the page is done?",
@@ -379,7 +535,9 @@
       },
       {
         "attempt_id": "t12-r1",
+        "auto_answered": false,
         "end": "2026-11-20T10:13:00.000Z",
+        "end_reason": null,
         "factory_id": "omp",
         "kind": "blocking",
         "reason": "May I change the existing home page test?",
@@ -513,18 +671,6 @@
       "passed": true,
       "reason": null,
       "step": null
-    }
-  ],
-  "factories": [
-    {
-      "active_ms": 1203000,
-      "attempts": 1,
-      "cost_usd": 0.6855724,
-      "factory_id": "omp",
-      "sent_back": 2,
-      "sessions": 13,
-      "tokens": 365656,
-      "unpriced": 0
     }
   ],
   "send_backs": [
@@ -759,15 +905,9 @@
       "tools": 0
     }
   ],
-  "step_runs": [
-    {
-      "factory_id": "omp",
-      "reruns": 4,
-      "sent_back": 2
-    }
-  ],
   "step_stats": [
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.13911800000000002,
       "factory_id": "omp",
       "ms": 63000,
@@ -777,6 +917,7 @@
       "unpriced": 0
     },
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.1093064,
       "factory_id": "omp",
       "ms": 71000,
@@ -786,6 +927,7 @@
       "unpriced": 0
     },
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.218032,
       "factory_id": "omp",
       "ms": 339000,
@@ -795,6 +937,7 @@
       "unpriced": 0
     },
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.0772,
       "factory_id": "omp",
       "ms": 10000,
@@ -804,6 +947,7 @@
       "unpriced": 0
     },
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.0329,
       "factory_id": "omp",
       "ms": 9000,
@@ -813,6 +957,7 @@
       "unpriced": 0
     },
     {
+      "attempt_id": "t12-r1",
       "cost_usd": 0.109016,
       "factory_id": "omp",
       "ms": 120000,
@@ -822,155 +967,12 @@
       "unpriced": 0
     }
   ],
-  "steps": [
-    {
-      "at": "2026-11-20T10:00:07.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.069118,
-      "end": "2026-11-20T10:00:30.000Z",
-      "factory_id": "omp",
-      "phase": "plan",
-      "step": "context-creator",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:00:20.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.02,
-      "end": "2026-11-20T10:00:30.000Z",
-      "factory_id": "omp",
-      "phase": "plan",
-      "step": "context-creator",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:02:10.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.05,
-      "end": "2026-11-20T10:02:40.000Z",
-      "factory_id": "omp",
-      "phase": "plan",
-      "step": "context-creator",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:05:29.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 2,
-      "cost_usd": 0.054798400000000004,
-      "end": "2026-11-20T10:06:00.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "analyzer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:06:20.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:10:00.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "engineer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:11:03.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:11:30.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "engineer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:13:28.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:14:00.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "engineer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:14:35.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.0772,
-      "end": "2026-11-20T10:14:45.000Z",
-      "factory_id": "omp",
-      "phase": "verify",
-      "step": "deslop",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:14:49.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.0329,
-      "end": "2026-11-20T10:14:58.000Z",
-      "factory_id": "omp",
-      "phase": "verify",
-      "step": "red-team",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:15:00.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:16:00.000Z",
-      "factory_id": "omp",
-      "phase": "review",
-      "step": "code-review",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:16:20.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:17:00.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "analyzer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:18:00.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:19:00.000Z",
-      "factory_id": "omp",
-      "phase": "implement",
-      "step": "engineer",
-      "unpriced": 0
-    },
-    {
-      "at": "2026-11-20T10:20:00.000Z",
-      "attempt_id": "t12-r1",
-      "calls": 1,
-      "cost_usd": 0.054508,
-      "end": "2026-11-20T10:21:00.000Z",
-      "factory_id": "omp",
-      "phase": "review",
-      "step": "code-review",
-      "unpriced": 0
-    }
-  ],
   "waits": [
     {
       "attempt_id": "t12-r1",
+      "auto_answered": false,
       "end": "2026-11-20T10:02:00.000Z",
+      "end_reason": null,
       "factory_id": "omp",
       "kind": "planning",
       "reason": "Who will look at the page?",
@@ -978,7 +980,9 @@
     },
     {
       "attempt_id": "t12-r1",
+      "auto_answered": false,
       "end": "2026-11-20T10:02:00.000Z",
+      "end_reason": null,
       "factory_id": "omp",
       "kind": "planning",
       "reason": "Who says the page is done?",
@@ -986,7 +990,9 @@
     },
     {
       "attempt_id": "t12-r1",
+      "auto_answered": false,
       "end": "2026-11-20T10:13:00.000Z",
+      "end_reason": null,
       "factory_id": "omp",
       "kind": "blocking",
       "reason": "May I change the existing home page test?",

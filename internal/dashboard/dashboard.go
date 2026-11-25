@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -51,6 +52,44 @@ const nSessionsSQL = `count(DISTINCT session) + sum(session IS NULL)`
 
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
+
+// questionCounts is, per factory\x00attempt, its blocking questions among waits rows: asked, auto-answered and unanswered.
+func questionCounts(ws []map[string]any) map[string][3]int {
+	qs := map[string][3]int{}
+	for _, w := range ws {
+		if w["kind"] != "blocking" {
+			continue
+		}
+		k := w["factory_id"].(string) + "\x00" + w["attempt_id"].(string)
+		x := qs[k]
+		x[0]++
+		if autoAnswered(w) {
+			x[1]++
+		}
+		if unanswered(w) {
+			x[2]++
+		}
+		qs[k] = x
+	}
+	return qs
+}
+
+// finishReasonSQL is the reason of attempt a's newest attempt.finished, the input to withLanes.
+const finishReasonSQL = `(SELECT json_extract(e.payload, '$.payload.reason') FROM events e WHERE e.factory_id = a.factory_id AND e.type = 'attempt.finished'
+	AND e.rejected IS NULL AND json_extract(e.payload, '$.attempt_id') = a.attempt_id ORDER BY e.ts DESC LIMIT 1)`
+
+// withLanes adds report.ParseLanes of finish_reason to attempt rows: lanes_merged, lanes_planned, lanes_paused,
+// lanes_blocked and timed_out, all nil when the reason names no lanes.
+func withLanes(rs []map[string]any) {
+	for _, r := range rs {
+		reason, _ := r["finish_reason"].(string)
+		l, ok := report.ParseLanes(reason)
+		r["lanes_merged"], r["lanes_planned"], r["lanes_paused"], r["lanes_blocked"], r["timed_out"] = nil, nil, nil, nil, nil
+		if ok {
+			r["lanes_merged"], r["lanes_planned"], r["lanes_paused"], r["lanes_blocked"], r["timed_out"] = l.Merged, l.Planned, l.Paused, l.Blocked, l.TimedOut
+		}
+	}
+}
 
 // sessionsSQL is every Claude Code session (distinct OTLP session.id) of the attempts a matching filter, oldest first:
 // its first and last event, phase(s) and step (one, normally), phases sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
@@ -163,7 +202,11 @@ func Handler(db *sql.DB, o Options) http.Handler {
 		return rows, err
 	}))
 	mux.HandleFunc("/api/scorecard", s.json(func(r *http.Request) (any, error) {
-		groups, rows, err := report.Scorecard(db, r.URL.Query().Get("by") == "config", time.Now())
+		by := r.URL.Query().Get("by")
+		if !slices.Contains(report.GroupBy, by) {
+			return nil, bad("by is one of config, harness, model, commit")
+		}
+		groups, rows, err := report.Scorecard(db, by, time.Now())
 		return map[string]any{"groups": groups, "rows": rows}, err
 	}))
 	mux.HandleFunc("/api/item", s.json(s.item))
@@ -335,19 +378,21 @@ func (s *server) item(r *http.Request) (any, error) {
 	case err != nil:
 		return nil, err
 	}
-	tl, err := report.Timeline(s.db, repo, n, time.Now())
-	if err != nil {
-		return nil, err
-	}
 	q := func(query string) ([]map[string]any, error) { return rows(s.db, query, repo, n) }
-	res := map[string]any{"timeline": tl, "title": title.String}
+	res := map[string]any{"title": title.String}
 	for k, query := range map[string]string{
 		"attempts": `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.role, a.state, a.started_at, a.ended_at, a.config_version, a.parent_attempt_id, a.human_wait_ms, a.pr_url,
 			(SELECT sum(cost_usd) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS cost_usd,
 			(SELECT count(*) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id AND cost_usd IS NULL) AS unpriced,
 			(SELECT sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) FROM usage u WHERE u.factory_id = a.factory_id AND u.attempt_id = a.attempt_id) AS tokens,
-			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
-			FROM attempts a WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
+			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event,
+			u.input, u.output, u.cache_read, u.cache_write, t.tool_calls, t.failed_tools,
+			` + finishReasonSQL + ` AS finish_reason
+			FROM attempts a
+			LEFT JOIN (SELECT factory_id, attempt_id, sum(input) AS input, sum(output) AS output, sum(cache_read) AS cache_read, sum(cache_write) AS cache_write
+			  FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
+			LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS tool_calls, sum(success = 0) AS failed_tools FROM tool_calls GROUP BY 1, 2) t USING (factory_id, attempt_id)
+			WHERE repo = ?1 AND issue = ?2 ORDER BY started_at`,
 		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"gates": `SELECT g.factory_id, g.attempt_id, g.ts, g.name, g.passed, g.reason FROM gates g JOIN attempts a USING (factory_id, attempt_id)
 			WHERE a.repo = ?1 AND a.issue = ?2 ORDER BY g.ts, g.rowid`,
@@ -356,21 +401,11 @@ func (s *server) item(r *http.Request) (any, error) {
 		"sent":        sendBacksSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"wait_events": waitsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"prs":         `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
-		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
-			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
 		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
 		// GitHub check runs of the issue's PRs ("checks" are the factory's gates, see stepData)
 		"ci_checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
-		// the issue's model calls and cache reads, for its KPI tiles
-		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read
-			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2`,
-		// per factory, so the header shows each factory's numbers instead of a sum; unknown stays null, never 0
-		"factories": `SELECT a.factory_id, count(*) AS attempts, sum(u.cost) AS cost_usd, coalesce(sum(u.unpriced), 0) AS unpriced,
-			sum(u.tokens) AS tokens, sum(u.sessions) AS sessions FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, sum(cost_usd) AS cost,
-			  sum(cost_usd IS NULL) AS unpriced, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, ` + nSessionsSQL + ` AS sessions
-			  FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1 ORDER BY min(a.started_at)`,
 		// cost per attempt and phase, for the issue's cost per stage on single-session runs
 		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1, 2, 3 ORDER BY min(u.ts)`,
@@ -386,11 +421,13 @@ func (s *server) item(r *http.Request) (any, error) {
 	if w := waits(res["wait_events"].([]map[string]any), ""); len(w) > 0 {
 		res["waits"] = w
 	}
-	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events"} {
+	// gates are checks[] with the step, steps are sessions[] with a step: the issue page reads those
+	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events", "gates", "steps", "step_runs"} {
 		delete(res, k)
 	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
+	withLanes(res["attempts"].([]map[string]any))
 	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
 	all, err := report.ItemRows(s.db, time.Now())
 	if err != nil {
@@ -403,37 +440,6 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	res["units"] = units
-	var dispatches []dispatchRow
-	if s.local && s.o.Runs != "" {
-		fl, err := s.cardFlow(repo, n, time.Now())
-		if err != nil {
-			return nil, err
-		}
-		dispatches = fl.Dispatches
-	}
-	// sent_back per factory: from its step sequence, else from its lanes in the run manifests, else unknown (nil)
-	for _, x := range res["factories"].([]map[string]any) {
-		x["active_ms"], x["sent_back"] = nil, nil
-		for _, u := range units {
-			if u.Factory == x["factory_id"] {
-				x["active_ms"] = u.ActiveMS
-			}
-		}
-		for _, r := range res["step_runs"].([]map[string]any) {
-			if r["factory_id"] == x["factory_id"] {
-				x["sent_back"] = r["sent_back"]
-			}
-		}
-		var lanes []dispatchRow
-		for _, d := range dispatches {
-			if d.Factory == x["factory_id"] && d.Lane != "" {
-				lanes = append(lanes, d)
-			}
-		}
-		if x["sent_back"] == nil && len(lanes) > 0 {
-			x["sent_back"], _ = laneRework(lanes)
-		}
-	}
 	return res, nil
 }
 
@@ -446,7 +452,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	res := map[string]any{}
 	var err error
 	for _, q := range []struct{ key, sql string }{
-		{"attempt", `SELECT a.*, ` + lastEventSQL + ` AS last_event, EXISTS (SELECT 1 FROM events e WHERE e.factory_id = a.factory_id
+		{"attempt", `SELECT a.*, ` + lastEventSQL + ` AS last_event, ` + finishReasonSQL + ` AS finish_reason, EXISTS (SELECT 1 FROM events e WHERE e.factory_id = a.factory_id
 			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id) AS has_wait_events
 			FROM attempts a WHERE factory_id = ?1 AND attempt_id = ?2`},
 		{"usage", `SELECT ts, model, agent_id, phase, step, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
@@ -464,7 +470,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		// the run's waits: a plan's wait may be resumed by its build
 		{"wait_events", waitsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
 		// the attempts of this attempt's run (factory × issue), for its run format
-		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
+		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id, r.started_at,
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = r.factory_id AND g.attempt_id = r.attempt_id) AS subagents
 			FROM attempts r JOIN attempts a USING (factory_id, repo, issue) WHERE a.factory_id = ?1 AND a.attempt_id = ?2 ORDER BY r.started_at`},
 		{"run_sessions", sessionsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
@@ -478,6 +484,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		return nil, httpError{http.StatusNotFound, "no such attempt"}
 	}
 	withStatus(a, time.Now(), s.o.Idle)
+	withLanes(a)
 	withStages(res["run"].([]map[string]any))
 	own := []map[string]any{} // the run's sessions of this attempt, which carry the step
 	for _, x := range res["run_sessions"].([]map[string]any) {
@@ -525,6 +532,18 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		}
 	}
 	res["dispatches"] = mine
+	// the run's event log: the `report item` lines of this factory on the issue, and the issue's GitHub events
+	tl, err := report.Timeline(s.db, at["repo"].(string), at["issue"].(int64), time.Now())
+	if err != nil {
+		return nil, err
+	}
+	runTL := []report.TimelineLine{}
+	for _, l := range tl {
+		if l.Who == f || l.Who == "github" {
+			runTL = append(runTL, l)
+		}
+	}
+	res["timeline"] = runTL
 	var tcs []toolCall
 	err = store.Each(s.db, `SELECT ts, tool_name, success FROM tool_calls WHERE factory_id = ? AND attempt_id = ? ORDER BY ts`, func(r *sql.Rows) error {
 		var ts string
@@ -577,7 +596,8 @@ func (s *server) series(r *http.Request) (any, error) {
 	for _, q := range []struct{ key, sql string }{
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
 			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title,
-			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
+			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event,
+			` + finishReasonSQL + ` AS finish_reason, (SELECT count(*) FROM send_backs s WHERE s.factory_id = a.factory_id AND s.attempt_id = a.attempt_id) AS send_backs
 			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, ` + nSessionsSQL + ` AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
@@ -586,6 +606,8 @@ func (s *server) series(r *http.Request) (any, error) {
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3 ORDER BY min(u.ts)`}, // cost per attempt and phase, for the per-issue spend chart
+		{"attempt_steps", `SELECT u.factory_id, u.attempt_id, u.step, min(u.phase) AS phase, sum(u.cost_usd) AS cost_usd
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE u.step IS NOT NULL GROUP BY 1, 2, 3 ORDER BY min(u.ts)`}, // cost per attempt and named step, for the average run chart
 		{"merged", `SELECT p.merged_at, a.factory_id, a.config_version, a.repo, a.issue FROM attempts a JOIN prs p ON p.url = a.pr_url
 			WHERE p.merged_at IS NOT NULL GROUP BY a.factory_id, a.config_version, a.repo, a.issue`},
 		{"tools", `SELECT substr(t.ts, 1, 10) AS day, t.factory_id, a.config_version, a.repo, t.tool_name, count(*) AS calls, sum(t.success = 0) AS failed,
@@ -597,5 +619,16 @@ func (s *server) series(r *http.Request) (any, error) {
 	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
+	withLanes(res["attempts"].([]map[string]any))
+	// blocking questions per attempt, how many were answered within autoAnswer (a script, not a person) and how many never were
+	ws, err := rows(s.db, waitsSQL("1"))
+	if err != nil {
+		return nil, err
+	}
+	qs := questionCounts(waits(ws, ""))
+	for _, a := range res["attempts"].([]map[string]any) {
+		x := qs[a["factory_id"].(string)+"\x00"+a["attempt_id"].(string)]
+		a["blocking"], a["auto_answered"], a["unanswered"] = x[0], x[1], x[2]
+	}
 	return res, nil
 }

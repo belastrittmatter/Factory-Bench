@@ -36,7 +36,7 @@ func TestScorecard(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cards := buildCards(d, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	cards := buildCards(d, "", time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
 	if len(cards) != 2 {
 		t.Fatalf("got %d cards", len(cards))
 	}
@@ -77,11 +77,71 @@ func TestScorecard(t *testing.T) {
 
 	// --by config splits fa into fa@1 (#10) and fa@2 (#11).
 	var groups []string
-	for _, c := range buildCards(d, true, time.Time{}) {
+	for _, c := range buildCards(d, "config", time.Time{}) {
 		groups = append(groups, c.group)
 	}
-	if g := []string{"fa fa@1", "fa fa@2", "fb fb@2"}; len(groups) != 3 || groups[0] != g[0] || groups[1] != g[1] || groups[2] != g[2] {
+	if g := []string{"fa@1", "fa@2", "fb@2"}; len(groups) != 3 || groups[0] != g[0] || groups[1] != g[1] || groups[2] != g[2] {
 		t.Errorf("by config groups %v, want %v", groups, g)
+	}
+}
+
+// Grouped by config or a config part, the runs of several factories pool into one column, one unit per run.
+func TestScorecardPooled(t *testing.T) {
+	d := &metricsData{items: map[string]*mItem{"o/r#1": {key: "o/r#1"}}, sentBack: map[string]int{"a\x00a1": 2, "b\x00b1": 4},
+		lanes: map[string]Lanes{"a\x00a1": {Merged: 1, Planned: 4}, "b\x00b1": {Merged: 3, Planned: 4}}}
+	at := func(f, id, cfg string) *mAtt {
+		return &mAtt{factory: f, id: id, repo: "o/r", issue: 1, config: cfg, state: "failed", started: "2026-11-11T10:00:00Z",
+			ended: sql.NullString{String: "2026-11-11T10:30:00Z", Valid: true}}
+	}
+	d.atts = []*mAtt{at("a", "a1", "tf@1234567890+omp@1+model:anthropic/sonnet"), at("b", "b1", "tf@1234567890+claude@2+model:sonnet"),
+		at("c", "c1", "tf@abcdef12+claude@2+model:sonnet")}
+	groups := func(by string) map[string]*card {
+		m := map[string]*card{}
+		for _, c := range buildCards(d, by, time.Time{}) {
+			m[c.group] = c
+		}
+		return m
+	}
+	if g := groups("model"); len(g) != 1 || len(g["sonnet"].units) != 3 || g["sonnet"].items != 1 {
+		t.Errorf("by model: %v, want one group of 3 runs on 1 item", g)
+	}
+	g := groups("commit")
+	if len(g) != 2 || len(g["12345678"].units) != 2 || len(g["abcdef12"].units) != 1 {
+		t.Errorf("by commit: %v", g)
+	}
+	row := func(label string, c *card) string {
+		for _, m := range scorecard {
+			if m.label == label {
+				return m.val(c)
+			}
+		}
+		return "no row " + label
+	}
+	c := g["12345678"]
+	for label, want := range map[string]string{"runs": "2 · 2 failed", "lanes merged": "50% · 4/8 · 2 runs", "send-backs / run": "3 · 2–4 (2 runs)",
+		"wall time / run": "30m0s · 30m0s–30m0s (2 runs)", "cost / issue": "", "time / issue": ""} {
+		if got := row(label, c); got != want {
+			t.Errorf("by commit %s = %q, want %q", label, got, want)
+		}
+	}
+	if got := row("runs", groups("")["a"]); got != "" {
+		t.Errorf("by factory shows runs %q, want the per-issue rows only", got)
+	}
+	if got := groups("harness"); len(got) != 2 || got["omp@1"] == nil || got["claude@2"] == nil {
+		t.Errorf("by harness: %v", got)
+	}
+}
+
+func TestConfigParts(t *testing.T) {
+	for in, want := range map[string][3]string{
+		"turbo-12f@3f104e13+omp@19.0.1+model:anthropic/claude-sonnet-5-5": {"3f104e13", "omp@19.0.1", "claude-sonnet-5-5"},
+		"turbo-12f@ff612996abc+claude@2.1.329+model:claude-sonnet-5-5":    {"ff612996", "claude@2.1.329", "claude-sonnet-5-5"},
+		"myfactory@0.1.0+agy@1.5.4+cfg:3e1a9c":                            {"0.1.0", "agy@1.5.4+cfg:3e1a9c", ""},
+		"v1":                                                              {"", "", ""},
+	} {
+		if c, h, m := ConfigParts(in); [3]string{c, h, m} != want {
+			t.Errorf("ConfigParts(%q) = %q %q %q, want %v", in, c, h, m, want)
+		}
 	}
 }
 
@@ -218,7 +278,7 @@ func TestItemRows(t *testing.T) {
 
 func TestScorecardRows(t *testing.T) {
 	db := loadGolden(t, "../../testdata/golden/metrics/events.json")
-	groups, rows, err := Scorecard(db, false, time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
+	groups, rows, err := Scorecard(db, "", time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatal(err)
 	}

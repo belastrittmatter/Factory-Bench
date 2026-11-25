@@ -79,13 +79,16 @@ type metricsData struct {
 	agents   map[string]int     // factory \x00 attempt -> subagent runs
 	apiErrs  map[string]int     // factory \x00 attempt
 	linked   map[string]string  // factory \x00 attempt -> first pr.linked ts
+	sentBack map[string]int     // factory \x00 attempt -> send_back events
+	lanes    map[string]Lanes   // factory \x00 attempt -> ParseLanes of its finish reason, when it names lanes
 }
 
 func loadMetrics(db *sql.DB) (*metricsData, error) {
 	d := &metricsData{usage: map[string][]mUse{}, gates: map[string][]mGate{}, items: map[string]*mItem{},
 		login: map[string]string{}, bot: map[string]bool{}, prs: map[string]*mPR{}, reviews: map[string][]mReview{},
 		commits: map[string][]mCommit{}, checks: map[string][]mCheck{}, human: map[string][]mEvent{}, rejected: map[string]int{},
-		tools: map[string][]mTool{}, agents: map[string]int{}, apiErrs: map[string]int{}, linked: map[string]string{}}
+		tools: map[string][]mTool{}, agents: map[string]int{}, apiErrs: map[string]int{}, linked: map[string]string{},
+		sentBack: map[string]int{}, lanes: map[string]Lanes{}}
 	key := func(repo string, n int64) string { return fmt.Sprintf("%s#%d", repo, n) }
 	return d, firstErr(
 		store.Each(db, `SELECT factory_id, attempt_id, repo, issue, coalesce(role, ''), config_version, state, started_at,
@@ -206,6 +209,22 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			d.linked[f+"\x00"+id] = ts
 			return err
 		}),
+		store.Each(db, `SELECT factory_id, attempt_id, count(*) FROM send_backs GROUP BY 1, 2`, func(r *sql.Rows) error {
+			var f, id string
+			var n int
+			err := r.Scan(&f, &id, &n)
+			d.sentBack[f+"\x00"+id] = n
+			return err
+		}),
+		store.Each(db, `SELECT factory_id, json_extract(payload, '$.attempt_id'), coalesce(json_extract(payload, '$.payload.reason'), '') FROM events
+			WHERE source = 'contract' AND type = 'attempt.finished' AND rejected IS NULL ORDER BY ts`, func(r *sql.Rows) error {
+			var f, id, reason string
+			err := r.Scan(&f, &id, &reason)
+			if l, ok := ParseLanes(reason); ok {
+				d.lanes[f+"\x00"+id] = l
+			}
+			return err
+		}),
 	)
 }
 
@@ -218,7 +237,7 @@ func firstErr(errs ...error) error {
 	return nil
 }
 
-// unit is one factory (or factory+config) on one work item.
+// unit is one factory's run on one work item, in its group (see groupOf).
 type unit struct {
 	group, factory string
 	item           *mItem
@@ -237,6 +256,8 @@ type unit struct {
 	planN, planPass, prN, prPass                  int // first-pass approvals: denominators and passes
 	reviewedPRs, changesReq                       int
 	run                                           runStats
+	sentBack                                      int
+	lanes                                         *Lanes // of its last attempt that reported lanes
 }
 
 // runStats are the tool call, subagent and PR metrics of a unit, summed into its card by merge.
@@ -323,7 +344,40 @@ func stagesText(stages, retries int) string {
 	return plural(stages, "stage") + " · " + r
 }
 
-func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
+// GroupBy values: the scorecard's columns are factories (""), configs, or one part of the config.
+var GroupBy = []string{"", "config", "harness", "model", "commit"}
+
+// ConfigParts splits a config version (factory@commit+harness@version+model:name) into its factory commit (8
+// characters), harness (every part but the first and the model) and model, without a provider prefix
+// (anthropic/claude-x is claude-x); "" for a part it lacks. The dashboard's cfgOf is the same rule.
+func ConfigParts(v string) (commit, harness, model string) {
+	ps := strings.Split(v, "+")
+	var rest []string
+	for _, p := range ps[1:] {
+		if m, ok := strings.CutPrefix(p, "model:"); ok && model == "" {
+			model = m[strings.LastIndexByte(m, '/')+1:]
+		} else {
+			rest = append(rest, p)
+		}
+	}
+	if i := strings.LastIndexByte(ps[0], '@'); i >= 0 {
+		commit = ps[0][i+1:]
+		commit = commit[:min(8, len(commit))]
+	}
+	return commit, strings.Join(rest, "+"), model
+}
+
+// groupOf is the scorecard column of a run of factory with config: the factory, the config, or one part of it ("?" when missing).
+func groupOf(by, factory, config string) string {
+	commit, harness, model := ConfigParts(config)
+	v := map[string]string{"": factory, "config": config, "harness": harness, "model": model, "commit": commit}[by]
+	if v == "" {
+		return "?"
+	}
+	return v
+}
+
+func buildUnits(d *metricsData, by string, now time.Time) []*unit {
 	var units []*unit
 	byKey := map[string]*unit{}
 	run := func(a *mAtt) string { return fmt.Sprintf("%s\x00%s#%d", a.factory, a.repo, a.issue) }
@@ -340,13 +394,12 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 		}
 	}
 	for _, a := range d.atts {
-		g := a.factory
-		if byConfig && staged[run(a)] { // a staged run stays one unit, under the config it started with
-			g += " " + firstConfig[run(a)]
-		} else if byConfig {
-			g += " " + a.config
+		cfg := a.config
+		if staged[run(a)] { // a staged run stays one unit, under the config it started with
+			cfg = firstConfig[run(a)]
 		}
-		k := g + "\x00" + fmt.Sprintf("%s#%d", a.repo, a.issue)
+		g := groupOf(by, a.factory, cfg)
+		k := g + "\x00" + run(a) // one unit per run, so a pooled group holds several runs of an issue
 		u := byKey[k]
 		if u == nil {
 			it := d.items[fmt.Sprintf("%s#%d", a.repo, a.issue)]
@@ -361,7 +414,7 @@ func buildUnits(d *metricsData, byConfig bool, now time.Time) []*unit {
 	}
 	for _, u := range units {
 		u.compute(d, now)
-		if !byConfig { // escalations only mean something when configs are columns
+		if by == "" { // escalations only mean something when configs are columns
 			u.escalations = nil
 		}
 	}
@@ -396,7 +449,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		}
 		for _, t := range d.tools[k] {
 			u.run.toolCalls++
-			u.run.tools[t.name]++
+			u.run.tools[strings.ToLower(t.name)]++ // one tool whatever the harness calls it: Bash and bash
 			u.run.toolMS += t.ms.Int64
 			if t.ok.Valid {
 				u.run.toolKnown++
@@ -407,6 +460,10 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		}
 		u.run.subagents += d.agents[k]
 		u.run.apiErrors += d.apiErrs[k]
+		u.sentBack += d.sentBack[k]
+		if l, ok := d.lanes[k]; ok {
+			u.lanes = &l
+		}
 		ids[a.id] = a
 		u.attempts++
 		if a.state == "failed" && !u.staged {
@@ -669,7 +726,7 @@ func Items(db *sql.DB, w io.Writer, factory, outcome string, now time.Time) erro
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	fmt.Fprintln(tw, "item\ttitle\tfactory\toutcome\tattempts\ttokens\tcost\tactive\telapsed\thuman\tPR\tescaped")
-	for _, u := range buildUnits(d, false, now) {
+	for _, u := range buildUnits(d, "", now) {
 		if (factory != "" && u.factory != factory) || (outcome != "" && u.outcome != outcome) {
 			continue
 		}
@@ -735,7 +792,7 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 		return nil, err
 	}
 	var out []ItemRow
-	for _, u := range buildUnits(d, false, now) {
+	for _, u := range buildUnits(d, "", now) {
 		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
 			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
 			Elapsed: dur(u.elapsed), ActiveMS: u.active.Milliseconds(), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
