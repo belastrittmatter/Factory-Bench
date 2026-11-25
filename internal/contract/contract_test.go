@@ -65,6 +65,8 @@ func TestRejects(t *testing.T) {
 		"payload.kind must be planning or blocking": {"human.waiting", `{"kind":"later"}`},
 		"payload.from missing":                      {"send_back", `{"to":"engineer"}`},
 		"payload.to missing":                        {"send_back", `{"from":"qc"}`},
+		"payload.by must be person or observer":     {"human.resumed", `{"by":"robot"}`},
+		"payload.turns must be >= 0":                {"usage", `{"model":"m","input":1,"output":1,"turns":-1}`},
 		"cannot unmarshal":                          {"usage", `{"model":"m","input":1.5,"output":1}`},
 	}
 	for want, c := range cases {

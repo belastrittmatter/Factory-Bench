@@ -54,6 +54,13 @@ type Payload struct {
 	Step string `json:"step"`
 	// usage: the agent session this usage belongs to (optional); usage rows with one session id are one session.
 	Session string `json:"session"`
+	// usage: the session's harness, how it ended (factory's words; on attempt.finished the attempt's status) and its turns;
+	// its role is Role
+	Harness string `json:"harness"`
+	Status  string `json:"status"`
+	Turns   *int64 `json:"turns"`
+	// usage, activity, gate, send_back: the factory lane (optional)
+	Lane string `json:"lane"`
 	// usage and activity: which subagent, if any (none = the main agent). On activity, Phase (with AgentID) is the
 	// phase of that subagent's usage rows that have none of their own.
 	Agent         string `json:"agent"`
@@ -73,10 +80,10 @@ type Payload struct {
 	// send_back: the step that sent the run back, and the step it goes back to
 	From string `json:"from"`
 	To   string `json:"to"`
+	// human.resumed: person or observer (an agent answering in the person's place); "" = unknown, counted as a person
+	By string `json:"by"`
 	// pr.linked
 	PRURL string `json:"pr_url"`
-	// attempt.finished
-	Status string `json:"status"`
 }
 
 var types = map[string]bool{
@@ -112,10 +119,10 @@ func Validate(raw []byte) (Event, Payload, error) {
 	if err := json.Unmarshal(e.Payload, &p); err != nil {
 		return e, p, fmt.Errorf("payload: %v", err)
 	}
-	for i, v := range []*int64{p.Input, p.Output, p.CacheRead, p.CacheWrite, p.Reasoning, p.DurationMS} {
+	for i, v := range []*int64{p.Input, p.Output, p.CacheRead, p.CacheWrite, p.Reasoning, p.DurationMS, p.Turns} {
 		if v != nil && *v < 0 {
 			return e, p, fmt.Errorf("payload.%s must be >= 0",
-				[]string{"input", "output", "cache_read", "cache_write", "reasoning", "duration_ms"}[i])
+				[]string{"input", "output", "cache_read", "cache_write", "reasoning", "duration_ms", "turns"}[i])
 		}
 	}
 	switch e.Type {
@@ -165,6 +172,10 @@ func Validate(raw []byte) (Event, Payload, error) {
 	case "human.waiting":
 		if p.Kind != "" && p.Kind != "planning" && p.Kind != "blocking" {
 			return e, p, errors.New("payload.kind must be planning or blocking")
+		}
+	case "human.resumed":
+		if p.By != "" && p.By != "person" && p.By != "observer" {
+			return e, p, errors.New("payload.by must be person or observer")
 		}
 	case "send_back":
 		switch {
