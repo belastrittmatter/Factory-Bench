@@ -198,3 +198,14 @@ func ParsePayload(raw []byte) Payload {
 	_ = json.Unmarshal(raw, &p)
 	return p
 }
+
+// Closes is how many of n open human.waiting events of an attempt (oldest first, kind(i) the i-th's kind) one
+// human.resumed closes: the oldest, and with a planning one every open planning one after it (questions asked
+// together are answered together). Several waits may be open at once, e.g. a question and a command approval.
+func Closes(n int, kind func(int) string) int {
+	i := 1
+	for kind(0) == "planning" && i < n && kind(i) == "planning" {
+		i++
+	}
+	return i
+}

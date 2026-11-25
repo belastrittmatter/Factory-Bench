@@ -3,6 +3,7 @@ package normalize
 
 import (
 	"database/sql"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +43,42 @@ type attempt struct {
 	WaitMS            int64
 	PRURL             *string
 	WaitingSince      *string // open human wait, for the live report
+	ObserverWaitMS    int64   // waits an observer (an agent answering for the person) closed, not in WaitMS
+	ObserverWaits     int64   // non-planning waits of this attempt an observer closed: not human interventions
+	waits             []span  // waits this attempt's resumes closed
+}
+
+// span is one closed human wait; observer: closed by an observer, not a person.
+type span struct {
+	start, end time.Time
+	observer   bool
+}
+
+// waitMS is the wall time covered by any of spans (observer ones only if observer), up to cut when cut is set:
+// overlapping waits count once.
+func waitMS(spans []span, observer bool, cut time.Time) int64 {
+	var iv []span
+	for _, s := range spans {
+		if !cut.IsZero() && s.end.After(cut) {
+			s.end = cut
+		}
+		if (observer || !s.observer) && s.end.After(s.start) {
+			iv = append(iv, s)
+		}
+	}
+	sort.Slice(iv, func(i, j int) bool { return iv[i].start.Before(iv[j].start) })
+	var total int64
+	var end time.Time
+	for _, s := range iv {
+		if s.start.Before(end) {
+			s.start = end
+		}
+		if s.end.After(s.start) {
+			total += s.end.Sub(s.start).Milliseconds()
+			end = s.end
+		}
+	}
+	return total
 }
 
 type usage struct {
@@ -131,11 +168,7 @@ func str(s string) *string {
 	return &s
 }
 
-func ms(from, to string) int64 {
-	a, _ := time.Parse(time.RFC3339Nano, from)
-	b, _ := time.Parse(time.RFC3339Nano, to)
-	return b.Sub(a).Milliseconds()
-}
+func parse(ts string) time.Time { t, _ := time.Parse(time.RFC3339Nano, ts); return t }
 
 func terminal(state string) bool {
 	return state == "completed" || state == "failed" || state == "cancelled"
@@ -177,8 +210,9 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	}
 
 	// Pass 2: everything else, in ts order.
-	waits := map[string]string{}    // attempt key -> open human.waiting ts
-	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
+	type openWait struct{ ts, kind string }
+	waits := map[string][]openWait{} // attempt key -> its open human.waiting events, oldest first
+	finished := map[string]string{}  // attempt key -> status of an attempt that finished while its wait was open
 	prs := map[string]*pr{}
 	var prOrder []string
 	runs := agents{runs: map[string]*agentRun{}}
@@ -204,20 +238,27 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			if !terminal(a.State) {
 				a.State = "waiting_for_human"
 			}
-			if waits[k] == "" {
-				waits[k] = e.TS
-			}
+			waits[k] = append(waits[k], openWait{e.TS, p.Kind})
 		case "human.resumed":
-			if a.State == "waiting_for_human" {
-				a.State = "running"
-			}
+			// a resume closes the oldest open wait(s), see contract.Closes
 			wk := k
-			if waits[wk] == "" && a.Parent != nil { // plan waited, its build resumed
+			if len(waits[wk]) == 0 && a.Parent != nil { // plan waited, its build resumed
 				wk = e.Factory + "\x00" + *a.Parent
 			}
-			if w := waits[wk]; w != "" {
-				a.WaitMS += ms(w, e.TS)
-				delete(waits, wk)
+			if ws := waits[wk]; len(ws) > 0 {
+				obs, n := p.By == "observer", contract.Closes(len(ws), func(i int) string { return ws[i].kind })
+				for _, w := range ws[:n] {
+					a.waits = append(a.waits, span{parse(w.ts), parse(e.TS), obs})
+				}
+				if obs && ws[0].kind != "planning" {
+					attempts[wk].ObserverWaits++
+				}
+				waits[wk] = ws[n:]
+			}
+			if a.State == "waiting_for_human" && len(waits[k]) == 0 {
+				a.State = "running"
+			}
+			if len(waits[wk]) == 0 {
 				if st := finished[wk]; st != "" { // the waiting attempt already finished: now it's done
 					attempts[wk].State = st
 					delete(finished, wk)
@@ -226,7 +267,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "attempt.finished":
 			if !terminal(a.State) && a.Ended == nil {
 				a.Ended = ptr(e.TS)
-				if waits[k] != "" { // e.g. a plan finishes while its review is pending: still waiting for a human
+				if len(waits[k]) > 0 { // e.g. a plan finishes while its review is pending: still waiting for a human
 					finished[k] = p.Status
 				} else {
 					a.State = p.Status
@@ -294,7 +335,13 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	prStates := map[string]map[string]bool{} // work item -> states of its linked PRs
 	for _, k := range order {
 		a := attempts[k]
-		a.WaitingSince = str(waits[k])
+		var cut time.Time
+		if len(waits[k]) > 0 { // the live report adds now - WaitingSince: closed waits count only up to it
+			a.WaitingSince = ptr(waits[k][0].ts)
+			cut = parse(waits[k][0].ts)
+		}
+		a.WaitMS = waitMS(a.waits, false, cut)
+		a.ObserverWaitMS = waitMS(a.waits, true, cut) - a.WaitMS
 		d.Attempts = append(d.Attempts, *a)
 		if a.PRURL != nil && byURL[*a.PRURL] != nil {
 			wi := a.Repo + "#" + itoa(a.Issue)
@@ -412,8 +459,8 @@ func Run(db *sql.DB) error {
 			VALUES (?,?,?,?,?,?,?,?,?,?)`, w.Repo, w.Issue, w.TaskType, w.Title, w.IssueState, w.ClosedAt, w.ClosedBy, w.First, w.Outcome, w.Survival)
 	}
 	for _, a := range d.Attempts {
-		ins(`INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, a.Factory, a.ID, a.Repo, a.Issue, a.Parent, a.Role,
-			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
+		ins(`INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, a.Factory, a.ID, a.Repo, a.Issue, a.Parent, a.Role,
+			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince, a.ObserverWaitMS, a.ObserverWaits)
 	}
 	for _, u := range d.Usage {
 		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,

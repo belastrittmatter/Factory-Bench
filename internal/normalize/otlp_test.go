@@ -231,3 +231,17 @@ func TestOTLPPhase(t *testing.T) {
 		t.Errorf("scorecard:\n%s", out.String())
 	}
 }
+
+func TestWaitMSCountsOverlapsOnce(t *testing.T) {
+	at := func(m int) time.Time { return time.Date(2026, 11, 11, 9, m, 0, 0, time.UTC) }
+	spans := []span{{at(1), at(3), false}, {at(2), at(4), true}, {at(2), at(3), false}, {at(10), at(12), true}}
+	for _, c := range []struct {
+		observer bool
+		cut      time.Time
+		want     time.Duration
+	}{{false, time.Time{}, 2 * time.Minute}, {true, time.Time{}, 5 * time.Minute}, {false, at(2), time.Minute}, {true, at(11), 4 * time.Minute}} {
+		if got := time.Duration(waitMS(spans, c.observer, c.cut)) * time.Millisecond; got != c.want {
+			t.Errorf("observer %v cut %v: %v, want %v", c.observer, c.cut, got, c.want)
+		}
+	}
+}

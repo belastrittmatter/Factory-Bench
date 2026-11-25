@@ -20,6 +20,49 @@
         },
         {
           "spec": "factorybench/v1",
+          "id": "r1:wait:1",
+          "type": "human.waiting",
+          "ts": "2026-11-11T09:01:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "kind": "blocking",
+            "reason": "which database?"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:wait:2",
+          "type": "human.waiting",
+          "ts": "2026-11-11T09:02:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "kind": "blocking",
+            "reason": "approve: npm install"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:resume:1",
+          "type": "human.resumed",
+          "ts": "2026-11-11T09:03:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "by": "person"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
+          "id": "r1:resume:2",
+          "type": "human.resumed",
+          "ts": "2026-11-11T09:04:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "by": "observer",
+            "reason": "approved"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
           "id": "r1:usage:1",
           "type": "usage",
           "ts": "2026-11-11T09:05:00Z",
@@ -54,6 +97,17 @@
         },
         {
           "spec": "factorybench/v1",
+          "id": "r1:tool",
+          "type": "activity",
+          "ts": "2026-11-11T09:08:00Z",
+          "attempt_id": "r1",
+          "payload": {
+            "tool": "bash",
+            "lane": "api"
+          }
+        },
+        {
+          "spec": "factorybench/v1",
           "id": "r1:usage:2",
           "type": "usage",
           "ts": "2026-11-11T09:09:00Z",
@@ -70,17 +124,6 @@
             "turns": 12,
             "lane": "api",
             "role": "engineer"
-          }
-        },
-        {
-          "spec": "factorybench/v1",
-          "id": "r1:tool",
-          "type": "activity",
-          "ts": "2026-11-11T09:08:00Z",
-          "attempt_id": "r1",
-          "payload": {
-            "tool": "bash",
-            "lane": "api"
           }
         },
         {

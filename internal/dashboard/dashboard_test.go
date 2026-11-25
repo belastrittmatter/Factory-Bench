@@ -694,3 +694,18 @@ func TestQuestionCounts(t *testing.T) {
 		t.Errorf("blocking, auto-answered, unanswered = %v, want [3 1 1]", got)
 	}
 }
+
+func TestWaitsResumeTheOldestOpenWait(t *testing.T) {
+	ev := func(typ, ts, by string) map[string]any {
+		return map[string]any{"factory_id": "f", "attempt_id": "a", "type": typ, "ts": ts, "kind": "blocking", "by": by}
+	}
+	ws := waits([]map[string]any{
+		ev("human.waiting", "2026-11-20T10:00:00Z", ""), ev("human.waiting", "2026-11-20T10:01:00Z", ""),
+		ev("human.resumed", "2026-11-20T10:02:00Z", "person"), ev("human.resumed", "2026-11-20T10:03:00Z", "observer"),
+		ev("human.waiting", "2026-11-20T10:04:00Z", ""),
+	}, "")
+	if len(ws) != 3 || ws[0]["end"] != "2026-11-20T10:02:00Z" || ws[0]["by"] != "person" ||
+		ws[1]["end"] != "2026-11-20T10:03:00Z" || ws[1]["by"] != "observer" || ws[2]["end"] != nil {
+		t.Errorf("waits %v", ws)
+	}
+}

@@ -68,7 +68,8 @@ func migrate(db *sql.DB, from int) error {
 	if from >= 3 { // tool_calls came in v3, with today's columns when created by v3 above
 		q += "ALTER TABLE tool_calls ADD COLUMN lane TEXT;"
 	}
-	q += `ALTER TABLE usage ADD COLUMN harness TEXT; ALTER TABLE usage ADD COLUMN status TEXT; ALTER TABLE usage ADD COLUMN turns INTEGER;
+	q += `ALTER TABLE attempts ADD COLUMN observer_wait_ms INTEGER NOT NULL DEFAULT 0; ALTER TABLE attempts ADD COLUMN observer_waits INTEGER NOT NULL DEFAULT 0;
+		ALTER TABLE usage ADD COLUMN harness TEXT; ALTER TABLE usage ADD COLUMN status TEXT; ALTER TABLE usage ADD COLUMN turns INTEGER;
 		ALTER TABLE usage ADD COLUMN lane TEXT; ALTER TABLE usage ADD COLUMN role TEXT; ALTER TABLE gates ADD COLUMN lane TEXT;` +
 		fmt.Sprintf("PRAGMA user_version = %d", SchemaVersion)
 	tx, err := db.Begin()

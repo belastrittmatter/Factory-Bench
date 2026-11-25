@@ -48,9 +48,11 @@ CREATE TABLE attempts (
                       ('running', 'waiting_for_human', 'completed', 'failed', 'cancelled')),
   started_at        TEXT NOT NULL,
   ended_at          TEXT,
-  human_wait_ms     INTEGER NOT NULL DEFAULT 0,
+  human_wait_ms     INTEGER NOT NULL DEFAULT 0, -- closed waits a person (or nobody said who) answered; overlaps count once
   pr_url            TEXT,
-  waiting_since     TEXT,                  -- start of the open human wait, NULL if none (last column: v1 -> v2 ALTER)
+  waiting_since     TEXT,                  -- start of the oldest open human wait, NULL if none (v1 -> v2 ALTER)
+  observer_wait_ms  INTEGER NOT NULL DEFAULT 0, -- closed waits only an observer (an agent answering for the person) answered (v5 -> v6 ALTER)
+  observer_waits    INTEGER NOT NULL DEFAULT 0, -- this attempt's non-planning waits an observer answered (v5 -> v6 ALTER)
   PRIMARY KEY (factory_id, attempt_id)
 );
 

@@ -76,3 +76,11 @@ func TestRejects(t *testing.T) {
 		}
 	}
 }
+
+func TestClosesOldestWaitOrAllPlanningQuestions(t *testing.T) {
+	for kinds, want := range map[string]int{"b": 1, "bb": 1, "pp": 2, "ppb": 2, "pb": 1, "bp": 1, "p": 1} {
+		if got := Closes(len(kinds), func(i int) string { return map[byte]string{'p': "planning", 'b': "blocking"}[kinds[i]] }); got != want {
+			t.Errorf("%s: %d, want %d", kinds, got, want)
+		}
+	}
+}

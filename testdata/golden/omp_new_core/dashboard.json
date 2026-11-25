@@ -516,6 +516,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:02:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -526,6 +527,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:02:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -536,6 +538,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:13:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -971,6 +974,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:02:00.000Z",
       "end_reason": null,
       "factory_id": "omp",
@@ -981,6 +985,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:02:00.000Z",
       "end_reason": null,
       "factory_id": "omp",
@@ -991,6 +996,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:13:00.000Z",
       "end_reason": null,
       "factory_id": "omp",

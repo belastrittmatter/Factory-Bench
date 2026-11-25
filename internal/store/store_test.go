@@ -40,7 +40,8 @@ func TestOpenMigrates(t *testing.T) {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
 	// v5 is the current schema without the v5 -> v6 columns; v4 also without send_backs and usage.session, v3 also without usage.step
-	v5 := regexp.MustCompile(`,( *(?:--[^\n]*)?)(?:\n[^\n]*\(v5 -> v6 ALTER\))+\n\);`).ReplaceAllString(schema, " $1\n);")
+	v5 := regexp.MustCompile(`(?:\n[^\n]*\(v5 -> v6 ALTER\)[^\n]*)+(\n  PRIMARY KEY)`).ReplaceAllString(schema, "$1")
+	v5 = regexp.MustCompile(`,( *(?:--[^\n]*)?)(?:\n[^\n]*\(v5 -> v6 ALTER\))+\n\);`).ReplaceAllString(v5, " $1\n);")
 	if strings.Contains(v5, "v5 -> v6") || strings.Contains(v5, "harness") {
 		t.Fatal("schema.sql no longer has the v5 -> v6 columns this test removes")
 	}

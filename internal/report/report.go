@@ -10,6 +10,7 @@ import (
 	"text/tabwriter"
 	"time"
 
+	"factorybench/internal/contract"
 	"factorybench/internal/store"
 )
 
@@ -384,16 +385,17 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 		return nil, nil, err
 	}
 
-	waitingSince := map[string]string{} // factory \x00 attempt -> open wait, paired like normalize does
+	waitingSince := map[string][][2]string{} // factory \x00 attempt -> open waits (ts, kind), oldest first, paired like normalize does
 	err = store.Each(db, `SELECT e.factory_id, a.attempt_id, a.parent_attempt_id, e.ts, e.type, json_extract(e.payload, '$.payload.reason'),
-		json_extract(e.payload, '$.payload.pr_url'), json_extract(e.payload, '$.payload.source'), json_extract(e.payload, '$.payload.kind')
+		json_extract(e.payload, '$.payload.pr_url'), json_extract(e.payload, '$.payload.source'), json_extract(e.payload, '$.payload.kind'),
+		json_extract(e.payload, '$.payload.by')
 		FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 		WHERE e.source = 'contract' AND e.rejected IS NULL AND a.repo = ? AND a.issue = ?
 		  AND e.type IN ('human.waiting', 'human.resumed', 'human.steering', 'pr.linked')
 		ORDER BY e.ts, e.factory_id, e.id`, func(r *sql.Rows) error {
 		var f, att, ts, typ string
-		var parent, reason, url, src, kind sql.NullString
-		if err := r.Scan(&f, &att, &parent, &ts, &typ, &reason, &url, &src, &kind); err != nil {
+		var parent, reason, url, src, kind, by sql.NullString
+		if err := r.Scan(&f, &att, &parent, &ts, &typ, &reason, &url, &src, &kind, &by); err != nil {
 			return err
 		}
 		l := line{ts: ts, rank: 2, who: f}
@@ -403,18 +405,20 @@ func timeline(db *sql.DB, repo string, issue int64, now time.Time) ([]*attempt, 
 			if kind.Valid {
 				l.text = kind.String + " " + l.text
 			}
-			if k := f + "\x00" + att; waitingSince[k] == "" {
-				waitingSince[k] = ts
-			}
+			k := f + "\x00" + att
+			waitingSince[k] = append(waitingSince[k], [2]string{ts, kind.String})
 		case "human.resumed":
 			l.text = "resumed by human (" + reason.String + ")"
+			if by.String == "observer" {
+				l.text = "resumed by observer (" + reason.String + ")"
+			}
 			k := f + "\x00" + att
-			if waitingSince[k] == "" && parent.Valid { // plan waited, its build resumed
+			if len(waitingSince[k]) == 0 && parent.Valid { // plan waited, its build resumed
 				k = f + "\x00" + parent.String
 			}
-			if s := waitingSince[k]; s != "" {
-				l.extra = "waited " + dur(parse(ts).Sub(parse(s)))
-				delete(waitingSince, k)
+			if s := waitingSince[k]; len(s) > 0 {
+				l.extra = "waited " + dur(parse(ts).Sub(parse(s[0][0])))
+				waitingSince[k] = s[contract.Closes(len(s), func(i int) string { return s[i][1] }):]
 			}
 		case "human.steering":
 			l.text = "human steering (" + src.String + ")"

@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"factorybench/internal/contract"
 	"factorybench/internal/store"
 )
 
@@ -298,19 +299,20 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 // waitsSQL is every human.waiting and human.resumed of the attempts a matching filter, oldest first, for waits.
 func waitsSQL(filter string) string {
 	return `SELECT e.factory_id, a.attempt_id, a.parent_attempt_id, e.ts, e.type, json_extract(e.payload, '$.payload.reason') AS reason,
-	json_extract(e.payload, '$.payload.kind') AS kind FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
+	json_extract(e.payload, '$.payload.kind') AS kind, json_extract(e.payload, '$.payload.by') AS by FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 	WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed') AND ` + filter + ` ORDER BY e.ts, e.factory_id, e.id`
 }
 
-// waits is one row per human.waiting (waitsSQL rows), ended by the next human.resumed of its attempt, or of its child
-// when it has none open (plan waits, build resumes); end nil while open. attempt, when set, keeps only that attempt's.
+// waits is one row per human.waiting (waitsSQL rows): each human.resumed ends the oldest open wait of its attempt, or of
+// its parent when it has none open (plan waits, build resumes), as contract.Closes says; end and by (person, observer or nil) are nil while open.
+// attempt, when set, keeps only that attempt's.
 func waits(evs []map[string]any, attempt string) []map[string]any {
 	out, open := []map[string]any{}, map[string][]map[string]any{}
 	for _, e := range evs {
 		f, att := e["factory_id"].(string), e["attempt_id"].(string)
 		k := f + "\x00" + att
 		if e["type"] == "human.waiting" {
-			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"], "end_reason": nil, "auto_answered": false}
+			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"], "end_reason": nil, "by": nil, "auto_answered": false}
 			open[k] = append(open[k], w)
 			if attempt == "" || att == attempt {
 				out = append(out, w)
@@ -320,11 +322,14 @@ func waits(evs []map[string]any, attempt string) []map[string]any {
 		if p, ok := e["parent_attempt_id"].(string); ok && len(open[k]) == 0 {
 			k = f + "\x00" + p
 		}
-		for _, w := range open[k] {
-			w["end"], w["end_reason"] = e["ts"], e["reason"]
-			w["auto_answered"] = autoAnswered(w)
+		if ws := open[k]; len(ws) > 0 {
+			n := contract.Closes(len(ws), func(i int) string { k, _ := ws[i]["kind"].(string); return k })
+			for _, w := range ws[:n] {
+				w["end"], w["end_reason"], w["by"] = e["ts"], e["reason"], e["by"]
+				w["auto_answered"] = autoAnswered(w)
+			}
+			open[k] = ws[n:]
 		}
-		delete(open, k)
 	}
 	return out
 }
