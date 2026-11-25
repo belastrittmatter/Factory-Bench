@@ -36,7 +36,9 @@
             "input": 2000,
             "output": 500,
             "cache_read": 1000,
-            "phase": "implement"
+            "phase": "implement",
+            "step": "  engineer  ",
+            "session": " sess-1 "
           }
         },
         {
@@ -73,7 +75,8 @@
             "input": 800,
             "output": 100,
             "cache_read": 1000,
-            "phase": "verify"
+            "phase": "verify",
+            "step": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
           }
         },
         {
@@ -190,7 +193,7 @@
             "input": 1,
             "output": 1,
             "cache_read": 1000,
-            "phase": "plan"
+            "phase": "design"
           }
         },
         {

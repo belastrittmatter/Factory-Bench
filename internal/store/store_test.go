@@ -38,13 +38,22 @@ func TestOpenMigrates(t *testing.T) {
 	if v1 == schemaV2 {
 		t.Fatal("schema_v2.sql no longer has the waiting_since line this test removes")
 	}
-	// v3 is the current schema without usage.step
-	v3 := strings.Replace(schema, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)", "", 1)
+	// v4 is the current schema without send_backs and usage.session, v3 also without usage.step
+	noSendBacks := strings.Replace(schema, create("send_backs"), "", 1)
+	if noSendBacks == schema {
+		t.Fatal("schema.sql no longer has the send_backs table this test removes")
+	}
+	v4 := strings.Replace(noSendBacks, "\n  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)", "", 1)
+	v4 = strings.Replace(v4, "step              TEXT,                   -- worker step", "step              TEXT                    -- worker step", 1)
+	if v4 == noSendBacks || strings.Contains(v4, "  session ") {
+		t.Fatal("schema.sql no longer has the usage.session line this test removes")
+	}
+	v3 := strings.Replace(v4, "\n  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)", "", 1)
 	v3 = strings.Replace(v3, "agent_id          TEXT,                   -- subagent", "agent_id          TEXT                    -- subagent", 1)
-	if v3 == schema || strings.Contains(v3, "  step ") {
+	if v3 == v4 || strings.Contains(v3, "  step ") {
 		t.Fatal("schema.sql no longer has the usage.step line this test removes")
 	}
-	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3} {
+	for v, old := range map[int]string{1: v1, 2: schemaV2, 3: v3, 4: v4} {
 		t.Run(fmt.Sprint("v", v), func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "fb.db")
 			raw, err := sql.Open("sqlite", "file:"+path)

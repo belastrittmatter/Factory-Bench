@@ -14,7 +14,7 @@ import (
 )
 
 // tables lists every table normalize rebuilds.
-var tables = []string{"work_items", "attempts", "usage", "gates", "prs", "checks", "reviews", "pr_commits",
+var tables = []string{"work_items", "attempts", "usage", "gates", "send_backs", "prs", "checks", "reviews", "pr_commits",
 	"tool_calls", "agent_runs", "api_errors"}
 
 type event struct {
@@ -50,13 +50,19 @@ type usage struct {
 	CacheRead, CacheWrite, Reasoning, Duration *int64
 	Cost                                       *float64
 	Provenance, PriceVersion, Phase, Agent     *string
-	Step                                       *string // worker step (factorybench.step), OTLP only
+	Step                                       *string // worker step (factorybench.step on OTLP logs, payload.step on usage events)
+	Session                                    *string // agent session (session.id on OTLP logs, payload.session on usage events)
 }
 
 type gate struct {
 	Factory, Attempt, TS, Name string
 	Passed                     bool
 	Reason                     *string
+}
+
+type sendBack struct {
+	Factory, Attempt, TS, From, To string
+	Reason, Kind                   *string
 }
 
 type pr struct {
@@ -95,6 +101,7 @@ type result struct {
 	Attempts  []attempt
 	Usage     []usage
 	Gates     []gate
+	SendBacks []sendBack
 	PRs       []pr
 	Checks    []check
 	Reviews   []review
@@ -105,6 +112,15 @@ type result struct {
 }
 
 func ptr[T any](v T) *T { return &v }
+
+// stepName is a worker step as stored: free text, trimmed, cut (not rejected) past 64 characters.
+func stepName(s string) string {
+	s = strings.TrimSpace(s)
+	if r := []rune(s); len(r) > 64 {
+		s = strings.TrimSpace(string(r[:64]))
+	}
+	return s
+}
 
 func str(s string) *string {
 	if s == "" {
@@ -218,11 +234,13 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			a.PRURL = ptr(p.PRURL)
 		case "gate":
 			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
+		case "send_back":
+			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind)})
 		case "usage":
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
-				Phase: str(p.Phase), Agent: str(p.AgentID)}, p.ReportedCostUSD))
+				Phase: str(p.Phase), Step: str(stepName(p.Step)), Session: str(strings.TrimSpace(p.Session)), Agent: str(p.AgentID)}, p.ReportedCostUSD))
 		case "activity":
 			r := runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			if r != nil && r.Phase == nil && contract.Phases[p.Phase] {
@@ -395,11 +413,14 @@ func Run(db *sql.DB) error {
 			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
 	}
 	for _, u := range d.Usage {
-		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
-			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step)
+		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
+			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step, u.Session)
 	}
 	for _, g := range d.Gates {
 		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)
+	}
+	for _, s := range d.SendBacks {
+		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind)
 	}
 	for _, p := range d.PRs {
 		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits,

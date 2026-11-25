@@ -1,0 +1,8 @@
+{
+  "spec": "factorybench/v1",
+  "id": "run-8f2c:e93",
+  "type": "send_back",
+  "ts": "2026-11-11T09:31:00Z",
+  "attempt_id": "run-8f2c",
+  "payload": { "from": "qc", "to": "engineer", "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed", "kind": "fix-attempt" }
+}

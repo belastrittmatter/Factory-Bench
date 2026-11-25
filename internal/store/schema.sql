@@ -68,9 +68,10 @@ CREATE TABLE usage (                        -- one row per usage event
   cost_usd          REAL,                   -- NULL when it can't be priced
   cost_provenance   TEXT CHECK (cost_provenance IN ('reported', 'estimated')),
   price_version     TEXT,
-  phase             TEXT,                   -- implement | verify | review, NULL if not sent
+  phase             TEXT,                   -- plan | implement | verify | review, NULL if not sent
   agent_id          TEXT,                   -- subagent, NULL = main agent (v2 -> v3 ALTER)
-  step              TEXT                    -- worker step as the factory names it (factorybench.step), NULL if not sent (last column: v3 -> v4 ALTER)
+  step              TEXT,                   -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)
+  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)
 );
 
 CREATE TABLE tool_calls (                   -- OTLP tool_result, or a contract activity with a tool
@@ -119,6 +120,16 @@ CREATE TABLE gates (                        -- factory-internal gate results (ga
   name         TEXT NOT NULL,               -- e.g. build, guard, test
   passed       INTEGER NOT NULL,            -- 1 | 0
   reason       TEXT
+);
+
+CREATE TABLE send_backs (                   -- send_back events: the factory sent the run back to an earlier step (v4 -> v5)
+  factory_id   TEXT NOT NULL,
+  attempt_id   TEXT NOT NULL,
+  ts           TEXT NOT NULL,
+  from_step    TEXT NOT NULL,               -- e.g. qc, code-review
+  to_step      TEXT NOT NULL,               -- e.g. engineer, analyzer
+  reason       TEXT,
+  kind         TEXT                         -- e.g. fix-attempt, retry-token
 );
 
 CREATE TABLE prs (

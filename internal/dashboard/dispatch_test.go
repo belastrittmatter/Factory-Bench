@@ -130,14 +130,12 @@ func TestRework(t *testing.T) {
 		{[]string{"x", "x", "x"}, 0, 2},
 		{[]string{"x", "y", "x", "z", "y"}, 2, 0},
 		{[]string{"x", "x", "y", "x", "x"}, 1, 2},
+		{[]string{"red", "green", "review", "green", "review"}, 1, 0}, // review running again after green is not a send-back
+		{[]string{"a", "b", "c", "a", "b", "c", "b", "c"}, 2, 0},
 	} {
-		b, r, back := rework(c.lanes)
-		n := 0
-		for _, k := range back {
-			n += k
-		}
-		if b != c.bounces || r != c.redo || n != b {
-			t.Errorf("rework(%v) = %d, %d; want %d, %d", c.lanes, b, r, c.bounces, c.redo)
+		b, r := rework(c.lanes)
+		if len(b) != c.bounces || r != c.redo {
+			t.Errorf("rework(%v) = %v, %d; want %d, %d", c.lanes, b, r, c.bounces, c.redo)
 		}
 	}
 }
@@ -192,7 +190,16 @@ func TestSummarize(t *testing.T) {
 		{Item: "o/r#2", Factory: "x", HasPR: true, ToPRSeconds: f(300), CostUSD: f(3), CostLowerBound: true},
 		{Item: "o/r#3", Factory: "x"}, // no usage at all
 	}
-	s := summarize(rows, map[string][]string{"o/r#1": {"a", "b", "a"}, "o/r#2": {"a", "a"}})
+	d := func(f, att string, lanes ...string) []dispatchRow {
+		var out []dispatchRow
+		for _, l := range lanes {
+			out = append(out, dispatchRow{Factory: f, Attempt: att, Lane: l})
+		}
+		return out
+	}
+	// #1: x is sent back once; y's interleaved dispatches on the same issue are its own and not a send-back of x
+	s := summarize(rows, map[string][]dispatchRow{"o/r#1": append(append(d("x", "a1", "a", "b"), d("y", "a1", "b", "a")...), d("x", "a1", "a")...),
+		"o/r#2": d("x", "a2", "a", "a")})
 	if s.Issues != 3 || s.WithPR != 2 || s.Merged != 1 {
 		t.Errorf("funnel: %+v", s)
 	}

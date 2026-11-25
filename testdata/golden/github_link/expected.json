@@ -115,6 +115,7 @@
         "submitted_at": "2026-11-11T10:15:00Z"
       }
     ],
+    "send_backs": [],
     "tool_calls": [],
     "usage": [
       {
@@ -132,6 +133,7 @@
         "phase": null,
         "price_version": null,
         "reasoning": null,
+        "session": null,
         "step": null,
         "ts": "2026-11-11T10:05:00.000Z"
       }

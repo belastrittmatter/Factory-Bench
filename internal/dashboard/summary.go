@@ -1,6 +1,8 @@
 package dashboard
 
 import (
+	"database/sql"
+	"fmt"
 	"net/http"
 	"regexp"
 	"sort"
@@ -8,6 +10,7 @@ import (
 	"time"
 
 	"factorybench/internal/report"
+	"factorybench/internal/store"
 )
 
 // summary is the Overview's issue funnel, time to PR, cost per merged issue and rework. Nil = nothing to measure.
@@ -22,9 +25,9 @@ type summary struct {
 	ReworkPerIssue         *float64 // bounces per issue that has dispatches
 }
 
-// summarize aggregates report.ItemRows (one row per issue and factory) by issue. lanes holds the dispatched lanes of
-// each issue ("repo#n") in order; a nil map means no run manifests, so rework stays unknown.
-func summarize(rows []report.ItemRow, lanes map[string][]string) summary {
+// summarize aggregates report.ItemRows (one row per issue and factory) by issue. lanes holds the dispatches of each
+// issue ("repo#n") of the factories in rows, each with its attempt; a nil map means no run manifests, so rework stays unknown.
+func summarize(rows []report.ItemRow, lanes map[string][]dispatchRow) summary {
 	var s summary
 	pr, merged := map[string]bool{}, map[string]bool{}
 	seen := map[string]bool{}
@@ -59,7 +62,7 @@ func summarize(rows []report.ItemRow, lanes map[string][]string) summary {
 			s.Merged++
 		}
 		if l := lanes[k]; len(l) > 0 {
-			b, r, _ := rework(l)
+			b, r := laneRework(l)
 			s.IssuesWithDispatches++
 			s.Bounces += b
 			s.Redispatches += r
@@ -96,20 +99,40 @@ func (s *server) summaryAPI(r *http.Request) (any, error) {
 			rows = append(rows, u)
 		}
 	}
-	var lanes map[string][]string
+	var lanes map[string][]dispatchRow
 	if s.local && s.o.Runs != "" {
 		// shortcut: manifests name cards by issue number only; two repos with the same issue number share rework counts
 		rl, err := s.manifests()
 		if err != nil {
 			return nil, err
 		}
-		ds := rl.dispatches
-		lanes = map[string][]string{}
+		wins := map[string][]attemptWin{} // repo#n -> its attempts, every factory: a dispatch belongs to the attempt it ran in
+		err = store.Each(s.db, `SELECT repo, issue, factory_id, attempt_id, started_at, ended_at FROM attempts`, func(r *sql.Rows) error {
+			var repo, ts string
+			var n int64
+			var end sql.NullString
+			var w attemptWin
+			err := r.Scan(&repo, &n, &w.Factory, &w.ID, &ts, &end)
+			w.Start = parseTS(ts)
+			if end.Valid {
+				w.End = tsPtr(end.String)
+			}
+			k := fmt.Sprintf("%s#%d", repo, n)
+			wins[k] = append(wins[k], w)
+			return err
+		})
+		if err != nil {
+			return nil, err
+		}
+		lanes = map[string][]dispatchRow{}
 		for _, u := range rows {
-			if m := itemKey.FindStringSubmatch(u.Item); m != nil {
+			if m := itemKey.FindStringSubmatch(u.Item); m != nil && lanes[u.Item] == nil {
 				n, _ := strconv.ParseInt(m[2], 10, 64)
-				for _, d := range ds[n] {
-					lanes[u.Item] = append(lanes[u.Item], d.Lane)
+				lanes[u.Item] = []dispatchRow{}
+				for _, d := range groupByDispatch(rl.dispatches[n], wins[u.Item], nil, time.Now()) {
+					if f == "" || d.Factory == f {
+						lanes[u.Item] = append(lanes[u.Item], d)
+					}
 				}
 			}
 		}

@@ -13,7 +13,7 @@ import (
 const Spec = "factorybench/v1"
 
 // Phases are the allowed usage phases.
-var Phases = map[string]bool{"implement": true, "verify": true, "review": true}
+var Phases = map[string]bool{"plan": true, "implement": true, "verify": true, "review": true}
 
 // Event is the envelope of one contract event.
 type Event struct {
@@ -50,6 +50,10 @@ type Payload struct {
 	ReportedCostUSD *float64 `json:"reported_cost_usd"`
 	DurationMS      *int64   `json:"duration_ms"`
 	Phase           string   `json:"phase"`
+	// usage: the worker step this session ran (free text, optional); see factorybench.step on /v1/logs.
+	Step string `json:"step"`
+	// usage: the agent session this usage belongs to (optional); usage rows with one session id are one session.
+	Session string `json:"session"`
 	// usage and activity: which subagent, if any (none = the main agent). On activity, Phase (with AgentID) is the
 	// phase of that subagent's usage rows that have none of their own.
 	Agent         string `json:"agent"`
@@ -64,6 +68,11 @@ type Payload struct {
 	// human.*, gate, attempt.finished
 	Reason string `json:"reason"`
 	Source string `json:"source"`
+	// human.waiting: planning (a question before the work is confirmed) or blocking; send_back: the factory's kind
+	Kind string `json:"kind"`
+	// send_back: the step that sent the run back, and the step it goes back to
+	From string `json:"from"`
+	To   string `json:"to"`
 	// pr.linked
 	PRURL string `json:"pr_url"`
 	// attempt.finished
@@ -72,7 +81,7 @@ type Payload struct {
 
 var types = map[string]bool{
 	"attempt.started": true, "usage": true, "activity": true, "human.waiting": true,
-	"human.resumed": true, "human.steering": true, "pr.linked": true, "attempt.finished": true, "gate": true,
+	"human.resumed": true, "human.steering": true, "pr.linked": true, "attempt.finished": true, "gate": true, "send_back": true,
 }
 
 var repoRe = regexp.MustCompile(`^[\w.-]+/[\w.-]+$`)
@@ -132,11 +141,11 @@ func Validate(raw []byte) (Event, Payload, error) {
 		case p.ReportedCostUSD != nil && *p.ReportedCostUSD < 0:
 			return e, p, errors.New("payload.reported_cost_usd must be >= 0")
 		case p.Phase != "" && !Phases[p.Phase]:
-			return e, p, errors.New("payload.phase must be implement, verify, or review")
+			return e, p, errors.New("payload.phase must be plan, implement, verify, or review")
 		}
 	case "activity":
 		if p.Phase != "" && !Phases[p.Phase] {
-			return e, p, errors.New("payload.phase must be implement, verify, or review")
+			return e, p, errors.New("payload.phase must be plan, implement, verify, or review")
 		}
 	case "gate":
 		switch {
@@ -152,6 +161,17 @@ func Validate(raw []byte) (Event, Payload, error) {
 	case "attempt.finished":
 		if p.Status != "completed" && p.Status != "failed" && p.Status != "cancelled" {
 			return e, p, errors.New("payload.status must be completed, failed, or cancelled")
+		}
+	case "human.waiting":
+		if p.Kind != "" && p.Kind != "planning" && p.Kind != "blocking" {
+			return e, p, errors.New("payload.kind must be planning or blocking")
+		}
+	case "send_back":
+		switch {
+		case p.From == "":
+			return e, p, errors.New("payload.from missing")
+		case p.To == "":
+			return e, p, errors.New("payload.to missing")
 		}
 	case "human.steering":
 		if p.Source != "" && p.Source != "comment" && p.Source != "chat" && p.Source != "label" {

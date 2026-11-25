@@ -39,6 +39,7 @@
     "pr_commits": [],
     "prs": [],
     "reviews": [],
+    "send_backs": [],
     "tool_calls": [],
     "usage": [
       {
@@ -56,6 +57,7 @@
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": 200,
+        "session": null,
         "step": null,
         "ts": "2026-11-11T09:18:00.000Z"
       },
@@ -74,6 +76,7 @@
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "session": null,
         "step": null,
         "ts": "2026-11-11T09:02:00.000Z"
       }

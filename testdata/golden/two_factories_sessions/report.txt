@@ -1,0 +1,65 @@
+acme/app#40   outcome open · survival n/a
+  11-20 10:00  omp  attempt o1 started (request)                                                      config turbo-12f@abc+omp@1.0+model:claude-haiku-5-5
+  11-20 10:01       session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   1m0s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:02  cc   attempt c1 started (request)                                                      config turbo-12f@abc+claude@2.1+model:claude-haiku-5-5
+  11-20 10:02       session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:03       session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:05  omp  session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   2m0s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:05       session o1 claude-sonnet-5-5: 1.0k in / 500 cache read / ? cache write / 200 out  <$0.01 est. (prices 2026-11-13)
+  11-20 10:06  cc   session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:08       session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:10  omp  session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   30s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:11  cc   session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:12  omp  session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   40s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:13  cc   session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:14       session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:15  omp  session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   20s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:16  cc   session c1 claude-haiku-5-5: 1.0k in / 500 cache read / 0 cache write / 200 out   4s session, <$0.01 est. (prices 2026-11-13)
+  11-20 10:20  omp  session o1 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   <$0.01 est. (prices 2026-11-13)
+  11-20 10:25  cc   attempt c1 completed                                                              23m0s, <$0.01 est.
+  11-20 10:30  omp  attempt o1 failed                                                                 30m0s, $0.01 est.
+  11-20 11:00       attempt o2 started (request, parent o1)                                           config turbo-12f@abc+omp@1.0+model:claude-haiku-5-5
+  11-20 11:01       session o2 claude-haiku-5-5: 1.0k in / 500 cache read / ? cache write / 200 out   50s session, <$0.01 est. (prices 2026-11-13)
+  11-20 11:10       attempt o2 completed                                                              10m0s, <$0.01 est.
+  totals  omp            2 attempts (1 completed, 1 failed) · 7 sessions · tokens 8.0k in / 1.6k out / 4.0k cache · 1h10m0s active / 1h10m0s elapsed · 0 human waits (0s) · $0.01 est. · usage coverage 2/2 attempts
+  totals  cc             1 attempts (1 completed) · 5 sessions · tokens 8.0k in / 1.6k out / 4.0k cache · 23m0s active / 23m0s elapsed · 0 human waits (0s) · <$0.01 est. · usage coverage 1/1 attempts
+  totals  all factories  3 attempts (2 completed, 1 failed) · 12 sessions · tokens 16.0k in / 3.2k out / 8.0k cache · 1h10m0s elapsed (wall clock) · 0 human waits (0s) · $0.01 est. · usage coverage 3/3 attempts
+
+$ report items
+item         title  factory  outcome  attempts      tokens  cost    active   elapsed  human  PR  escaped
+acme/app#40         cc       open     1             13.6k   <$0.01  23m0s    23m0s    0      -   0
+acme/app#40         omp      open     2 (1 failed)  13.6k   $0.01   1h10m0s  1h10m0s  0      -   0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+open one: factorybench report item <owner/repo#n>
+
+$ report factories
+metric                       cc                            omp
+work items                   1                             1
+attempts                     1 (0 failed)                  2 (1 failed)
+sessions                     5                             7
+tokens / issue               13.6k                         13.6k
+time / issue                 23m0s active / 23m0s elapsed  1h10m0s active / 1h10m0s elapsed
+cost total                   <$0.01 est.                   $0.01 est.
+cost / issue                 <$0.01                        $0.01
+cost / merged issue          n/a (0 merged)                n/a (0 merged)
+verification tokens / PR     n/a (no PRs)                  n/a (no PRs)
+issues closed by agent       n/a (no github login)         n/a (no github login)
+first-pass plan approval     n/a                           n/a
+first-pass PR approval       n/a                           n/a
+review rounds / PR           n/a                           n/a
+human interventions / issue  0.0 (0/1)                     0.0 (0/1)
+escaped defects              n/a (no PRs)                  n/a (no PRs)
+usage coverage               100% (1/1) attempts           100% (2/2) attempts
+activity coverage            0% (0/1) attempts             0% (0/2) attempts
+unpriced sessions            0                             0
+rejected events              0                             0
++? = lower bound: some attempts sent no usage or some sessions couldn't be priced
+
+Gates (defects caught)
+  none
+
+CI suite
+  none
+
+$ report live
+factory  issue  attempt  status  elapsed  active  human wait  tokens  cost  last event

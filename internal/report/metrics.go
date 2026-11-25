@@ -30,6 +30,7 @@ type mUse struct {
 	cost        sql.NullFloat64
 	prov, phase sql.NullString
 	ms          sql.NullInt64
+	session     sql.NullString
 }
 
 type mTool struct {
@@ -55,7 +56,7 @@ type mCommit struct {
 	at    string
 }
 type mCheck struct{ name, sha, concl, started, done string } // "" = NULL
-type mEvent struct{ typ, attempt, ts string }
+type mEvent struct{ typ, attempt, ts, kind string }          // kind: human.waiting planning or blocking, else ""
 type mGate struct {
 	name   string
 	passed bool
@@ -96,10 +97,10 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 					&a.parent, &a.ended, &a.pr, &a.waitMS)
 			}),
 		store.Each(db, `SELECT factory_id, attempt_id, input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0),
-			cost_usd, cost_provenance, phase, duration_ms FROM usage`, func(r *sql.Rows) error {
+			cost_usd, cost_provenance, phase, duration_ms, session FROM usage`, func(r *sql.Rows) error {
 			var f, id string
 			var u mUse
-			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase, &u.ms)
+			err := r.Scan(&f, &id, &u.tokens, &u.cost, &u.prov, &u.phase, &u.ms, &u.session)
 			d.usage[f+"\x00"+id] = append(d.usage[f+"\x00"+id], u)
 			return err
 		}),
@@ -161,14 +162,14 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 			d.checks[key(repo, n)] = append(d.checks[key(repo, n)], c)
 			return err
 		}),
-		store.Each(db, `SELECT e.factory_id, a.repo, a.issue, e.type, a.attempt_id, e.ts FROM events e
+		store.Each(db, `SELECT e.factory_id, a.repo, a.issue, e.type, a.attempt_id, e.ts, coalesce(json_extract(e.payload, '$.payload.kind'), '') FROM events e
 			JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 			WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed', 'human.steering')
 			ORDER BY e.ts, e.id`, func(r *sql.Rows) error {
 			var f, repo string
 			var n int64
 			var e mEvent
-			err := r.Scan(&f, &repo, &n, &e.typ, &e.attempt, &e.ts)
+			err := r.Scan(&f, &repo, &n, &e.typ, &e.attempt, &e.ts, &e.kind)
 			k := f + "\x00" + key(repo, n)
 			d.human[k] = append(d.human[k], e)
 			return err
@@ -429,9 +430,10 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 		if len(uses) > 0 {
 			u.withUsage++
 		}
+		seen := map[string]bool{}
 		for _, s := range uses {
 			u.run.modelMS += s.ms.Int64
-			u.sessions++
+			u.sessions += newSession(seen, s.session)
 			u.tokens += s.tokens
 			u.cost.add(s.cost, s.prov)
 			if s.phase.Valid {
@@ -485,7 +487,8 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 
 	evs := d.human[u.factory+"\x00"+u.item.key]
 	for _, e := range evs {
-		if ids[e.attempt] != nil && (e.typ == "human.waiting" || e.typ == "human.steering") {
+		// a planning wait (a question before the work is confirmed) is part of the job, not an intervention
+		if ids[e.attempt] != nil && (e.typ == "human.waiting" && e.kind != "planning" || e.typ == "human.steering") {
 			u.human++
 		}
 	}
@@ -701,6 +704,7 @@ type ItemRow struct {
 	// the same values as numbers, for aggregates; nil = unknown or nothing to measure
 	HasPR, Merged  bool
 	ToPRSeconds    *float64
+	ActiveMS       int64    `json:"-"` // elapsed minus human waits, for the dashboard's per-factory numbers
 	CostUSD        *float64 // priced sessions; nil when nothing was priced
 	CostLowerBound bool     // some sessions unpriced or attempts without usage (the +? of Cost)
 
@@ -734,7 +738,7 @@ func ItemRows(db *sql.DB, now time.Time) ([]ItemRow, error) {
 	for _, u := range buildUnits(d, false, now) {
 		r := ItemRow{Item: u.item.key, Title: u.item.title, Factory: u.factory, Outcome: u.outcome, Attempts: u.attemptsText(),
 			Tokens: u.tokensString(), Cost: money(u.cost.rep+u.cost.est, u.cost, u.attempts-u.withUsage), Active: dur(u.active),
-			Elapsed: dur(u.elapsed), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
+			Elapsed: dur(u.elapsed), ActiveMS: u.active.Milliseconds(), Human: u.human, Escaped: u.escaped, ToPR: "n/a", ToMerge: "n/a", ReviewRounds: "n/a", CIFirstPush: "n/a", Size: "?"}
 		if u.staged {
 			r.Staged, r.Stages, r.Retries, r.Failed = true, u.stages, u.retries, u.failed
 		}

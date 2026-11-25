@@ -46,6 +46,9 @@ func status(state string, lastEvent *time.Time, now time.Time, idle time.Duratio
 	return state
 }
 
+// nSessionsSQL counts the sessions of usage rows: distinct session ids, and one per row without one.
+const nSessionsSQL = `count(DISTINCT session) + sum(session IS NULL)`
+
 // lastEventSQL is the newest event of attempt a (any source), the input to status.
 const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.factory_id AND json_extract(e.payload, '$.attempt_id') = a.attempt_id)`
 
@@ -53,7 +56,7 @@ const lastEventSQL = `(SELECT max(ts) FROM events e WHERE e.factory_id = a.facto
 // its first and last event, phase(s) and step (one, normally), phases sorted so one set of phases is always one string. The filter narrows the events before grouping, so a page reads only its own sessions.
 func sessionsSQL(filter string) string {
 	return `SELECT factory_id, json_extract(payload, '$."factorybench.attempt"') AS attempt_id, json_extract(payload, '$."session.id"') AS session,
-	min(ts) AS first_ts, max(ts) AS last_ts,
+	min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
 	group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
 	group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
 	WHERE source = 'otlp' AND (factory_id, json_extract(payload, '$."factorybench.attempt"')) IN (SELECT factory_id, attempt_id FROM attempts a WHERE ` + filter + `)
@@ -299,16 +302,16 @@ func (s *server) live(r *http.Request) (any, error) {
 			x.Phase = &phase.String
 		}
 		if d := ds[l.Issue]; len(d) > 0 {
-			att, err := rows(s.db, `SELECT attempt_id, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2`, l.Repo, l.Issue)
+			att, err := rows(s.db, `SELECT factory_id, attempt_id, started_at, ended_at FROM attempts WHERE repo = ?1 AND issue = ?2`, l.Repo, l.Issue)
 			if err != nil {
 				return nil, err
 			}
 			var wins []attemptWin
 			for _, a := range att {
-				wins = append(wins, attemptWin{ID: a["attempt_id"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])})
+				wins = append(wins, attemptWin{Factory: a["factory_id"].(string), ID: a["attempt_id"].(string), Start: parseTS(a["started_at"]), End: tsPtr(a["ended_at"])})
 			}
 			for _, r := range groupByDispatch(d, wins, nil, now) { // the newest dispatch that ran in this attempt
-				if r.Attempt == l.Attempt && r.Lane != "" {
+				if r.Factory == l.Factory && r.Attempt == l.Attempt && r.Lane != "" {
 					lane := r.Lane
 					x.Lane = &lane
 				}
@@ -348,17 +351,26 @@ func (s *server) item(r *http.Request) (any, error) {
 		"sessions": sessionsSQL(`a.repo = ?1 AND a.issue = ?2`),
 		"gates": `SELECT g.factory_id, g.attempt_id, g.ts, g.name, g.passed, g.reason FROM gates g JOIN attempts a USING (factory_id, attempt_id)
 			WHERE a.repo = ?1 AND a.issue = ?2 ORDER BY g.ts, g.rowid`,
-		"step_usage": stepUsageSQL(`a.repo = ?1 AND a.issue = ?2`),
-		"prs":        `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
+		"step_usage":  stepUsageSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"step_tools":  stepToolsSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"sent":        sendBacksSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"wait_events": waitsSQL(`a.repo = ?1 AND a.issue = ?2`),
+		"prs":         `SELECT p.* FROM prs p WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2)`,
 		"commits": `SELECT c.* FROM pr_commits c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY committed_at`,
 		"reviews": `SELECT v.* FROM reviews v JOIN prs p ON p.repo = v.repo AND p.number = v.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY submitted_at`,
-		"checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
+		// GitHub check runs of the issue's PRs ("checks" are the factory's gates, see stepData)
+		"ci_checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
 		// the issue's model calls and cache reads, for its KPI tiles
 		"activity": `SELECT count(*) AS calls, sum(coalesce(u.cache_read, 0)) AS cache_read
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2`,
+		// per factory, so the header shows each factory's numbers instead of a sum; unknown stays null, never 0
+		"factories": `SELECT a.factory_id, count(*) AS attempts, sum(u.cost) AS cost_usd, coalesce(sum(u.unpriced), 0) AS unpriced,
+			sum(u.tokens) AS tokens, sum(u.sessions) AS sessions FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, sum(cost_usd) AS cost,
+			  sum(cost_usd IS NULL) AS unpriced, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, ` + nSessionsSQL + ` AS sessions
+			  FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1 ORDER BY min(a.started_at)`,
 		// cost per attempt and phase, for the issue's cost per stage on single-session runs
 		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1, 2, 3 ORDER BY min(u.ts)`,
@@ -367,10 +379,16 @@ func (s *server) item(r *http.Request) (any, error) {
 			return nil, err
 		}
 	}
-	for k, v := range stepData(res["sessions"].([]map[string]any), res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+	for k, v := range stepData(res["sessions"].([]map[string]any), res["step_usage"].([]map[string]any), res["gates"].([]map[string]any),
+		res["step_tools"].([]map[string]any), res["sent"].([]map[string]any)) {
 		res[k] = v
 	}
-	delete(res, "step_usage")
+	if w := waits(res["wait_events"].([]map[string]any), ""); len(w) > 0 {
+		res["waits"] = w
+	}
+	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events"} {
+		delete(res, k)
+	}
 	withStatus(res["attempts"].([]map[string]any), time.Now(), s.o.Idle)
 	withStages(res["attempts"].([]map[string]any))
 	// per-factory metrics of this item from the report (CI on first push, time to PR), so the numbers match `report items`
@@ -385,6 +403,37 @@ func (s *server) item(r *http.Request) (any, error) {
 		}
 	}
 	res["units"] = units
+	var dispatches []dispatchRow
+	if s.local && s.o.Runs != "" {
+		fl, err := s.cardFlow(repo, n, time.Now())
+		if err != nil {
+			return nil, err
+		}
+		dispatches = fl.Dispatches
+	}
+	// sent_back per factory: from its step sequence, else from its lanes in the run manifests, else unknown (nil)
+	for _, x := range res["factories"].([]map[string]any) {
+		x["active_ms"], x["sent_back"] = nil, nil
+		for _, u := range units {
+			if u.Factory == x["factory_id"] {
+				x["active_ms"] = u.ActiveMS
+			}
+		}
+		for _, r := range res["step_runs"].([]map[string]any) {
+			if r["factory_id"] == x["factory_id"] {
+				x["sent_back"] = r["sent_back"]
+			}
+		}
+		var lanes []dispatchRow
+		for _, d := range dispatches {
+			if d.Factory == x["factory_id"] && d.Lane != "" {
+				lanes = append(lanes, d)
+			}
+		}
+		if x["sent_back"] == nil && len(lanes) > 0 {
+			x["sent_back"], _ = laneRework(lanes)
+		}
+	}
 	return res, nil
 }
 
@@ -401,7 +450,7 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			AND e.type IN ('human.waiting', 'human.resumed') AND json_extract(e.payload, '$.attempt_id') = a.attempt_id) AS has_wait_events
 			FROM attempts a WHERE factory_id = ?1 AND attempt_id = ?2`},
 		{"usage", `SELECT ts, model, agent_id, phase, step, input, output, cache_read, cache_write, duration_ms, cost_usd, cost_provenance FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
-		{"phases", `SELECT phase, count(*) AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
+		{"phases", `SELECT phase, ` + nSessionsSQL + ` AS sessions, sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens, sum(cost_usd) AS cost_usd,
 			sum(cost_usd IS NULL) AS unpriced, sum(duration_ms) AS duration_ms FROM usage WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY phase`},
 		{"tools", `SELECT tool_name, count(*) AS calls, sum(success = 0) AS failed, sum(success IS NULL) AS unknown, sum(duration_ms) AS duration_ms
 			FROM tool_calls WHERE factory_id = ?1 AND attempt_id = ?2 GROUP BY tool_name ORDER BY calls DESC`},
@@ -410,10 +459,10 @@ func (s *server) attempt(r *http.Request) (any, error) {
 		{"api_errors", `SELECT ts, agent_id, kind, model, status_code, error, duration_ms FROM api_errors WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts`},
 		{"gates", `SELECT factory_id, attempt_id, ts, name, passed, reason FROM gates WHERE factory_id = ?1 AND attempt_id = ?2 ORDER BY ts, rowid`},
 		{"step_usage", stepUsageSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
-		{"sessions", `SELECT json_extract(payload, '$."session.id"') AS session, min(ts) AS first_ts, max(ts) AS last_ts, count(*) AS events,
-			group_concat(DISTINCT json_extract(payload, '$."factorybench.phase"') ORDER BY json_extract(payload, '$."factorybench.phase"')) AS phase,
-			group_concat(DISTINCT ` + stepSQL + `) AS step FROM events
-			WHERE source = 'otlp' AND factory_id = ?1 AND json_extract(payload, '$."factorybench.attempt"') = ?2 GROUP BY 1 ORDER BY 2`},
+		{"step_tools", stepToolsSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
+		{"sent", sendBacksSQL(`a.factory_id = ?1 AND a.attempt_id = ?2`)},
+		// the run's waits: a plan's wait may be resumed by its build
+		{"wait_events", waitsSQL(`a.factory_id = ?1 AND (a.repo, a.issue) = (SELECT repo, issue FROM attempts WHERE factory_id = ?1 AND attempt_id = ?2)`)},
 		// the attempts of this attempt's run (factory × issue), for its run format
 		{"run", `SELECT r.factory_id, r.attempt_id, r.repo, r.issue, r.role, r.state, r.parent_attempt_id,
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = r.factory_id AND g.attempt_id = r.attempt_id) AS subagents
@@ -436,10 +485,16 @@ func (s *server) attempt(r *http.Request) (any, error) {
 			own = append(own, x)
 		}
 	}
-	for k, v := range stepData(own, res["step_usage"].([]map[string]any), res["gates"].([]map[string]any)) {
+	for k, v := range stepData(own, res["step_usage"].([]map[string]any), res["gates"].([]map[string]any),
+		res["step_tools"].([]map[string]any), res["sent"].([]map[string]any)) {
 		res[k] = v
 	}
-	delete(res, "step_usage")
+	if w := waits(res["wait_events"].([]map[string]any), id); len(w) > 0 {
+		res["waits"] = w
+	}
+	for _, k := range []string{"step_usage", "step_tools", "sent", "wait_events"} {
+		delete(res, k)
+	}
 	res["attempt"] = a[0]
 	// the attempt's own dispatches, and the lane each call, tool call, error and gate ran in
 	at := res["attempt"].(map[string]any)
@@ -453,6 +508,9 @@ func (s *server) attempt(r *http.Request) (any, error) {
 	}
 	mine, runLanes := []dispatchRow{}, []string{} // runLanes: the lane of each dispatch of the run, for its run format
 	for _, d := range fl.Dispatches {
+		if d.Factory != f {
+			continue
+		}
 		if d.Attempt == id {
 			mine = append(mine, d)
 		}
@@ -520,10 +578,10 @@ func (s *server) series(r *http.Request) (any, error) {
 		{"attempts", `SELECT a.factory_id, a.attempt_id, a.repo, a.issue, a.config_version, a.role, a.state, a.parent_attempt_id, a.started_at, a.ended_at, a.human_wait_ms,
 			u.n AS sessions, u.tokens, u.cost AS cost_usd, u.unpriced, w.title,
 			(SELECT count(*) FROM agent_runs g WHERE g.factory_id = a.factory_id AND g.attempt_id = a.attempt_id) AS subagents, ` + lastEventSQL + ` AS last_event
-			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, count(*) AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
+			FROM attempts a LEFT JOIN (SELECT factory_id, attempt_id, ` + nSessionsSQL + ` AS n, sum(cost_usd) AS cost, sum(cost_usd IS NULL) AS unpriced,
 			  sum(input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0)) AS tokens FROM usage GROUP BY 1, 2) u USING (factory_id, attempt_id)
 			LEFT JOIN work_items w USING (repo, issue) ORDER BY a.started_at`},
-		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, count(*) AS sessions,
+		{"usage", `SELECT substr(u.ts, 1, 13) AS hour, u.factory_id, a.config_version, a.repo, u.model, u.phase, ` + nSessionsSQL + ` AS sessions,
 			sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) GROUP BY 1, 2, 3, 4, 5, 6 ORDER BY 1, min(u.ts)`}, // first-use order: page colors follow it
 		{"attempt_phases", `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
