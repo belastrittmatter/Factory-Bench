@@ -46,6 +46,11 @@
         "phase": { "enum": ["plan", "implement", "verify", "review"], "description": "Verification tokens = usage with phase verify or review." },
         "step": { "type": "string", "description": "Worker step this session ran (free text, e.g. analyzer, red, green, reviewer); trimmed, cut to 64 characters." },
         "session": { "type": "string", "description": "Agent session id this usage belongs to; usage with the same session id in one attempt is one session. Without it, each usage event counts as one session." },
+        "harness": { "type": "string", "description": "Agent harness that ran the session, e.g. claude, omp, agy." },
+        "status": { "type": "string", "description": "How the session ended, as the factory names it, e.g. accepted, out-of-turns, failed." },
+        "turns": { "$ref": "#/$defs/count", "description": "Agent turns the session took." },
+        "lane": { "$ref": "#/$defs/lane" },
+        "role": { "type": "string", "description": "Factory role that ran the session, e.g. engineer, reviewer." },
         "agent": { "$ref": "#/$defs/agent" },
         "agent_id": { "$ref": "#/$defs/agent_id" },
         "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }
@@ -59,23 +64,32 @@
         "summary": { "type": "string" },
         "failed": { "type": "boolean", "description": "The tool call failed." },
         "duration_ms": { "$ref": "#/$defs/count" },
+        "lane": { "$ref": "#/$defs/lane" },
         "phase": { "enum": ["plan", "implement", "verify", "review"], "description": "With agent_id: the phase of that subagent's usage (its Claude Code OTLP tokens included) where the usage has none of its own. The first phase sent for an agent wins." },
         "agent": { "$ref": "#/$defs/agent" },
         "agent_id": { "$ref": "#/$defs/agent_id" },
         "parent_agent_id": { "$ref": "#/$defs/parent_agent_id" }
       }
     },
+    "lane": { "type": "string", "description": "Factory lane (parallel work stream) the event belongs to; omit when the run has one." },
     "agent": { "type": "string", "description": "Subagent type, e.g. general-purpose." },
     "agent_id": { "type": "string", "description": "Subagent that did this; omit for the main agent." },
     "parent_agent_id": { "type": "string", "description": "Only for a nested subagent: the subagent that started it. Omit for a child of the main agent." },
     "human.waiting": {
       "type": "object",
+      "description": "Several waits of one attempt may be open at once; each human.resumed closes the oldest open one. Wall time is counted once.",
       "properties": {
         "reason": { "type": "string" },
-        "kind": { "enum": ["planning", "blocking"], "description": "planning: a question before the work is confirmed (not a human intervention); blocking: any later question. Omit when unknown." }
+        "kind": { "enum": ["planning", "blocking"], "description": "planning: a question before the work is confirmed (not a human intervention); blocking: any later question or a command approval. Omit when unknown." }
       }
     },
-    "human.resumed": { "type": "object", "properties": { "reason": { "type": "string" } } },
+    "human.resumed": {
+      "type": "object",
+      "properties": {
+        "reason": { "type": "string" },
+        "by": { "enum": ["person", "observer"], "description": "Who answered: person, or observer (an agent that answers in the person's place; its waits are not human wait time or interventions). Omit when unknown (counted as a person)." }
+      }
+    },
     "human.steering": { "type": "object", "properties": { "source": { "enum": ["comment", "chat", "label"] } } },
     "pr.linked": {
       "type": "object", "required": ["pr_url"],
@@ -88,16 +102,17 @@
     "gate": {
       "type": "object", "required": ["name", "passed"],
       "description": "One factory-internal gate result, e.g. build, guard, or test.",
-      "properties": { "name": { "type": "string", "minLength": 1 }, "passed": { "type": "boolean" }, "reason": { "type": "string" } }
+      "properties": { "name": { "type": "string", "minLength": 1 }, "passed": { "type": "boolean" }, "reason": { "type": "string" }, "lane": { "$ref": "#/$defs/lane" } }
     },
     "send_back": {
       "type": "object", "required": ["from", "to"],
-      "description": "The factory sent the run back from one step to an earlier one. An attempt with any send_back event counts its send-backs from these; without, they are inferred from its step order.",
+      "description": "The factory sent the run back from one step to an earlier one, or retried a step in place (kind retry, from = to). An attempt with any send_back event counts its send-backs from these; without, they are inferred from its step order.",
       "properties": {
         "from": { "type": "string", "minLength": 1, "description": "Step that sent it back, e.g. qc, code-review." },
         "to": { "type": "string", "minLength": 1, "description": "Step it goes back to, e.g. engineer, analyzer." },
         "reason": { "type": "string", "description": "First line of the finding, up to 200 characters." },
-        "kind": { "type": "string", "description": "The factory's kind of send-back, e.g. fix-attempt, retry-token." }
+        "kind": { "type": "string", "description": "The factory's kind of send-back, e.g. fix-attempt, retry-token, retry." },
+        "lane": { "$ref": "#/$defs/lane" }
       }
     }
   },

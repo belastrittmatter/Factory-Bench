@@ -159,13 +159,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:00:07.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:00:30.000Z",
         "phase": "plan",
         "session": "context-creator-001-turn",
         "start": "2026-11-20T10:00:07.000Z",
+        "status": null,
         "step": "context-creator",
         "tokens": 32004,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -175,13 +179,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:00:20.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:00:30.000Z",
         "phase": "plan",
         "session": "context-creator-001-spec",
         "start": "2026-11-20T10:00:20.000Z",
+        "status": null,
         "step": "context-creator",
         "tokens": 13704,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -191,13 +199,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:02:10.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:02:40.000Z",
         "phase": "plan",
         "session": "context-creator-002-turn",
         "start": "2026-11-20T10:02:10.000Z",
+        "status": null,
         "step": "context-creator",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -207,13 +219,17 @@
         "factory_id": "omp",
         "failed_tools": 1,
         "first_ts": "2026-11-20T10:05:29.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:06:00.000Z",
         "phase": "implement",
         "session": "analyzer-t1",
         "start": "2026-11-20T10:05:29.000Z",
+        "status": null,
         "step": "analyzer",
         "tokens": 36508,
-        "tools": 2
+        "tools": 2,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -223,13 +239,17 @@
         "factory_id": "omp",
         "failed_tools": 1,
         "first_ts": "2026-11-20T10:06:20.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:10:00.000Z",
         "phase": "implement",
         "session": "engineer-t1-1",
         "start": "2026-11-20T10:06:20.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 32004,
-        "tools": 2
+        "tools": 2,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -239,13 +259,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:11:03.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:11:30.000Z",
         "phase": "implement",
         "session": "engineer-t1-1-2",
         "start": "2026-11-20T10:11:03.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -255,13 +279,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:13:28.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:14:00.000Z",
         "phase": "implement",
         "session": "engineer-t1-1-3",
         "start": "2026-11-20T10:13:28.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -271,13 +299,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:14:35.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:14:45.000Z",
         "phase": "verify",
         "session": "deslop-t1",
         "start": "2026-11-20T10:14:35.000Z",
+        "status": null,
         "step": "deslop",
         "tokens": 13704,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -287,13 +319,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:14:49.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:14:58.000Z",
         "phase": "verify",
         "session": "red-team-t1",
         "start": "2026-11-20T10:14:49.000Z",
+        "status": null,
         "step": "red-team",
         "tokens": 13704,
-        "tools": 1
+        "tools": 1,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -303,13 +339,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:15:00.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:16:00.000Z",
         "phase": "review",
         "session": "code-review-t1",
         "start": "2026-11-20T10:15:00.000Z",
+        "status": null,
         "step": "code-review",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -319,13 +359,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:16:20.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:17:00.000Z",
         "phase": "implement",
         "session": "analyzer-t1-2",
         "start": "2026-11-20T10:16:20.000Z",
+        "status": null,
         "step": "analyzer",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -335,13 +379,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:18:00.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:19:00.000Z",
         "phase": "implement",
         "session": "engineer-t1-2",
         "start": "2026-11-20T10:18:00.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       },
       {
         "attempt_id": "t12-r1",
@@ -351,13 +399,17 @@
         "factory_id": "omp",
         "failed_tools": 0,
         "first_ts": "2026-11-20T10:20:00.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:21:00.000Z",
         "phase": "review",
         "session": "code-review-t1-2",
         "start": "2026-11-20T10:20:00.000Z",
+        "status": null,
         "step": "code-review",
         "tokens": 32004,
-        "tools": 0
+        "tools": 0,
+        "turns": null
       }
     ],
     "step_runs": [
@@ -375,8 +427,12 @@
         "cost_usd": 0.069118,
         "end": "2026-11-20T10:00:30.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "plan",
+        "status": null,
         "step": "context-creator",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -386,8 +442,12 @@
         "cost_usd": 0.02,
         "end": "2026-11-20T10:00:30.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "plan",
+        "status": null,
         "step": "context-creator",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -397,8 +457,12 @@
         "cost_usd": 0.05,
         "end": "2026-11-20T10:02:40.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "plan",
+        "status": null,
         "step": "context-creator",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -408,8 +472,12 @@
         "cost_usd": 0.054798400000000004,
         "end": "2026-11-20T10:06:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "analyzer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -419,8 +487,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:10:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -430,8 +502,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:11:30.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -441,8 +517,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:14:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -452,8 +532,12 @@
         "cost_usd": 0.0772,
         "end": "2026-11-20T10:14:45.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "verify",
+        "status": null,
         "step": "deslop",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -463,8 +547,12 @@
         "cost_usd": 0.0329,
         "end": "2026-11-20T10:14:58.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "verify",
+        "status": null,
         "step": "red-team",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -474,8 +562,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:16:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "review",
+        "status": null,
         "step": "code-review",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -485,8 +577,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:17:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "analyzer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -496,8 +592,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:19:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -507,8 +607,12 @@
         "cost_usd": 0.054508,
         "end": "2026-11-20T10:21:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "review",
+        "status": null,
         "step": "code-review",
+        "turns": null,
         "unpriced": 0
       }
     ],
@@ -516,6 +620,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:02:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -526,6 +631,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:02:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -536,6 +642,7 @@
       {
         "attempt_id": "t12-r1",
         "auto_answered": false,
+        "by": null,
         "end": "2026-11-20T10:13:00.000Z",
         "end_reason": null,
         "factory_id": "omp",
@@ -704,13 +811,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:00:07.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:00:30.000Z",
       "phase": "plan",
       "session": "context-creator-001-turn",
       "start": "2026-11-20T10:00:07.000Z",
+      "status": null,
       "step": "context-creator",
       "tokens": 32004,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -720,13 +831,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:00:20.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:00:30.000Z",
       "phase": "plan",
       "session": "context-creator-001-spec",
       "start": "2026-11-20T10:00:20.000Z",
+      "status": null,
       "step": "context-creator",
       "tokens": 13704,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -736,13 +851,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:02:10.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:02:40.000Z",
       "phase": "plan",
       "session": "context-creator-002-turn",
       "start": "2026-11-20T10:02:10.000Z",
+      "status": null,
       "step": "context-creator",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -752,13 +871,17 @@
       "factory_id": "omp",
       "failed_tools": 1,
       "first_ts": "2026-11-20T10:05:29.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:06:00.000Z",
       "phase": "implement",
       "session": "analyzer-t1",
       "start": "2026-11-20T10:05:29.000Z",
+      "status": null,
       "step": "analyzer",
       "tokens": 36508,
-      "tools": 2
+      "tools": 2,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -768,13 +891,17 @@
       "factory_id": "omp",
       "failed_tools": 1,
       "first_ts": "2026-11-20T10:06:20.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:10:00.000Z",
       "phase": "implement",
       "session": "engineer-t1-1",
       "start": "2026-11-20T10:06:20.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 32004,
-      "tools": 2
+      "tools": 2,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -784,13 +911,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:11:03.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:11:30.000Z",
       "phase": "implement",
       "session": "engineer-t1-1-2",
       "start": "2026-11-20T10:11:03.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -800,13 +931,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:13:28.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:14:00.000Z",
       "phase": "implement",
       "session": "engineer-t1-1-3",
       "start": "2026-11-20T10:13:28.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -816,13 +951,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:14:35.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:14:45.000Z",
       "phase": "verify",
       "session": "deslop-t1",
       "start": "2026-11-20T10:14:35.000Z",
+      "status": null,
       "step": "deslop",
       "tokens": 13704,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -832,13 +971,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:14:49.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:14:58.000Z",
       "phase": "verify",
       "session": "red-team-t1",
       "start": "2026-11-20T10:14:49.000Z",
+      "status": null,
       "step": "red-team",
       "tokens": 13704,
-      "tools": 1
+      "tools": 1,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -848,13 +991,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:15:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:16:00.000Z",
       "phase": "review",
       "session": "code-review-t1",
       "start": "2026-11-20T10:15:00.000Z",
+      "status": null,
       "step": "code-review",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -864,13 +1011,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:16:20.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:17:00.000Z",
       "phase": "implement",
       "session": "analyzer-t1-2",
       "start": "2026-11-20T10:16:20.000Z",
+      "status": null,
       "step": "analyzer",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -880,13 +1031,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:18:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:19:00.000Z",
       "phase": "implement",
       "session": "engineer-t1-2",
       "start": "2026-11-20T10:18:00.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     },
     {
       "attempt_id": "t12-r1",
@@ -896,13 +1051,17 @@
       "factory_id": "omp",
       "failed_tools": 0,
       "first_ts": "2026-11-20T10:20:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:21:00.000Z",
       "phase": "review",
       "session": "code-review-t1-2",
       "start": "2026-11-20T10:20:00.000Z",
+      "status": null,
       "step": "code-review",
       "tokens": 32004,
-      "tools": 0
+      "tools": 0,
+      "turns": null
     }
   ],
   "step_stats": [
@@ -971,6 +1130,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:02:00.000Z",
       "end_reason": null,
       "factory_id": "omp",
@@ -981,6 +1141,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:02:00.000Z",
       "end_reason": null,
       "factory_id": "omp",
@@ -991,6 +1152,7 @@
     {
       "attempt_id": "t12-r1",
       "auto_answered": false,
+      "by": null,
       "end": "2026-11-20T10:13:00.000Z",
       "end_reason": null,
       "factory_id": "omp",

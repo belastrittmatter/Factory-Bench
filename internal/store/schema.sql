@@ -48,9 +48,11 @@ CREATE TABLE attempts (
                       ('running', 'waiting_for_human', 'completed', 'failed', 'cancelled')),
   started_at        TEXT NOT NULL,
   ended_at          TEXT,
-  human_wait_ms     INTEGER NOT NULL DEFAULT 0,
+  human_wait_ms     INTEGER NOT NULL DEFAULT 0, -- closed waits a person (or nobody said who) answered; overlaps count once
   pr_url            TEXT,
-  waiting_since     TEXT,                  -- start of the open human wait, NULL if none (last column: v1 -> v2 ALTER)
+  waiting_since     TEXT,                  -- start of the oldest open human wait, NULL if none (v1 -> v2 ALTER)
+  observer_wait_ms  INTEGER NOT NULL DEFAULT 0, -- closed waits only an observer (an agent answering for the person) answered (v5 -> v6 ALTER)
+  observer_waits    INTEGER NOT NULL DEFAULT 0, -- this attempt's non-planning waits an observer answered (v5 -> v6 ALTER)
   PRIMARY KEY (factory_id, attempt_id)
 );
 
@@ -71,7 +73,12 @@ CREATE TABLE usage (                        -- one row per usage event
   phase             TEXT,                   -- plan | implement | verify | review, NULL if not sent
   agent_id          TEXT,                   -- subagent, NULL = main agent (v2 -> v3 ALTER)
   step              TEXT,                   -- worker step as the factory names it (factorybench.step), NULL if not sent (v3 -> v4 ALTER)
-  session           TEXT                    -- agent session id (OTLP session.id or payload.session), NULL if not sent (last column: v4 -> v5 ALTER)
+  session           TEXT,                   -- agent session id (OTLP session.id or payload.session), NULL if not sent (v4 -> v5 ALTER)
+  harness           TEXT,                   -- agent harness, e.g. claude, omp, agy (v5 -> v6 ALTER)
+  status            TEXT,                   -- how the session ended, as the factory names it, e.g. accepted, out-of-turns (v5 -> v6 ALTER)
+  turns             INTEGER,                -- (v5 -> v6 ALTER)
+  lane              TEXT,                   -- factory lane (v5 -> v6 ALTER)
+  role              TEXT                    -- factory role that ran the session (v5 -> v6 ALTER)
 );
 
 CREATE TABLE tool_calls (                   -- OTLP tool_result, or a contract activity with a tool
@@ -82,7 +89,8 @@ CREATE TABLE tool_calls (                   -- OTLP tool_result, or a contract a
   tool_name    TEXT NOT NULL,
   success      INTEGER,                     -- 1 | 0, NULL if not reported
   duration_ms  INTEGER,
-  error_type   TEXT                         -- e.g. ShellError
+  error_type   TEXT,                        -- e.g. ShellError
+  lane         TEXT                         -- factory lane, NULL if not sent (v5 -> v6 ALTER)
 );
 
 CREATE TABLE agent_runs (                   -- one row per subagent seen on any event
@@ -119,7 +127,8 @@ CREATE TABLE gates (                        -- factory-internal gate results (ga
   ts           TEXT NOT NULL,
   name         TEXT NOT NULL,               -- e.g. build, guard, test
   passed       INTEGER NOT NULL,            -- 1 | 0
-  reason       TEXT
+  reason       TEXT,
+  lane         TEXT                         -- factory lane, NULL if not sent (v5 -> v6 ALTER)
 );
 
 CREATE TABLE send_backs (                   -- send_back events: the factory sent the run back to an earlier step (v4 -> v5)
@@ -129,7 +138,8 @@ CREATE TABLE send_backs (                   -- send_back events: the factory sen
   from_step    TEXT NOT NULL,               -- e.g. qc, code-review
   to_step      TEXT NOT NULL,               -- e.g. engineer, analyzer
   reason       TEXT,
-  kind         TEXT                         -- e.g. fix-attempt, retry-token
+  kind         TEXT,                        -- e.g. fix-attempt, retry-token, retry (from = to: retried in place)
+  lane         TEXT                         -- factory lane, NULL if not sent (v5 -> v6 ALTER)
 );
 
 CREATE TABLE prs (

@@ -65,12 +65,22 @@ func TestRejects(t *testing.T) {
 		"payload.kind must be planning or blocking": {"human.waiting", `{"kind":"later"}`},
 		"payload.from missing":                      {"send_back", `{"to":"engineer"}`},
 		"payload.to missing":                        {"send_back", `{"from":"qc"}`},
+		"payload.by must be person or observer":     {"human.resumed", `{"by":"robot"}`},
+		"payload.turns must be >= 0":                {"usage", `{"model":"m","input":1,"output":1,"turns":-1}`},
 		"cannot unmarshal":                          {"usage", `{"model":"m","input":1.5,"output":1}`},
 	}
 	for want, c := range cases {
 		_, _, err := Validate([]byte(strings.Replace(strings.Replace(base, "%s", c[0], 1), "%s", c[1], 1)))
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%s: got %v", want, err)
+		}
+	}
+}
+
+func TestClosesOldestWaitOrAllPlanningQuestions(t *testing.T) {
+	for kinds, want := range map[string]int{"b": 1, "bb": 1, "pp": 2, "ppb": 2, "pb": 1, "bp": 1, "p": 1} {
+		if got := Closes(len(kinds), func(i int) string { return map[byte]string{'p': "planning", 'b': "blocking"}[kinds[i]] }); got != want {
+			t.Errorf("%s: %d, want %d", kinds, got, want)
 		}
 	}
 }

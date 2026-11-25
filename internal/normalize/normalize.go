@@ -3,6 +3,7 @@ package normalize
 
 import (
 	"database/sql"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +43,42 @@ type attempt struct {
 	WaitMS            int64
 	PRURL             *string
 	WaitingSince      *string // open human wait, for the live report
+	ObserverWaitMS    int64   // waits an observer (an agent answering for the person) closed, not in WaitMS
+	ObserverWaits     int64   // non-planning waits of this attempt an observer closed: not human interventions
+	waits             []span  // waits this attempt's resumes closed
+}
+
+// span is one closed human wait; observer: closed by an observer, not a person.
+type span struct {
+	start, end time.Time
+	observer   bool
+}
+
+// waitMS is the wall time covered by any of spans (observer ones only if observer), up to cut when cut is set:
+// overlapping waits count once.
+func waitMS(spans []span, observer bool, cut time.Time) int64 {
+	var iv []span
+	for _, s := range spans {
+		if !cut.IsZero() && s.end.After(cut) {
+			s.end = cut
+		}
+		if (observer || !s.observer) && s.end.After(s.start) {
+			iv = append(iv, s)
+		}
+	}
+	sort.Slice(iv, func(i, j int) bool { return iv[i].start.Before(iv[j].start) })
+	var total int64
+	var end time.Time
+	for _, s := range iv {
+		if s.start.Before(end) {
+			s.start = end
+		}
+		if s.end.After(s.start) {
+			total += s.end.Sub(s.start).Milliseconds()
+			end = s.end
+		}
+	}
+	return total
 }
 
 type usage struct {
@@ -52,17 +89,19 @@ type usage struct {
 	Provenance, PriceVersion, Phase, Agent     *string
 	Step                                       *string // worker step (factorybench.step on OTLP logs, payload.step on usage events)
 	Session                                    *string // agent session (session.id on OTLP logs, payload.session on usage events)
+	Harness, Status, Lane, Role                *string // payload fields of usage events
+	Turns                                      *int64
 }
 
 type gate struct {
 	Factory, Attempt, TS, Name string
 	Passed                     bool
-	Reason                     *string
+	Reason, Lane               *string
 }
 
 type sendBack struct {
 	Factory, Attempt, TS, From, To string
-	Reason, Kind                   *string
+	Reason, Kind, Lane             *string
 }
 
 type pr struct {
@@ -129,11 +168,7 @@ func str(s string) *string {
 	return &s
 }
 
-func ms(from, to string) int64 {
-	a, _ := time.Parse(time.RFC3339Nano, from)
-	b, _ := time.Parse(time.RFC3339Nano, to)
-	return b.Sub(a).Milliseconds()
-}
+func parse(ts string) time.Time { t, _ := time.Parse(time.RFC3339Nano, ts); return t }
 
 func terminal(state string) bool {
 	return state == "completed" || state == "failed" || state == "cancelled"
@@ -175,8 +210,9 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	}
 
 	// Pass 2: everything else, in ts order.
-	waits := map[string]string{}    // attempt key -> open human.waiting ts
-	finished := map[string]string{} // attempt key -> status of an attempt that finished while its wait was open
+	type openWait struct{ ts, kind string }
+	waits := map[string][]openWait{} // attempt key -> its open human.waiting events, oldest first
+	finished := map[string]string{}  // attempt key -> status of an attempt that finished while its wait was open
 	prs := map[string]*pr{}
 	var prOrder []string
 	runs := agents{runs: map[string]*agentRun{}}
@@ -202,20 +238,27 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 			if !terminal(a.State) {
 				a.State = "waiting_for_human"
 			}
-			if waits[k] == "" {
-				waits[k] = e.TS
-			}
+			waits[k] = append(waits[k], openWait{e.TS, p.Kind})
 		case "human.resumed":
-			if a.State == "waiting_for_human" {
-				a.State = "running"
-			}
+			// a resume closes the oldest open wait(s), see contract.Closes
 			wk := k
-			if waits[wk] == "" && a.Parent != nil { // plan waited, its build resumed
+			if len(waits[wk]) == 0 && a.Parent != nil { // plan waited, its build resumed
 				wk = e.Factory + "\x00" + *a.Parent
 			}
-			if w := waits[wk]; w != "" {
-				a.WaitMS += ms(w, e.TS)
-				delete(waits, wk)
+			if ws := waits[wk]; len(ws) > 0 {
+				obs, n := p.By == "observer", contract.Closes(len(ws), func(i int) string { return ws[i].kind })
+				for _, w := range ws[:n] {
+					a.waits = append(a.waits, span{parse(w.ts), parse(e.TS), obs})
+				}
+				if obs && ws[0].kind != "planning" {
+					attempts[wk].ObserverWaits++
+				}
+				waits[wk] = ws[n:]
+			}
+			if a.State == "waiting_for_human" && len(waits[k]) == 0 {
+				a.State = "running"
+			}
+			if len(waits[wk]) == 0 {
 				if st := finished[wk]; st != "" { // the waiting attempt already finished: now it's done
 					attempts[wk].State = st
 					delete(finished, wk)
@@ -224,7 +267,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "attempt.finished":
 			if !terminal(a.State) && a.Ended == nil {
 				a.Ended = ptr(e.TS)
-				if waits[k] != "" { // e.g. a plan finishes while its review is pending: still waiting for a human
+				if len(waits[k]) > 0 { // e.g. a plan finishes while its review is pending: still waiting for a human
 					finished[k] = p.Status
 				} else {
 					a.State = p.Status
@@ -233,14 +276,15 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 		case "pr.linked":
 			a.PRURL = ptr(p.PRURL)
 		case "gate":
-			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason)})
+			d.Gates = append(d.Gates, gate{Factory: e.Factory, Attempt: a.ID, TS: e.TS, Name: p.Name, Passed: *p.Passed, Reason: str(p.Reason), Lane: str(p.Lane)})
 		case "send_back":
-			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind)})
+			d.SendBacks = append(d.SendBacks, sendBack{Factory: e.Factory, Attempt: a.ID, TS: e.TS, From: p.From, To: p.To, Reason: str(p.Reason), Kind: str(p.Kind), Lane: str(p.Lane)})
 		case "usage":
 			runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			d.Usage = append(d.Usage, priced(usage{Factory: e.Factory, Attempt: a.ID, Model: p.Model, TS: e.TS, Input: *p.Input,
 				Output: *p.Output, CacheRead: p.CacheRead, CacheWrite: p.CacheWrite, Reasoning: p.Reasoning, Duration: p.DurationMS,
-				Phase: str(p.Phase), Step: str(stepName(p.Step)), Session: str(strings.TrimSpace(p.Session)), Agent: str(p.AgentID)}, p.ReportedCostUSD))
+				Phase: str(p.Phase), Step: str(stepName(p.Step)), Session: str(strings.TrimSpace(p.Session)), Agent: str(p.AgentID),
+				Harness: str(p.Harness), Status: str(p.Status), Turns: p.Turns, Lane: str(p.Lane), Role: str(p.Role)}, p.ReportedCostUSD))
 		case "activity":
 			r := runs.see(e, p.AgentID, p.ParentAgentID, p.Agent, false)
 			if r != nil && r.Phase == nil && contract.Phases[p.Phase] {
@@ -252,7 +296,7 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 					ok = ptr(!*p.Failed)
 				}
 				d.ToolCalls = append(d.ToolCalls, toolCall{Factory: e.Factory, Attempt: a.ID, Agent: str(p.AgentID), TS: e.TS,
-					Tool: p.Tool, Success: ok, Duration: p.DurationMS})
+					Tool: p.Tool, Success: ok, Duration: p.DurationMS, Lane: str(p.Lane)})
 			}
 		}
 	}
@@ -291,7 +335,13 @@ func derive(events []event, commitEmails, logins map[string]string) result {
 	prStates := map[string]map[string]bool{} // work item -> states of its linked PRs
 	for _, k := range order {
 		a := attempts[k]
-		a.WaitingSince = str(waits[k])
+		var cut time.Time
+		if len(waits[k]) > 0 { // the live report adds now - WaitingSince: closed waits count only up to it
+			a.WaitingSince = ptr(waits[k][0].ts)
+			cut = parse(waits[k][0].ts)
+		}
+		a.WaitMS = waitMS(a.waits, false, cut)
+		a.ObserverWaitMS = waitMS(a.waits, true, cut) - a.WaitMS
 		d.Attempts = append(d.Attempts, *a)
 		if a.PRURL != nil && byURL[*a.PRURL] != nil {
 			wi := a.Repo + "#" + itoa(a.Issue)
@@ -409,18 +459,19 @@ func Run(db *sql.DB) error {
 			VALUES (?,?,?,?,?,?,?,?,?,?)`, w.Repo, w.Issue, w.TaskType, w.Title, w.IssueState, w.ClosedAt, w.ClosedBy, w.First, w.Outcome, w.Survival)
 	}
 	for _, a := range d.Attempts {
-		ins(`INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`, a.Factory, a.ID, a.Repo, a.Issue, a.Parent, a.Role,
-			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince)
+		ins(`INSERT INTO attempts VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, a.Factory, a.ID, a.Repo, a.Issue, a.Parent, a.Role,
+			a.Config, a.State, a.Started, a.Ended, a.WaitMS, a.PRURL, a.WaitingSince, a.ObserverWaitMS, a.ObserverWaits)
 	}
 	for _, u := range d.Usage {
-		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
-			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step, u.Session)
+		ins(`INSERT INTO usage VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, u.Factory, u.Attempt, u.Model, u.TS, u.Input, u.Output,
+			u.CacheRead, u.CacheWrite, u.Reasoning, u.Duration, u.Cost, u.Provenance, u.PriceVersion, u.Phase, u.Agent, u.Step, u.Session,
+			u.Harness, u.Status, u.Turns, u.Lane, u.Role)
 	}
 	for _, g := range d.Gates {
-		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason)
+		ins(`INSERT INTO gates VALUES (?,?,?,?,?,?,?)`, g.Factory, g.Attempt, g.TS, g.Name, g.Passed, g.Reason, g.Lane)
 	}
 	for _, s := range d.SendBacks {
-		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind)
+		ins(`INSERT INTO send_backs VALUES (?,?,?,?,?,?,?,?)`, s.Factory, s.Attempt, s.TS, s.From, s.To, s.Reason, s.Kind, s.Lane)
 	}
 	for _, p := range d.PRs {
 		ins(`INSERT INTO prs VALUES (?,?,?,?,?,?,?,?,?,?,?)`, p.Repo, p.Number, p.URL, p.Branch, p.State, p.Merged, p.FactoryCommits,
@@ -436,7 +487,7 @@ func Run(db *sql.DB) error {
 		ins(`INSERT INTO pr_commits VALUES (?,?,?,?,?,?)`, c.Repo, c.PR, c.SHA, c.Email, c.Factory, c.Committed)
 	}
 	for _, c := range d.ToolCalls {
-		ins(`INSERT INTO tool_calls VALUES (?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.Agent, c.TS, c.Tool, c.Success, c.Duration, c.ErrorType)
+		ins(`INSERT INTO tool_calls VALUES (?,?,?,?,?,?,?,?,?)`, c.Factory, c.Attempt, c.Agent, c.TS, c.Tool, c.Success, c.Duration, c.ErrorType, c.Lane)
 	}
 	for _, r := range d.AgentRuns {
 		ins(`INSERT INTO agent_runs VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`, r.Factory, r.Attempt, r.ID, r.Parent, r.Type, r.Async,

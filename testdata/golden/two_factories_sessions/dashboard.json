@@ -22,13 +22,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:00:00.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:01:00.000Z",
         "phase": "implement",
         "session": "s-a",
         "start": "2026-11-20T10:00:00.000Z",
+        "status": null,
         "step": "analyzer",
         "tokens": 1700,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "o1",
@@ -38,13 +42,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:03:00.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:05:00.000Z",
         "phase": "implement",
         "session": "s-b",
         "start": "2026-11-20T10:03:00.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 3400,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "o1",
@@ -54,13 +62,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:09:30.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:10:00.000Z",
         "phase": "verify",
         "session": "s-c",
         "start": "2026-11-20T10:09:30.000Z",
+        "status": null,
         "step": "qc",
         "tokens": 1700,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "o1",
@@ -70,13 +82,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:11:20.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:12:00.000Z",
         "phase": "implement",
         "session": "s-d",
         "start": "2026-11-20T10:11:20.000Z",
+        "status": null,
         "step": "engineer",
         "tokens": 1700,
-        "tools": null
+        "tools": null,
+        "turns": null
       },
       {
         "attempt_id": "o1",
@@ -86,13 +102,17 @@
         "factory_id": "omp",
         "failed_tools": null,
         "first_ts": "2026-11-20T10:14:40.000Z",
+        "harness": null,
+        "lane": null,
         "last_ts": "2026-11-20T10:15:00.000Z",
         "phase": "verify",
         "session": "s-e",
         "start": "2026-11-20T10:14:40.000Z",
+        "status": null,
         "step": "qc",
         "tokens": 1700,
-        "tools": null
+        "tools": null,
+        "turns": null
       }
     ],
     "step_runs": [
@@ -110,8 +130,12 @@
         "cost_usd": 0.000205,
         "end": "2026-11-20T10:01:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "analyzer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -121,8 +145,12 @@
         "cost_usd": 0.004255,
         "end": "2026-11-20T10:05:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -132,8 +160,12 @@
         "cost_usd": 0.000205,
         "end": "2026-11-20T10:10:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "verify",
+        "status": null,
         "step": "qc",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -143,8 +175,12 @@
         "cost_usd": 0.000205,
         "end": "2026-11-20T10:12:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "implement",
+        "status": null,
         "step": "engineer",
+        "turns": null,
         "unpriced": 0
       },
       {
@@ -154,8 +190,12 @@
         "cost_usd": 0.000205,
         "end": "2026-11-20T10:15:00.000Z",
         "factory_id": "omp",
+        "harness": null,
+        "lane": null,
         "phase": "verify",
+        "status": null,
         "step": "qc",
+        "turns": null,
         "unpriced": 0
       }
     ],
@@ -193,13 +233,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:00:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:01:00.000Z",
       "phase": "implement",
       "session": "s-a",
       "start": "2026-11-20T10:00:00.000Z",
+      "status": null,
       "step": "analyzer",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "c1",
@@ -209,13 +253,17 @@
       "factory_id": "cc",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:02:30.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:03:30.000Z",
       "phase": "implement",
       "session": "cc-1",
       "start": "2026-11-20T10:02:30.000Z",
+      "status": null,
       "step": "analyzer",
       "tokens": 3400,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "o1",
@@ -225,13 +273,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:03:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:05:00.000Z",
       "phase": "implement",
       "session": "s-b",
       "start": "2026-11-20T10:03:00.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 3400,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "c1",
@@ -241,13 +293,17 @@
       "factory_id": "cc",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:06:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:08:00.000Z",
       "phase": "implement",
       "session": "cc-2",
       "start": "2026-11-20T10:06:00.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 3400,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "o1",
@@ -257,13 +313,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:09:30.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:10:00.000Z",
       "phase": "verify",
       "session": "s-c",
       "start": "2026-11-20T10:09:30.000Z",
+      "status": null,
       "step": "qc",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "c1",
@@ -273,13 +333,17 @@
       "factory_id": "cc",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:11:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:11:00.000Z",
       "phase": "verify",
       "session": "cc-3",
       "start": "2026-11-20T10:11:00.000Z",
+      "status": null,
       "step": "qc",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "o1",
@@ -289,13 +353,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:11:20.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:12:00.000Z",
       "phase": "implement",
       "session": "s-d",
       "start": "2026-11-20T10:11:20.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "c1",
@@ -305,13 +373,17 @@
       "factory_id": "cc",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:13:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:14:00.000Z",
       "phase": "implement",
       "session": "cc-4",
       "start": "2026-11-20T10:13:00.000Z",
+      "status": null,
       "step": "engineer",
       "tokens": 3400,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "o1",
@@ -321,13 +393,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:14:40.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:15:00.000Z",
       "phase": "verify",
       "session": "s-e",
       "start": "2026-11-20T10:14:40.000Z",
+      "status": null,
       "step": "qc",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "c1",
@@ -337,13 +413,17 @@
       "factory_id": "cc",
       "failed_tools": null,
       "first_ts": "2026-11-20T10:16:00.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T10:16:00.000Z",
       "phase": "verify",
       "session": "cc-5",
       "start": "2026-11-20T10:16:00.000Z",
+      "status": null,
       "step": "qc",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     },
     {
       "attempt_id": "o2",
@@ -353,13 +433,17 @@
       "factory_id": "omp",
       "failed_tools": null,
       "first_ts": "2026-11-20T11:00:10.000Z",
+      "harness": null,
+      "lane": null,
       "last_ts": "2026-11-20T11:01:00.000Z",
       "phase": "implement",
       "session": "s-f",
       "start": "2026-11-20T11:00:10.000Z",
+      "status": null,
       "step": "analyzer",
       "tokens": 1700,
-      "tools": null
+      "tools": null,
+      "turns": null
     }
   ],
   "step_stats": [

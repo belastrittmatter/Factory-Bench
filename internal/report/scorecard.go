@@ -29,6 +29,8 @@ type card struct {
 	cost                                                                  cost
 	elapsed, active                                                       time.Duration
 	human, escaped, escapedPRs, planN, planPass, prN, prPass, reviewedPRs int
+	observer                                                              int
+	observerWait                                                          time.Duration
 	changesReq, rejected                                                  int
 	stagedRuns, stages, retries                                           int
 	escalations                                                           []string // "config (n runs)" in first-seen order
@@ -93,6 +95,8 @@ func buildCards(d *metricsData, by string, now time.Time) []*card {
 		c.elapsed += u.elapsed
 		c.active += u.active
 		c.human += u.human
+		c.observer += u.observer
+		c.observerWait += u.observerWait
 		c.escaped += u.escaped
 		c.escapedPRs += u.escapedPRs
 		c.planN += u.planN
@@ -292,6 +296,12 @@ var scorecard = []struct {
 	{"review rounds / PR", func(c *card) string { return avg(c.changesReq, c.reviewedPRs) }},
 	{"human interventions / issue", perIssue(func(c *card) string { return avg(c.human, c.items) })},
 	{"human interventions / run", pooledOnly(func(c *card) string { return avg(c.human, len(c.units)) })},
+	{"observer answers / issue", func(c *card) string { // waits an observer answered for the person: not interventions
+		if c.observer == 0 && c.observerWait == 0 {
+			return ""
+		}
+		return fmt.Sprintf("%s (%s waited)", avg(c.observer, c.items), dur(c.observerWait))
+	}},
 	{"escaped defects", func(c *card) string {
 		if c.prs == 0 {
 			return "n/a (no PRs)"

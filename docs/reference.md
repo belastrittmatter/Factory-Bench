@@ -15,7 +15,7 @@ What the code and [spec/](../spec/) don't say. Integration steps are in [INSTALL
 
 ![One issue through a plan → build factory](diagrams/issue-flow.svg)
 
-Attempt states: `running`, `waiting_for_human`, `completed`, `failed`, `cancelled` ([diagram](diagrams/attempt-states.svg)). A `human.waiting` is closed by the next `human.resumed` on the same attempt or its child (plan waits, build resumes); active time = elapsed − human waits. Its optional `kind` is `planning` (a question before the work is confirmed) or `blocking` (any later question).
+Attempt states: `running`, `waiting_for_human`, `completed`, `failed`, `cancelled` ([diagram](diagrams/attempt-states.svg)). Several `human.waiting` may be open at once (a question and command approvals): each `human.resumed` closes the oldest open one on the same attempt, or on its parent when it has none (plan waits, build resumes); with a planning one it closes every open planning one (questions asked together are answered together). Human wait is the wall time any of them was open, counted once; active time = elapsed − human waits. Its optional `kind` is `planning` (a question before the work is confirmed) or `blocking` (any later question or approval). A resume with `by` `observer` (an agent answering for the person) closes an observer wait: its time is not human wait (so it counts as active) and it is not a human intervention.
 
 ## Event contract
 
@@ -52,7 +52,8 @@ Shown by `report items` (one row per unit) and `report factories [--by config|ha
 | first-pass plan approval | units whose plan waited for a human and was resumed: first plan resumed with no `human.steering` before the resume and no second plan ÷ those units (pending reviews excluded) |
 | first-pass PR approval | linked PRs whose first human APPROVED/CHANGES_REQUESTED review is APPROVED ÷ PRs with such a review |
 | review rounds / PR | human CHANGES_REQUESTED reviews ÷ linked PRs with any human review |
-| human interventions / issue | `human.waiting` (except `kind` `planning`) + `human.steering` + human commits on linked PRs + human CHANGES_REQUESTED reviews, ÷ work items |
+| human interventions / issue | `human.waiting` (except `kind` `planning` and waits an observer answered) + `human.steering` + human commits on linked PRs + human CHANGES_REQUESTED reviews, ÷ work items |
+| observer answers / issue | non-planning waits closed by a `human.resumed` with `by` `observer` ÷ work items, with the wall time only an observer was awaited; left out when no factory has one |
 | escaped defects | human CHANGES_REQUESTED reviews and human commits dated after the unit's last attempt ended, shown as `k on m/n PRs` |
 | time to first PR / to merge | per unit, first attempt start → first `pr.linked` / first merge of its PRs; averaged over units that have one. Marked as not comparable on staged runs, where an early stage may open the PR: compare time to merge |
 | CI passing on first push | linked PRs whose executed check runs on the first pushed head SHA (that of the earliest-started run) all succeeded ÷ linked PRs with such runs. On staged runs the earliest run started at or after the first handoff, on a SHA that had no run before it: an earlier stage's push may fail CI on purpose, even when its check starts late |
@@ -70,10 +71,10 @@ Tool, subagent, API error and PR size rows are left out of the scorecard when no
 
 `/api/item?repo=&issue=` and `/api/attempt?factory=&id=` carry, besides their other fields:
 
-- `sessions[]`: `{factory_id, attempt_id, session, step, phase, start, end, cost_usd, tokens, tools, failed_tools}`, every session (see **Session** for start and end); every session also has `first_ts`, `last_ts` and `events` (for a usage session: start, end and its usage rows). `tools` / `failed_tools` are the attempt's tool calls inside the session's time, null when the attempt reported none or another of its sessions overlaps that time (tool calls carry no session, so they cannot be told apart).
+- `sessions[]`: `{factory_id, attempt_id, session, step, phase, start, end, cost_usd, tokens, tools, failed_tools, harness, status, turns, lane}`, every session (see **Session** for start and end); every session also has `first_ts`, `last_ts` and `events` (for a usage session: start, end and its usage rows). `harness` and `lane` are the first its usage rows sent, `status` the last, `turns` their sum; null when none sent them. `steps[]` carry the same four. `tools` / `failed_tools` are the attempt's tool calls inside the session's time, null when the attempt reported none or another of its sessions overlaps that time (tool calls carry no session, so they cannot be told apart).
 - `checks[]`: `{factory_id, attempt_id, name, passed, at, step, reason}`, the gates; `step` is the gate's name when its attempt has a session of that step, else null. GitHub check runs of the issue's PRs are `ci_checks[]`.
 - `send_backs[]`: `{factory_id, attempt_id, at, from, to, reason, kind, inferred}`; inferred ones (from step order) have null reason and kind. Left out when empty.
-- `waits[]`: `{factory_id, attempt_id, start, end, kind, reason}`, one per `human.waiting`, `end` null while open. Left out when empty.
+- `waits[]`: `{factory_id, attempt_id, start, end, kind, reason, by}`, one per `human.waiting`, `end` and `by` (`person`, `observer`, or null when not sent) null while open. Left out when empty.
 
 - `timeline[]` (attempt only): the run's event log, the `report item` lines of the attempt's factory on its issue plus the issue's GitHub lines.
 
@@ -83,7 +84,7 @@ Unknown values are null, never 0. `step_stats[].sent_back` counts `send_backs[]`
 
 ## Storage
 
-SQLite, one schema for all factories ([internal/store/schema.sql](../internal/store/schema.sql), [diagram](diagrams/db-schema.svg)). Intake and the GitHub poller only append to `events`, the raw record of everything received; every other table is derived and rebuilt by `factorybench replay`, so a normalization bug never loses data. Factory-specific extras stay in the raw payload. Existing databases are upgraded automatically on open (v1 → v2 → v3 → v4 → v5) by `serve` or `replay`; after an upgrade, run `factorybench replay` to fill new derived tables and columns (v4 adds `usage.step`, v5 `usage.session` and the `send_backs` table). The dashboard opens the database read-only and refuses any other schema version, so upgrade it with the current binary first.
+SQLite, one schema for all factories ([internal/store/schema.sql](../internal/store/schema.sql), [diagram](diagrams/db-schema.svg)). Intake and the GitHub poller only append to `events`, the raw record of everything received; every other table is derived and rebuilt by `factorybench replay`, so a normalization bug never loses data. Factory-specific extras stay in the raw payload. Existing databases are upgraded automatically on open (v1 → v2 → v3 → v4 → v5 → v6) by `serve` or `replay`; after an upgrade, run `factorybench replay` to fill new derived tables and columns (v4 adds `usage.step`, v5 `usage.session` and the `send_backs` table, v6 `usage.harness`, `status`, `turns`, `lane`, `role` and `lane` on `tool_calls`, `gates` and `send_backs`). The dashboard opens the database read-only and refuses any other schema version, so upgrade it with the current binary first.
 
 Prices live in `internal/pricing/prices/<YYYY-MM-DD>.json` (USD per million tokens). A price change is a new file, never an edit: a session is priced with the newest table dated on or before it, so past costs never change.
 

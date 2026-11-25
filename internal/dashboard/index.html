@@ -646,7 +646,7 @@ function gantt(w,f){
   const groups=[flow.length&&{word:'lane',items:flow.map(d=>({row:d.lane,run:'',at:d.at,end:d.end,color:colorOf('lane',d.lane),dashed:d.failed_attempt,
       tip:`${d.lane}${d.failed_attempt?' · its run '+d.attempt_state:''}\n${fmtWhen(d.at)} · ${fmtDur((+T(d.end)-+T(d.at))/1000)}\n${d.calls.length?callsTip(d.calls.length,d.cost_usd,d.unpriced):'no cost'}${d.outcome?'\n'+d.outcome:''}`}))},
     steps.length&&{word:'step',items:steps.map(x=>({ph:x.phase?.includes(',')?null:x.phase,row:x.step,run:x.factory_id,at:x.at,end:x.end,color:phaseColor(x.phase?.includes(',')?null:x.phase),
-      tip:`${x.step} session · ${fmtDur((+T(x.end)-+T(x.at))/1000)}\n${x.phase?x.phase.split(',').join(' + '):'unknown phase'} · ${fmtWhen(x.at)} → ${fmtTime(T(x.end))}\n${callsTip(x.calls,x.cost_usd,x.unpriced)}`}))}].filter(Boolean);
+      tip:`${x.step} session · ${fmtDur((+T(x.end)-+T(x.at))/1000)}\n${x.phase?x.phase.split(',').join(' + '):'unknown phase'} · ${fmtWhen(x.at)} → ${fmtTime(T(x.end))}\n${callsTip(x.calls,x.cost_usd,x.unpriced)}${(m=>m?'\n'+m:'')([x.harness,x.lane&&'lane '+x.lane,x.status,!nil(x.turns)&&plural(x.turns,'turn')].filter(Boolean).join(' · '))}`}))}].filter(Boolean);
   const pl=110,pr=10,ax=timeAxis([...hw.map(x=>[+T(x.start),+T(x.end||x.start)]),...groups.flatMap(g=>g.items.map(i=>[+T(i.at),+T(i.end)])),...fails.map(x=>[x.t,x.t]),...sbs.map(x=>[x.t,x.t]),...xr.flatMap(r=>r.bars.map(b=>[+T(b.at),+T(b.end)]))],pl,w-pr),X=ax.X;
   // every row is rowH tall, a row whose bars overlap grows a line per stacked bar; marks are centred on cy(row) and row labels share its baseline
   const stack=bars=>{const ends=[];bars.forEach(b=>{b.x1=X(+T(b.at));b.x2=Math.max(b.x1+4,X(+T(b.end)));let k=ends.findIndex(e=>e+2<=b.x1);if(k<0)k=ends.push(0)-1;ends[k]=b.x2;b.k=k});return Math.max(34,ends.length*20+14)};
@@ -777,7 +777,7 @@ V.item=async(repo,issue,hl)=>{
     const why=[...of(sbs,a).map(s=>({at:s.at,step:s.from,t:s.reason&&finding(s.reason)})),...of(waits,a).filter(w=>w.kind==='blocking').map(w=>({at:w.start,step:stepAt(w.start),t:'blocking question: '+finding(w.reason)})),
       ...g.filter(x=>!x.passed).map(x=>({at:x.at,step:x.name,t:x.reason?finding(x.reason):x.name+' check failed, no reason given'}))].sort((x,y)=>+T(x.at)-+T(y.at)).at(-1);
     // time split: agent = union of its sessions; wait = its human waits minus the time an agent was still working; the rest is neither
-    const ag=union(ss.map(s=>[s.first_ts||s.start,s.last_ts||s.end])),wu=union(of(waits,a).map(w=>[w.start,w.end||new Date(end).toISOString()]));
+    const ag=union(ss.map(s=>[s.first_ts||s.start,s.last_ts||s.end])),wu=union(of(waits,a).filter(w=>w.by!=='observer').map(w=>[w.start,w.end||new Date(end).toISOString()]));
     const el=end-+T(a.started_at),agent=spanMs(ag),wait=wu.length?spanMs(wu)-overlapMs(wu,ag):a.human_wait_ms||0,t={agent,wait,other:Math.max(0,el-agent-wait)};
     return {a,name:nameOf[key(a)],cfg:cfgOf(a.config_version),why,last:of(steps,a).reduce((p,x)=>!p||x.last_ts>p.last_ts?x:p,null),lanes:lanesOf(a),
       sessions:ss.filter(s=>s.session).length,sent:of(sbs,a).length,bq:of(waits,a).filter(w=>w.kind==='blocking'),phases:of(d.phases,a),el,t,active:(el-wait)/1000,
@@ -908,7 +908,7 @@ V.attempt=async(f,id)=>{
    ${kpi('Wall clock',esc(fmtDur(el)),(sess.length?`agents busy ${fmtDur(busyMs(sess)/1000)}`:a.has_wait_events?`active ${fmtDur(el-(a.human_wait_ms||0)/1000)}`:'active n/a')+(a.ended_at?'':a.status==='idle'?' · idle':' · still running'))}
    ${d.steps.length?kpi('Sent back',d.send_backs.length,d.send_backs.length?'to '+esc(uniq(d.send_backs.map(s=>s.to)).join(', ')):'never'):''}
    ${kpi('Tool calls',calls,`${failed} failed${calls?' · '+Math.round(failed/calls*100)+'%':''}`)}
-   ${d.waits.length?(bw=>kpi('Blocking questions',blocking,[bw.filter(w=>w.auto_answered).length&&`${bw.filter(w=>w.auto_answered).length} auto-answered`,bw.filter(unanswered).length&&`${bw.filter(unanswered).length} unanswered`,planning&&`${planning} planning`].filter(Boolean).join(' · ')||'answered by a person'))(d.waits.filter(w=>w.kind==='blocking')):''}
+   ${d.waits.length?(bw=>kpi('Blocking questions',blocking,[bw.filter(w=>w.auto_answered).length&&`${bw.filter(w=>w.auto_answered).length} auto-answered`,bw.filter(unanswered).length&&`${bw.filter(unanswered).length} unanswered`,bw.filter(w=>w.by==='observer').length&&`${bw.filter(w=>w.by==='observer').length} by observer`,planning&&`${planning} planning`].filter(Boolean).join(' · ')||'answered by a person'))(d.waits.filter(w=>w.kind==='blocking')):''}
    ${d.agents.length||d.api_errors.length?kpi('Subagents',d.agents.length,`${d.api_errors.length} API error${d.api_errors.length===1?'':'s'}`,d.api_errors.length?'alert':''):''}
   </div>
   <div class="grid">

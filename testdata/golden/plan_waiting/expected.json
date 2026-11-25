@@ -10,6 +10,8 @@
         "factory_id": "fa",
         "human_wait_ms": 0,
         "issue": 2,
+        "observer_wait_ms": 0,
+        "observer_waits": 0,
         "parent_attempt_id": null,
         "pr_url": "https://github.com/acme/app/pull/8",
         "repo": "acme/app",
@@ -60,15 +62,20 @@
         "cost_usd": 0.0135,
         "duration_ms": null,
         "factory_id": "fa",
+        "harness": null,
         "input": 2000,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 500,
         "phase": null,
         "price_version": "2026-11-11",
         "reasoning": null,
+        "role": null,
         "session": null,
+        "status": null,
         "step": null,
-        "ts": "2026-11-11T09:02:00.000Z"
+        "ts": "2026-11-11T09:02:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

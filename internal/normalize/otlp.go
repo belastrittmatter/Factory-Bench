@@ -18,6 +18,7 @@ type toolCall struct {
 	Success          *bool
 	Duration         *int64
 	ErrorType        *string
+	Lane             *string
 }
 
 type agentRun struct {

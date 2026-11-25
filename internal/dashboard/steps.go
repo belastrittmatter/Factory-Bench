@@ -1,10 +1,12 @@
 package dashboard
 
 import (
+	"cmp"
 	"sort"
 	"strings"
 	"time"
 
+	"factorybench/internal/contract"
 	"factorybench/internal/store"
 )
 
@@ -14,7 +16,7 @@ const stepSQL = `nullif(trim(substr(trim(json_extract(payload, '$."factorybench.
 
 // stepUsageSQL is every usage row with a step or a session of the attempts a matching filter, for stepData.
 func stepUsageSQL(filter string) string {
-	return `SELECT u.factory_id, u.attempt_id, u.step, u.ts, u.cost_usd, u.session, u.duration_ms, u.phase,
+	return `SELECT u.factory_id, u.attempt_id, u.step, u.ts, u.cost_usd, u.session, u.duration_ms, u.phase, u.harness, u.status, u.turns, u.lane,
 	u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0) AS tokens FROM usage u JOIN attempts a USING (factory_id, attempt_id)
 	WHERE (u.step IS NOT NULL OR u.session IS NOT NULL) AND ` + filter + ` ORDER BY u.ts`
 }
@@ -135,7 +137,8 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 	for _, s := range all {
 		at, end := s.start, parseTS(s.end)
 		var cost float64
-		var calls, priced, tokens int64
+		var calls, priced, tokens, turns, withTurns int64
+		var harness, status, lane any // from its usage rows: the first harness and lane, the last status
 		for _, u := range usage {
 			if u["factory_id"] != s.f || u["attempt_id"] != s.att {
 				continue
@@ -148,6 +151,14 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 			}
 			calls++
 			tokens += u["tokens"].(int64)
+			if t, ok := u["turns"].(int64); ok {
+				turns += t
+				withTurns++
+			}
+			harness, lane = cmp.Or(harness, u["harness"]), cmp.Or(lane, u["lane"])
+			if u["status"] != nil {
+				status = u["status"]
+			}
 			if c, ok := u["cost_usd"].(float64); ok {
 				cost += c
 				priced++
@@ -160,6 +171,7 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 				"first_ts": s.at, "last_ts": s.end, "events": calls}
 		}
 		row["start"], row["end"], row["cost_usd"], row["tokens"], row["tools"], row["failed_tools"] = s.at, s.end, orNil(cost, priced), orNilInt(tokens, calls), nil, nil
+		row["harness"], row["status"], row["turns"], row["lane"] = harness, status, orNilInt(turns, withTurns), lane
 		overlaps := false // another session of the attempt runs in this one's window: its tool calls cannot be told apart
 		for _, o := range all {
 			if o.f == s.f && o.att == s.att && o.id != s.id && !o.start.After(end) && !at.After(parseTS(o.end)) {
@@ -187,7 +199,8 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 		}
 		stepOf[s.f+"\x00"+s.att+"\x00"+step] = true
 		steps = append(steps, map[string]any{"factory_id": s.f, "attempt_id": s.att, "step": step, "phase": s.phase,
-			"at": s.at, "end": s.end, "calls": calls, "cost_usd": orNil(cost, priced), "unpriced": calls - priced})
+			"at": s.at, "end": s.end, "calls": calls, "cost_usd": orNil(cost, priced), "unpriced": calls - priced,
+			"harness": harness, "status": status, "turns": row["turns"], "lane": lane})
 		x := statOf(s.f, s.att, step)
 		x.sessions++
 		if s.ms != nil {
@@ -298,19 +311,20 @@ func stepData(sessions, usage, gates, tools, sent []map[string]any) map[string]a
 // waitsSQL is every human.waiting and human.resumed of the attempts a matching filter, oldest first, for waits.
 func waitsSQL(filter string) string {
 	return `SELECT e.factory_id, a.attempt_id, a.parent_attempt_id, e.ts, e.type, json_extract(e.payload, '$.payload.reason') AS reason,
-	json_extract(e.payload, '$.payload.kind') AS kind FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
+	json_extract(e.payload, '$.payload.kind') AS kind, json_extract(e.payload, '$.payload.by') AS by FROM events e JOIN attempts a ON a.factory_id = e.factory_id AND a.attempt_id = json_extract(e.payload, '$.attempt_id')
 	WHERE e.source = 'contract' AND e.rejected IS NULL AND e.type IN ('human.waiting', 'human.resumed') AND ` + filter + ` ORDER BY e.ts, e.factory_id, e.id`
 }
 
-// waits is one row per human.waiting (waitsSQL rows), ended by the next human.resumed of its attempt, or of its child
-// when it has none open (plan waits, build resumes); end nil while open. attempt, when set, keeps only that attempt's.
+// waits is one row per human.waiting (waitsSQL rows): each human.resumed ends the oldest open wait of its attempt, or of
+// its parent when it has none open (plan waits, build resumes), as contract.Closes says; end and by (person, observer or nil) are nil while open.
+// attempt, when set, keeps only that attempt's.
 func waits(evs []map[string]any, attempt string) []map[string]any {
 	out, open := []map[string]any{}, map[string][]map[string]any{}
 	for _, e := range evs {
 		f, att := e["factory_id"].(string), e["attempt_id"].(string)
 		k := f + "\x00" + att
 		if e["type"] == "human.waiting" {
-			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"], "end_reason": nil, "auto_answered": false}
+			w := map[string]any{"factory_id": f, "attempt_id": att, "start": e["ts"], "end": nil, "kind": e["kind"], "reason": e["reason"], "end_reason": nil, "by": nil, "auto_answered": false}
 			open[k] = append(open[k], w)
 			if attempt == "" || att == attempt {
 				out = append(out, w)
@@ -320,11 +334,14 @@ func waits(evs []map[string]any, attempt string) []map[string]any {
 		if p, ok := e["parent_attempt_id"].(string); ok && len(open[k]) == 0 {
 			k = f + "\x00" + p
 		}
-		for _, w := range open[k] {
-			w["end"], w["end_reason"] = e["ts"], e["reason"]
-			w["auto_answered"] = autoAnswered(w)
+		if ws := open[k]; len(ws) > 0 {
+			n := contract.Closes(len(ws), func(i int) string { k, _ := ws[i]["kind"].(string); return k })
+			for _, w := range ws[:n] {
+				w["end"], w["end_reason"], w["by"] = e["ts"], e["reason"], e["by"]
+				w["auto_answered"] = autoAnswered(w)
+			}
+			open[k] = ws[n:]
 		}
-		delete(open, k)
 	}
 	return out
 }

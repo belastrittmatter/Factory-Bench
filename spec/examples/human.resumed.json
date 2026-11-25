@@ -4,5 +4,5 @@
   "type": "human.resumed",
   "ts": "2026-11-11T09:27:00Z",
   "attempt_id": "run-8f2c",
-  "payload": { "reason": "plan_approved" }
+  "payload": { "reason": "plan_approved", "by": "person" }
 }

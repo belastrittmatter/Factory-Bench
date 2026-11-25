@@ -10,6 +10,8 @@
         "factory_id": "omp",
         "human_wait_ms": 177000,
         "issue": 41,
+        "observer_wait_ms": 0,
+        "observer_waits": 0,
         "parent_attempt_id": null,
         "pr_url": null,
         "repo": "acme/app",
@@ -24,6 +26,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "context-creator",
         "passed": 1,
         "reason": null,
@@ -32,6 +35,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "devops",
         "passed": 1,
         "reason": null,
@@ -40,6 +44,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "analyzer",
         "passed": 1,
         "reason": null,
@@ -48,6 +53,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "engineer",
         "passed": 1,
         "reason": null,
@@ -56,6 +62,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "qc",
         "passed": 0,
         "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
@@ -64,6 +71,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "engineer",
         "passed": 0,
         "reason": "blocked",
@@ -72,6 +80,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "engineer",
         "passed": 1,
         "reason": null,
@@ -80,6 +89,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "qc",
         "passed": 1,
         "reason": null,
@@ -88,6 +98,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "deslop",
         "passed": 1,
         "reason": null,
@@ -96,6 +107,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "red-team",
         "passed": 1,
         "reason": null,
@@ -104,6 +116,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "code-review",
         "passed": 0,
         "reason": "the hours table has no caption",
@@ -112,6 +125,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "qc",
         "passed": 1,
         "reason": null,
@@ -120,6 +134,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "code-review",
         "passed": 1,
         "reason": null,
@@ -128,6 +143,7 @@
       {
         "attempt_id": "t12-r1",
         "factory_id": "omp",
+        "lane": null,
         "name": "merge",
         "passed": 1,
         "reason": null,
@@ -143,6 +159,7 @@
         "factory_id": "omp",
         "from_step": "qc",
         "kind": "fix-attempt",
+        "lane": null,
         "reason": "- [blocking] existing test case \"lists post titles on the home page\" was removed or renamed",
         "to_step": "engineer",
         "ts": "2026-11-20T10:10:31.000Z"
@@ -152,6 +169,7 @@
         "factory_id": "omp",
         "from_step": "code-review",
         "kind": "retry-token",
+        "lane": null,
         "reason": "the hours table has no caption",
         "to_step": "analyze",
         "ts": "2026-11-20T10:16:02.000Z"
@@ -164,6 +182,7 @@
         "duration_ms": 1,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 1,
         "tool_name": "context_turn",
         "ts": "2026-11-20T10:00:29.000Z"
@@ -174,6 +193,7 @@
         "duration_ms": 464,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 1,
         "tool_name": "bash",
         "ts": "2026-11-20T10:05:40.000Z"
@@ -184,6 +204,7 @@
         "duration_ms": 120,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 0,
         "tool_name": "bash",
         "ts": "2026-11-20T10:05:50.000Z"
@@ -194,6 +215,7 @@
         "duration_ms": 421,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 1,
         "tool_name": "bash",
         "ts": "2026-11-20T10:07:00.000Z"
@@ -204,6 +226,7 @@
         "duration_ms": 300,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 0,
         "tool_name": "bash",
         "ts": "2026-11-20T10:08:00.000Z"
@@ -214,6 +237,7 @@
         "duration_ms": 601,
         "error_type": null,
         "factory_id": "omp",
+        "lane": null,
         "success": 1,
         "tool_name": "bash",
         "ts": "2026-11-20T10:14:55.000Z"
@@ -229,15 +253,20 @@
         "cost_usd": 0.00029039999999999996,
         "duration_ms": null,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-haiku-5-5",
         "output": 500,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "analyzer-t1",
+        "status": null,
         "step": "analyzer",
-        "ts": "2026-11-20T10:06:00.000Z"
+        "ts": "2026-11-20T10:06:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -248,15 +277,20 @@
         "cost_usd": 0.02,
         "duration_ms": 10000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 700,
         "phase": "plan",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": "context-creator-001-spec",
+        "status": null,
         "step": "context-creator",
-        "ts": "2026-11-20T10:00:30.000Z"
+        "ts": "2026-11-20T10:00:30.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -267,15 +301,20 @@
         "cost_usd": 0.069118,
         "duration_ms": 23000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "plan",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": "context-creator-001-turn",
+        "status": null,
         "step": "context-creator",
-        "ts": "2026-11-20T10:00:30.000Z"
+        "ts": "2026-11-20T10:00:30.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -286,15 +325,20 @@
         "cost_usd": 0.05,
         "duration_ms": 30000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "plan",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": "context-creator-002-turn",
+        "status": null,
         "step": "context-creator",
-        "ts": "2026-11-20T10:02:40.000Z"
+        "ts": "2026-11-20T10:02:40.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -305,15 +349,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 31000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "analyzer-t1",
+        "status": null,
         "step": "analyzer",
-        "ts": "2026-11-20T10:06:00.000Z"
+        "ts": "2026-11-20T10:06:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -324,15 +373,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 220000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "engineer-t1-1",
+        "status": null,
         "step": "engineer",
-        "ts": "2026-11-20T10:10:00.000Z"
+        "ts": "2026-11-20T10:10:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -343,15 +397,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 27000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "engineer-t1-1-2",
+        "status": null,
         "step": "engineer",
-        "ts": "2026-11-20T10:11:30.000Z"
+        "ts": "2026-11-20T10:11:30.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -362,15 +421,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 32000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "engineer-t1-1-3",
+        "status": null,
         "step": "engineer",
-        "ts": "2026-11-20T10:14:00.000Z"
+        "ts": "2026-11-20T10:14:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -381,15 +445,20 @@
         "cost_usd": 0.0772,
         "duration_ms": 10000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 700,
         "phase": "verify",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": "deslop-t1",
+        "status": null,
         "step": "deslop",
-        "ts": "2026-11-20T10:14:45.000Z"
+        "ts": "2026-11-20T10:14:45.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -400,15 +469,20 @@
         "cost_usd": 0.0329,
         "duration_ms": 9000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 700,
         "phase": "verify",
         "price_version": null,
         "reasoning": null,
+        "role": null,
         "session": "red-team-t1",
+        "status": null,
         "step": "red-team",
-        "ts": "2026-11-20T10:14:58.000Z"
+        "ts": "2026-11-20T10:14:58.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -419,15 +493,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 60000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "review",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "code-review-t1",
+        "status": null,
         "step": "code-review",
-        "ts": "2026-11-20T10:16:00.000Z"
+        "ts": "2026-11-20T10:16:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -438,15 +517,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 40000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "analyzer-t1-2",
+        "status": null,
         "step": "analyzer",
-        "ts": "2026-11-20T10:17:00.000Z"
+        "ts": "2026-11-20T10:17:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -457,15 +541,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 60000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "implement",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "engineer-t1-2",
+        "status": null,
         "step": "engineer",
-        "ts": "2026-11-20T10:19:00.000Z"
+        "ts": "2026-11-20T10:19:00.000Z",
+        "turns": null
       },
       {
         "agent_id": null,
@@ -476,15 +565,20 @@
         "cost_usd": 0.054508,
         "duration_ms": 60000,
         "factory_id": "omp",
+        "harness": null,
         "input": 4,
+        "lane": null,
         "model": "claude-sonnet-5-5",
         "output": 3000,
         "phase": "review",
         "price_version": "2026-11-13",
         "reasoning": null,
+        "role": null,
         "session": "code-review-t1-2",
+        "status": null,
         "step": "code-review",
-        "ts": "2026-11-20T10:21:00.000Z"
+        "ts": "2026-11-20T10:21:00.000Z",
+        "turns": null
       }
     ],
     "work_items": [

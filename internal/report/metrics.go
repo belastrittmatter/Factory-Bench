@@ -21,7 +21,7 @@ type mAtt struct {
 	factory, id, repo, role, config, state, started string
 	issue                                           int64
 	parent, ended, pr                               sql.NullString
-	waitMS                                          int64
+	waitMS, observerMS, observerWaits               int64
 	stage                                           string // StageKind against its parent, set by buildUnits
 }
 
@@ -92,12 +92,12 @@ func loadMetrics(db *sql.DB) (*metricsData, error) {
 	key := func(repo string, n int64) string { return fmt.Sprintf("%s#%d", repo, n) }
 	return d, firstErr(
 		store.Each(db, `SELECT factory_id, attempt_id, repo, issue, coalesce(role, ''), config_version, state, started_at,
-			parent_attempt_id, ended_at, pr_url, human_wait_ms FROM attempts ORDER BY started_at, factory_id, attempt_id`,
+			parent_attempt_id, ended_at, pr_url, human_wait_ms, observer_wait_ms, observer_waits FROM attempts ORDER BY started_at, factory_id, attempt_id`,
 			func(r *sql.Rows) error {
 				a := &mAtt{}
 				d.atts = append(d.atts, a)
 				return r.Scan(&a.factory, &a.id, &a.repo, &a.issue, &a.role, &a.config, &a.state, &a.started,
-					&a.parent, &a.ended, &a.pr, &a.waitMS)
+					&a.parent, &a.ended, &a.pr, &a.waitMS, &a.observerMS, &a.observerWaits)
 			}),
 		store.Each(db, `SELECT factory_id, attempt_id, input + output + coalesce(cache_read, 0) + coalesce(cache_write, 0),
 			cost_usd, cost_provenance, phase, duration_ms, session FROM usage`, func(r *sql.Rows) error {
@@ -253,7 +253,9 @@ type unit struct {
 	cost                                          cost
 	elapsed, active                               time.Duration
 	human, escaped, escapedPRs                    int
-	planN, planPass, prN, prPass                  int // first-pass approvals: denominators and passes
+	observer                                      int           // non-planning waits an observer answered
+	observerWait                                  time.Duration // wall time of waits only an observer answered
+	planN, planPass, prN, prPass                  int           // first-pass approvals: denominators and passes
 	reviewedPRs, changesReq                       int
 	run                                           runStats
 	sentBack                                      int
@@ -501,6 +503,8 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 			}
 		}
 		waitMS += a.waitMS
+		u.observer += int(a.observerWaits)
+		u.observerWait += time.Duration(a.observerMS) * time.Millisecond
 		s, e := parse(a.started), now
 		if a.ended.Valid {
 			e = parse(a.ended.String)
@@ -549,6 +553,7 @@ func (u *unit) compute(d *metricsData, now time.Time) {
 			u.human++
 		}
 	}
+	u.human -= u.observer // their human.waiting events were counted above, but an observer answered them
 
 	// Escaped: human pushback after the factory's last attempt on the item ended (it had handed the PR over).
 	after := func(ts string) bool { return !open && ts != "" && parse(ts).After(last) }

@@ -34,7 +34,7 @@ func fixture(t *testing.T) (*server, http.Handler, string) {
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, cost_usd, phase) VALUES ('f', 'a1', 'm', '` + ts(20*time.Minute) + `', 10, 5, 0.5, 'p1')`,
 		`INSERT INTO usage (factory_id, attempt_id, model, ts, input, output, agent_id) VALUES ('f', 'a1', 'm', '` + ts(19*time.Minute) + `', 1, 1, 'sub1')`,
 		`INSERT INTO agent_runs (factory_id, attempt_id, agent_id, tool_calls, status, started_at) VALUES ('f', 'a1', 'sub1', 0, 'completed', '` + ts(19*time.Minute) + `'), ('f', 'a1', 'sub2', 0, 'killed', '` + ts(19*time.Minute) + `')`, // sub2 made no model call
-		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1')`,
+		`INSERT INTO tool_calls VALUES ('f', 'a1', NULL, '` + ts(18*time.Minute) + `', 't1', 0, 12, 'E1', NULL)`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('contract', 'f', 'a1:started', 'attempt.started', '` + ts(25*time.Minute) + `', 'x', '{"attempt_id":"a1"}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e1', 'otlp.api_request', '` + ts(20*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"p1","model":"m","query_source":"q1","cost_usd":0.5}')`,
 		`INSERT INTO events (source, factory_id, id, type, ts, received_at, payload) VALUES ('otlp', 'f', 'e3', 'otlp.user_prompt', '` + ts(19*time.Minute) + `', 'x', '{"factorybench.attempt":"a1","session.id":"` + sid + `","factorybench.phase":"a0"}')`,
@@ -562,7 +562,7 @@ func TestSteps(t *testing.T) {
 		use("a1", "analyzer", "2026-11-10T10:00:00.000Z", "0.25"), use("a1", "green", "2026-11-10T10:10:00.000Z", "1"),
 		use("a1", "green", "2026-11-10T10:40:00.000Z", "0.5"), use("a1", "reviewer", "2026-11-10T10:30:00.000Z", "NULL"),
 		use("b1", "other", "2026-11-10T10:00:00.000Z", "9"),
-		`INSERT INTO gates VALUES ('f', 'a1', '2026-11-10T10:21:00.000Z', 'unit', 1, NULL), ('f', 'a1', '2026-11-10T10:31:00.000Z', 'e2e', 0, 'timeout'),
+		`INSERT INTO gates (factory_id, attempt_id, ts, name, passed, reason) VALUES ('f', 'a1', '2026-11-10T10:21:00.000Z', 'unit', 1, NULL), ('f', 'a1', '2026-11-10T10:31:00.000Z', 'e2e', 0, 'timeout'),
 			('f', 'a1', '2026-11-10T10:02:00.000Z', 'red', 0, 'no failing test'), ('f', 'a1', '2026-11-10T10:04:00.000Z', 'red', 1, NULL),
 			('f', 'a2', '2026-11-10T12:10:00.000Z', 'red', 1, NULL), ('f', 'b1', '2026-11-10T10:01:00.000Z', 'red', 0, NULL)`,
 	} {
@@ -692,5 +692,39 @@ func TestQuestionCounts(t *testing.T) {
 	}, "")
 	if got := questionCounts(ws)["f\x00a"]; got != [3]int{3, 1, 1} {
 		t.Errorf("blocking, auto-answered, unanswered = %v, want [3 1 1]", got)
+	}
+}
+
+func TestWaitsResumeTheOldestOpenWait(t *testing.T) {
+	ev := func(typ, ts, by string) map[string]any {
+		return map[string]any{"factory_id": "f", "attempt_id": "a", "type": typ, "ts": ts, "kind": "blocking", "by": by}
+	}
+	ws := waits([]map[string]any{
+		ev("human.waiting", "2026-11-20T10:00:00Z", ""), ev("human.waiting", "2026-11-20T10:01:00Z", ""),
+		ev("human.resumed", "2026-11-20T10:02:00Z", "person"), ev("human.resumed", "2026-11-20T10:03:00Z", "observer"),
+		ev("human.waiting", "2026-11-20T10:04:00Z", ""),
+	}, "")
+	if len(ws) != 3 || ws[0]["end"] != "2026-11-20T10:02:00Z" || ws[0]["by"] != "person" ||
+		ws[1]["end"] != "2026-11-20T10:03:00Z" || ws[1]["by"] != "observer" || ws[2]["end"] != nil {
+		t.Errorf("waits %v", ws)
+	}
+}
+
+func TestSessionsCarryHarnessStatusTurnsAndLane(t *testing.T) {
+	u := func(session, ts, status string, turns any) map[string]any {
+		return map[string]any{"factory_id": "f", "attempt_id": "a", "session": session, "step": "engineer", "ts": ts, "tokens": int64(1),
+			"harness": "omp", "lane": "api", "status": status, "turns": turns}
+	}
+	d := stepData(nil, []map[string]any{u("s1", "2026-11-20T10:00:00.000Z", "out-of-turns", int64(40)), u("s1", "2026-11-20T10:01:00.000Z", "accepted", int64(12)),
+		{"factory_id": "f", "attempt_id": "a", "session": "s2", "ts": "2026-11-20T10:02:00.000Z", "tokens": int64(1)}}, nil, nil, nil)
+	s, plain := d["sessions"].([]map[string]any)[0], d["sessions"].([]map[string]any)[1]
+	if s["harness"] != "omp" || s["status"] != "accepted" || s["turns"] != int64(52) || s["lane"] != "api" {
+		t.Errorf("session %v", s)
+	}
+	if st := d["steps"].([]map[string]any)[0]; st["turns"] != int64(52) || st["status"] != "accepted" {
+		t.Errorf("step %v", st)
+	}
+	if plain["harness"] != nil || plain["status"] != nil || plain["turns"] != nil || plain["lane"] != nil {
+		t.Errorf("session without them: %v", plain)
 	}
 }
