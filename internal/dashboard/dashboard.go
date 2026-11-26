@@ -406,6 +406,9 @@ func (s *server) item(r *http.Request) (any, error) {
 		// GitHub check runs of the issue's PRs ("checks" are the factory's gates, see stepData)
 		"ci_checks": `SELECT c.* FROM checks c JOIN prs p ON p.repo = c.repo AND p.number = c.pr_number
 			WHERE p.url IN (SELECT pr_url FROM attempts WHERE repo = ?1 AND issue = ?2) ORDER BY completed_at, name`,
+		// tokens per model over the issue's runs, for its models chart
+		"models": `SELECT u.model, sum(u.input + u.output + coalesce(u.cache_read, 0) + coalesce(u.cache_write, 0)) AS tokens, sum(u.cost_usd) AS cost_usd
+			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1 ORDER BY 2 DESC`,
 		// cost per attempt and phase, for the issue's cost per stage on single-session runs
 		"phases": `SELECT u.factory_id, u.attempt_id, u.phase, sum(u.cost_usd) AS cost_usd, sum(u.cost_usd IS NULL) AS unpriced
 			FROM usage u JOIN attempts a USING (factory_id, attempt_id) WHERE a.repo = ?1 AND a.issue = ?2 GROUP BY 1, 2, 3 ORDER BY min(u.ts)`,
