@@ -118,7 +118,7 @@ func TestEndpoints(t *testing.T) {
 		s[0].(map[string]any)["phase"] != "a0,p1" || s[0].(map[string]any)["first_ts"] == nil {
 		t.Errorf("item sessions: %v", s)
 	}
-	if a := item["attempts"].([]any)[0].(map[string]any); a["input"] == nil || a["tool_calls"] == nil { // per-run token mix and tool calls
+	if a := item["attempts"].([]any)[0].(map[string]any); a["input"] == nil || a["tool_calls"] == nil || len(item["models"].([]any)) == 0 { // per-run token mix, tool calls and tokens per model
 		t.Errorf("item attempt sums: %v", a)
 	}
 	if u := item["units"].([]any); len(u) != 1 || u[0].(map[string]any)["CIFirstPush"] != "n/a" {
